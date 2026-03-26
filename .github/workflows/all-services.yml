@@ -1,0 +1,171 @@
+# ============================================================
+#  All Services — Orchestrator Pipeline
+#
+#  Triggers all 4 service pipelines in parallel, waits for
+#  all of them to succeed, then creates a GitHub Release
+#  (stable tags only).
+#
+#  Trigger: Manual only (workflow_dispatch)
+#
+#  Required GitHub Variables (Settings → Secrets and variables → Variables):
+#    IMAGE_REGISTRY_BASE   e.g. ghcr.io/johnitopaisah/portfolio-mcs
+#    NEXT_PUBLIC_API_URL   e.g. https://api.johnisah.com
+#    INTERNAL_API_URL      e.g. http://api-service:4000
+#
+#  Run order:
+#    validate ──► db  (parallel)
+#              ├── api
+#              ├── user-ui
+#              └── admin-ui
+#                         └──► release  (stable only, needs all 4)
+#                         └──► summary  (always)
+# ============================================================
+
+name: All Services
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag  e.g. v1.0.0 | v1.0.0-rc | v1.0.0-rc1"
+        required: true
+        type: string
+
+permissions:
+  contents: write   # create releases + git tags
+  packages: write   # push images to GHCR
+
+jobs:
+
+  # ── 0. Validate tag (once, before calling sub-pipelines) ─
+  validate:
+    name: Validate tag
+    uses: ./.github/workflows/_validate-tag.yml
+    with:
+      tag: ${{ inputs.tag }}
+
+  # ── 1–4. Run all service pipelines in parallel ───────────
+  db:
+    name: DB
+    needs: validate
+    uses: ./.github/workflows/db.yml
+    with:
+      tag: ${{ inputs.tag }}
+    secrets: inherit
+
+  api:
+    name: API
+    needs: validate
+    uses: ./.github/workflows/api.yml
+    with:
+      tag: ${{ inputs.tag }}
+    secrets: inherit
+
+  user-ui:
+    name: User UI
+    needs: validate
+    uses: ./.github/workflows/user-ui.yml
+    with:
+      tag: ${{ inputs.tag }}
+    secrets: inherit
+
+  admin-ui:
+    name: Admin UI
+    needs: validate
+    uses: ./.github/workflows/admin-ui.yml
+    with:
+      tag: ${{ inputs.tag }}
+    secrets: inherit
+
+  # ── 5. GitHub Release (stable tags only) ─────────────────
+  release:
+    name: Create GitHub Release
+    needs: [validate, db, api, user-ui, admin-ui]
+    runs-on: ubuntu-latest
+    if: needs.validate.outputs.is_stable == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate release notes
+        run: |
+          TAG="${{ inputs.tag }}"
+          BASE="${{ vars.IMAGE_REGISTRY_BASE }}"
+          PREV=$(git tag --sort=-version:refname | grep -v "^${TAG}$" | head -1)
+
+          LOG=$([ -n "$PREV" ] \
+            && git log --oneline "${PREV}..HEAD" 2>/dev/null \
+            || echo "Initial release")
+
+          cat > release_notes.md << EOF
+          ## Docker images
+
+          | Service   | Image |
+          |-----------|-------|
+          | db        | \`${BASE}/db:${TAG}\`        |
+          | api       | \`${BASE}/api:${TAG}\`       |
+          | user-ui   | \`${BASE}/user-ui:${TAG}\`   |
+          | admin-ui  | \`${BASE}/admin-ui:${TAG}\`  |
+
+          ## Domains
+
+          | Domain | Service |
+          |--------|---------|
+          | https://johnisah.com       | user-ui  |
+          | https://admin.johnisah.com | admin-ui |
+          | https://api.johnisah.com   | api      |
+
+          ## Changes since ${PREV:-beginning}
+
+          \`\`\`
+          ${LOG}
+          \`\`\`
+          EOF
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name:   ${{ inputs.tag }}
+          name:       "Release ${{ inputs.tag }}"
+          body_path:  release_notes.md
+          draft:      false
+          prerelease: false
+
+  # ── 6. Summary ───────────────────────────────────────────
+  summary:
+    name: Summary
+    needs: [validate, db, api, user-ui, admin-ui]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Write summary
+        run: |
+          TAG="${{ inputs.tag }}"
+          DB="${{ needs.db.result }}"
+          API="${{ needs.api.result }}"
+          UI="${{ needs.user-ui.result }}"
+          ADMIN="${{ needs.admin-ui.result }}"
+
+          ok() { [ "$1" = "success" ] && echo "✅" || echo "❌"; }
+
+          ALL_OK="true"
+          for r in "$DB" "$API" "$UI" "$ADMIN"; do
+            [ "$r" != "success" ] && ALL_OK="false"
+          done
+
+          HEADER=$([ "$ALL_OK" = "true" ] \
+            && echo "✅ All services built — \`$TAG\`" \
+            || echo "❌ One or more services failed — \`$TAG\`")
+
+          echo "## All-services pipeline — $HEADER" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Service   | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| db        | $(ok $DB) $DB |" >> $GITHUB_STEP_SUMMARY
+          echo "| api       | $(ok $API) $API |" >> $GITHUB_STEP_SUMMARY
+          echo "| user-ui   | $(ok $UI) $UI |" >> $GITHUB_STEP_SUMMARY
+          echo "| admin-ui  | $(ok $ADMIN) $ADMIN |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Images tagged: \`$TAG\` + \`latest\`" >> $GITHUB_STEP_SUMMARY
