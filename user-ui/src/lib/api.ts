@@ -15,14 +15,6 @@ function serverApi() {
   return url;
 }
 
-// function serverApi() {
-//   return (
-//     process.env.INTERNAL_API_URL ||
-//     process.env.NEXT_PUBLIC_API_URL ||
-//     // 'http://localhost:4000'
-//   );
-// }
-
 async function get(path: string) {
   const res = await fetch(`${serverApi()}${path}`, {
     cache: 'no-store', // always fresh — avoids build-time cached failures
