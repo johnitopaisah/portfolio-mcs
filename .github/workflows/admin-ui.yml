@@ -1,0 +1,177 @@
+# ============================================================
+#  Admin UI — CI Pipeline
+#
+#  Stages:  validate → quality (lint + typecheck) → build → push → summary
+#
+#  Trigger:
+#    - Manual (workflow_dispatch) — run this pipeline alone
+#    - Called  (workflow_call)    — triggered by all-services.yml
+#
+#  Image: ghcr.io/johnitopaisah/portfolio-mcs/admin-ui:<tag>
+#  Runtime: node:20-alpine  |  Next.js 14.2.3 standalone
+#
+#  Required GitHub Variables (Settings → Secrets and variables → Variables):
+#    NEXT_PUBLIC_API_URL   e.g. https://api.johnisah.com
+#    INTERNAL_API_URL      e.g. http://api-service:4000
+#    IMAGE_REGISTRY_BASE   e.g. ghcr.io/johnitopaisah/portfolio-mcs
+# ============================================================
+
+name: Admin UI
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag  e.g. v1.0.0 | v1.0.0-rc | v1.0.0-rc1"
+        required: true
+        type: string
+
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE:    ${{ vars.IMAGE_REGISTRY_BASE }}/admin-ui
+  NODE_VER: "20"
+
+jobs:
+
+  # ── 1. Validate tag ──────────────────────────────────────
+  validate:
+    name: Validate tag
+    uses: ./.github/workflows/_validate-tag.yml
+    with:
+      tag: ${{ inputs.tag }}
+
+  # ── 2. Lint & type-check ─────────────────────────────────
+  quality:
+    name: Lint & typecheck
+    needs: validate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: admin-ui
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify required GitHub Variables are set
+        run: |
+          MISSING=0
+          [ -z "${{ vars.NEXT_PUBLIC_API_URL }}" ]   && echo "❌ GitHub Variable NEXT_PUBLIC_API_URL is not set"  && MISSING=1
+          [ -z "${{ vars.INTERNAL_API_URL }}" ]       && echo "❌ GitHub Variable INTERNAL_API_URL is not set"    && MISSING=1
+          [ -z "${{ vars.IMAGE_REGISTRY_BASE }}" ]    && echo "❌ GitHub Variable IMAGE_REGISTRY_BASE is not set" && MISSING=1
+          [ $MISSING -eq 0 ] && echo "✅ All required GitHub Variables are set"
+          exit $MISSING
+
+      - name: Setup Node ${{ env.NODE_VER }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VER }}
+          cache: npm
+          cache-dependency-path: admin-ui/package-lock.json
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: TypeScript typecheck
+        run: npx tsc --noEmit
+
+      - name: Check required pages exist
+        run: |
+          echo "── Checking page structure ──"
+          for f in \
+            src/app/page.tsx \
+            src/app/layout.tsx \
+            src/app/globals.css \
+            src/app/login/page.tsx \
+            src/app/forgot-password/page.tsx \
+            src/app/reset-password/page.tsx \
+            src/app/dashboard/page.tsx \
+            src/app/dashboard/layout.tsx \
+            src/app/dashboard/projects/page.tsx \
+            src/app/dashboard/skills/page.tsx \
+            src/app/dashboard/experience/page.tsx \
+            src/app/dashboard/certifications/page.tsx \
+            src/app/dashboard/messages/page.tsx \
+            src/app/dashboard/profile/page.tsx \
+            src/components/Sidebar.tsx \
+            src/lib/api.ts; do
+            test -f "$f" && echo "✅ $f" || (echo "❌ Missing: $f" && exit 1)
+          done
+
+      - name: Check robots.txt blocks search engines
+        run: |
+          echo "── Checking robots.txt ──"
+          test -f public/robots.txt || (echo "❌ public/robots.txt missing" && exit 1)
+          grep -q "Disallow: /" public/robots.txt \
+            && echo "✅ robots.txt blocks crawlers" \
+            || (echo "❌ robots.txt must contain 'Disallow: /'" && exit 1)
+
+  # ── 3. Build & push ──────────────────────────────────────
+  build-push:
+    name: Build & push
+    needs: [validate, quality]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push image
+        uses: docker/build-push-action@v5
+        with:
+          context:    ./admin-ui
+          push:       true
+          provenance: false
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL }}
+            INTERNAL_API_URL=${{ vars.INTERNAL_API_URL }}
+          tags: |
+            ${{ vars.IMAGE_REGISTRY_BASE }}/admin-ui:${{ needs.validate.outputs.tag }}
+            ${{ vars.IMAGE_REGISTRY_BASE }}/admin-ui:latest
+          cache-from: type=gha,scope=admin-ui
+          cache-to:   type=gha,scope=admin-ui,mode=max
+
+  # ── 4. Summary ───────────────────────────────────────────
+  summary:
+    name: Summary
+    needs: [validate, quality, build-push]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Write summary
+        run: |
+          TAG="${{ needs.validate.outputs.tag }}"
+          QUALITY="${{ needs.quality.result }}"
+          BUILD="${{ needs.build-push.result }}"
+
+          overall() { [ "$1" = "success" ] && echo "✅" || echo "❌"; }
+
+          echo "## Admin UI pipeline" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Lint & typecheck | $(overall $QUALITY) $QUALITY |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build & push     | $(overall $BUILD) $BUILD |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`${{ vars.IMAGE_REGISTRY_BASE }}/admin-ui:$TAG\`" >> $GITHUB_STEP_SUMMARY
+          echo "**API URL baked in:** \`${{ vars.NEXT_PUBLIC_API_URL }}\`" >> $GITHUB_STEP_SUMMARY
