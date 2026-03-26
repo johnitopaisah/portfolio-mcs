@@ -1,0 +1,4 @@
+-- This file is intentionally empty.
+-- Seeding is now handled by db/seed.sh which reads all
+-- sensitive values (password hash, profile data) from
+-- environment variables. See db/seed.sh for details.

@@ -1,0 +1,55 @@
+# ============================================================
+#  Reusable — Tag Validation
+#  Called by every service pipeline via workflow_call.
+#  Validates format and outputs tag + is_stable flag.
+#
+#  Valid formats:
+#    v0.0.1          → stable release
+#    v0.0.1-rc       → release candidate (no number)
+#    v0.0.1-rc1      → release candidate (numbered)
+# ============================================================
+
+name: _validate-tag
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+    outputs:
+      tag:
+        description: The validated tag string
+        value: ${{ jobs.validate.outputs.tag }}
+      is_stable:
+        description: true if tag has no -rc suffix
+        value: ${{ jobs.validate.outputs.is_stable }}
+
+jobs:
+  validate:
+    name: Validate tag
+    runs-on: ubuntu-latest
+    outputs:
+      tag:       ${{ steps.check.outputs.tag }}
+      is_stable: ${{ steps.check.outputs.is_stable }}
+    steps:
+      - name: Check tag format
+        id: check
+        run: |
+          TAG="${{ inputs.tag }}"
+
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]*)?$ ]]; then
+            echo "::error::Invalid tag: '$TAG'"
+            echo "Valid formats:  v0.0.1  |  v0.0.1-rc  |  v0.0.1-rc1"
+            exit 1
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+          if [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "is_stable=true"  >> "$GITHUB_OUTPUT"
+          else
+            echo "is_stable=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "✅ Tag valid: $TAG  |  stable=$( [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] && echo true || echo false )"

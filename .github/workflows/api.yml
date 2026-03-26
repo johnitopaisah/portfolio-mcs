@@ -1,0 +1,167 @@
+# ============================================================
+#  API — CI Pipeline
+#
+#  Stages:  validate → lint → build → push → summary
+#
+#  Trigger:
+#    - Manual (workflow_dispatch) — run this pipeline alone
+#    - Called  (workflow_call)    — triggered by all-services.yml
+#
+#  Image: ghcr.io/johnitopaisah/portfolio-mcs/api:<tag>
+#  Runtime: node:20-alpine
+#
+#  Required GitHub Variables (Settings → Secrets and variables → Variables):
+#    IMAGE_REGISTRY_BASE   e.g. ghcr.io/johnitopaisah/portfolio-mcs
+# ============================================================
+
+name: API
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag  e.g. v1.0.0 | v1.0.0-rc | v1.0.0-rc1"
+        required: true
+        type: string
+
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE:    ${{ vars.IMAGE_REGISTRY_BASE }}/api
+  NODE_VER: "20"
+
+jobs:
+
+  # ── 1. Validate tag ──────────────────────────────────────
+  validate:
+    name: Validate tag
+    uses: ./.github/workflows/_validate-tag.yml
+    with:
+      tag: ${{ inputs.tag }}
+
+  # ── 2. Lint & security audit ─────────────────────────────
+  lint:
+    name: Lint & audit
+    needs: validate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify required GitHub Variables are set
+        run: |
+          [ -z "${{ vars.IMAGE_REGISTRY_BASE }}" ] \
+            && echo "❌ GitHub Variable IMAGE_REGISTRY_BASE is not set" && exit 1 \
+            || echo "✅ IMAGE_REGISTRY_BASE=${{ vars.IMAGE_REGISTRY_BASE }}"
+
+      - name: Setup Node ${{ env.NODE_VER }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VER }}
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Check for missing required source files
+        run: |
+          echo "── Checking source structure ──"
+          for f in \
+            src/index.js \
+            src/db/client.js \
+            src/middleware/auth.js \
+            src/middleware/errorHandler.js \
+            src/routes/auth.js \
+            src/routes/profile.js \
+            src/routes/projects.js \
+            src/routes/skills.js \
+            src/routes/experiences.js \
+            src/routes/certifications.js \
+            src/routes/contact.js \
+            src/services/notify.js; do
+            test -f "$f" && echo "✅ $f" || (echo "❌ Missing: $f" && exit 1)
+          done
+
+      - name: Security audit (high severity only)
+        run: npm audit --audit-level=high --omit=dev
+
+      - name: Check no leftover debug / placeholder secrets
+        run: |
+          echo "── Scanning for placeholder strings ──"
+          BAD=0
+          for PAT in "changeme" "REPLACE_THIS" "your-secret-here" "xxxx xxxx"; do
+            if grep -r "$PAT" src/ --include="*.js" -l 2>/dev/null; then
+              echo "❌  Found placeholder '$PAT' in source"
+              BAD=1
+            fi
+          done
+          [ $BAD -eq 0 ] && echo "✅  No placeholders found"
+          exit $BAD
+
+  # ── 3. Build & push ──────────────────────────────────────
+  build-push:
+    name: Build & push
+    needs: [validate, lint]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push image
+        uses: docker/build-push-action@v5
+        with:
+          context:    ./api
+          push:       true
+          provenance: false
+          # No build args — all config injected at runtime via k8s secrets
+          tags: |
+            ${{ vars.IMAGE_REGISTRY_BASE }}/api:${{ needs.validate.outputs.tag }}
+            ${{ vars.IMAGE_REGISTRY_BASE }}/api:latest
+          cache-from: type=gha,scope=api
+          cache-to:   type=gha,scope=api,mode=max
+
+  # ── 4. Summary ───────────────────────────────────────────
+  summary:
+    name: Summary
+    needs: [validate, lint, build-push]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Write summary
+        run: |
+          TAG="${{ needs.validate.outputs.tag }}"
+          LINT="${{ needs.lint.result }}"
+          BUILD="${{ needs.build-push.result }}"
+
+          overall() { [ "$1" = "success" ] && echo "✅" || echo "❌"; }
+
+          echo "## API pipeline" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Lint & audit | $(overall $LINT) $LINT |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build & push | $(overall $BUILD) $BUILD |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`${{ vars.IMAGE_REGISTRY_BASE }}/api:$TAG\`" >> $GITHUB_STEP_SUMMARY

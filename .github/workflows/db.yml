@@ -1,0 +1,109 @@
+# ============================================================
+#  Database — CI Pipeline
+#
+#  Stages:  validate → build → push → summary
+#
+#  Trigger:
+#    - Manual (workflow_dispatch) — run this pipeline alone
+#    - Called  (workflow_call)    — triggered by all-services.yml
+#
+#  Image: ghcr.io/johnitopaisah/portfolio-mcs/db:<tag>
+#
+#  Required GitHub Variables (Settings → Secrets and variables → Variables):
+#    IMAGE_REGISTRY_BASE   e.g. ghcr.io/johnitopaisah/portfolio-mcs
+# ============================================================
+
+name: DB
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag  e.g. v1.0.0 | v1.0.0-rc | v1.0.0-rc1"
+        required: true
+        type: string
+
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ${{ vars.IMAGE_REGISTRY_BASE }}/db
+
+jobs:
+
+  # ── 1. Validate tag ──────────────────────────────────────
+  validate:
+    name: Validate tag
+    uses: ./.github/workflows/_validate-tag.yml
+    with:
+      tag: ${{ inputs.tag }}
+
+  # ── 2. Build & push ──────────────────────────────────────
+  build-push:
+    name: Build & push
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify required GitHub Variables are set
+        run: |
+          [ -z "${{ vars.IMAGE_REGISTRY_BASE }}" ] \
+            && echo "❌ GitHub Variable IMAGE_REGISTRY_BASE is not set" && exit 1 \
+            || echo "✅ IMAGE_REGISTRY_BASE=${{ vars.IMAGE_REGISTRY_BASE }}"
+
+      - name: Verify SQL files exist
+        run: |
+          echo "── Checking required files ──"
+          test -f db/schema.sql && echo "✅ schema.sql" || (echo "❌ schema.sql missing" && exit 1)
+          test -f db/seed.sh    && echo "✅ seed.sh"    || (echo "❌ seed.sh missing"    && exit 1)
+          test -f db/Dockerfile && echo "✅ Dockerfile" || (echo "❌ Dockerfile missing" && exit 1)
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push image
+        uses: docker/build-push-action@v5
+        with:
+          context:    ./db
+          push:       true
+          provenance: false
+          tags: |
+            ${{ vars.IMAGE_REGISTRY_BASE }}/db:${{ needs.validate.outputs.tag }}
+            ${{ vars.IMAGE_REGISTRY_BASE }}/db:latest
+          cache-from: type=gha,scope=db
+          cache-to:   type=gha,scope=db,mode=max
+
+  # ── 3. Summary ───────────────────────────────────────────
+  summary:
+    name: Summary
+    needs: [validate, build-push]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Write summary
+        run: |
+          TAG="${{ needs.validate.outputs.tag }}"
+          STATUS="${{ needs.build-push.result }}"
+          ICON=$([ "$STATUS" = "success" ] && echo "✅" || echo "❌")
+          echo "## DB pipeline — $ICON $STATUS" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Image | \`${{ vars.IMAGE_REGISTRY_BASE }}/db:$TAG\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tag   | \`$TAG\` |" >> $GITHUB_STEP_SUMMARY

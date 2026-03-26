@@ -1,0 +1,30 @@
+node_modules/
+.pnp
+.pnp.js
+.next/
+out/
+build/
+dist/
+
+# Env — NEVER commit these
+.env
+.env.local
+.env.production
+.env.*.local
+./api/.env.*
+./api/.env.example
+./api/.env.local
+./api/.env.production
+./api/.env.*.local
+
+# OS
+.DS_Store
+*.log
+
+# K8s real secrets (keep only .example.yaml)
+k8s/secrets/*.yaml
+!k8s/secrets/*.example.yaml
+
+# Never ignore the CI workflows
+!.github/
+!.github/workflows/
