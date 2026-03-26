@@ -4,12 +4,24 @@
 // Browser asset URLs use relative paths → proxied through Next.js (same-origin).
 
 function serverApi() {
-  return (
+  const url =
     process.env.INTERNAL_API_URL ||
-    process.env.NEXT_PUBLIC_API_URL ||
-    'http://localhost:4000'
-  );
+    process.env.NEXT_PUBLIC_API_URL;
+
+  if (!url) {
+    throw new Error("API URL is not defined");
+  }
+
+  return url;
 }
+
+// function serverApi() {
+//   return (
+//     process.env.INTERNAL_API_URL ||
+//     process.env.NEXT_PUBLIC_API_URL ||
+//     // 'http://localhost:4000'
+//   );
+// }
 
 async function get(path: string) {
   const res = await fetch(`${serverApi()}${path}`, {
