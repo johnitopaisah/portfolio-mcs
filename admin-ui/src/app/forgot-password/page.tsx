@@ -34,7 +34,7 @@ export default function ForgotPasswordPage() {
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-white">Reset password</h1>
           <p className="text-gray-500 text-sm mt-1">
-            Enter your email and we'll send a reset link
+            Enter your email and we&apos;ll send a reset link
           </p>
         </div>
 
@@ -47,7 +47,7 @@ export default function ForgotPasswordPage() {
               <p className="text-white font-semibold text-lg">Check your inbox</p>
               <p className="text-gray-400 text-sm mt-1 leading-relaxed">
                 If <span className="text-indigo-400">{email}</span> is linked to an admin account,
-                you'll receive a reset link within a minute.
+                you&apos;ll receive a reset link within a minute.
               </p>
               <p className="text-gray-600 text-xs mt-3">The link expires in 1 hour.</p>
             </div>
