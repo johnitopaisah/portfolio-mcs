@@ -30,26 +30,24 @@ export default function ContactSection() {
 
   return (
     <section id="contact" className="relative overflow-hidden">
-      {/* Ambient glow */}
       <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-96 h-96 pointer-events-none"
         style={{ background: 'radial-gradient(circle, rgba(124,58,237,0.08) 0%, transparent 70%)' }} aria-hidden />
 
       <div className="section relative z-10">
         <div className="section-label">Get in touch</div>
         <h2 className="section-title">Contact</h2>
-        <p className="section-sub">Let's work together</p>
+        <p className="section-sub">Let&apos;s work together</p>
 
         {status === 'success' ? (
           <div className="max-w-md mx-auto card text-center py-16">
             <div className="text-5xl mb-4">🚀</div>
             <h3 className="text-white font-semibold text-xl mb-2">Message sent!</h3>
-            <p className="text-zinc-400 text-sm mb-6">I'll get back to you as soon as possible.</p>
+            <p className="text-zinc-400 text-sm mb-6">I&apos;ll get back to you as soon as possible.</p>
             <button onClick={() => setStatus('idle')} className="btn-outline text-sm">Send another</button>
           </div>
         ) : (
           <div className="grid md:grid-cols-5 gap-8 max-w-4xl mx-auto">
 
-            {/* Left — contact info */}
             <div className="md:col-span-2 flex flex-col justify-center gap-5">
               <p className="text-zinc-400 text-sm leading-relaxed mb-2">
                 Open to DevOps roles, freelance infrastructure projects, and collaboration. I typically respond within 24 hours.
@@ -73,7 +71,6 @@ export default function ContactSection() {
               ))}
             </div>
 
-            {/* Right — form */}
             <form onSubmit={handleSubmit} className="md:col-span-3 card space-y-4">
               <div className="grid sm:grid-cols-2 gap-4">
                 {[

@@ -15,24 +15,21 @@ export default function ExperienceSection({ experiences }: { experiences: Experi
 
   return (
     <section id="experience" className="relative overflow-hidden">
-      {/* Ambient glow */}
       <div className="absolute top-1/2 left-0 -translate-y-1/2 w-80 h-80 pointer-events-none"
         style={{ background: 'radial-gradient(circle, rgba(124,58,237,0.07) 0%, transparent 70%)' }} aria-hidden />
 
       <div className="section relative z-10">
         <div className="section-label">Work history</div>
         <h2 className="section-title">Experience</h2>
-        <p className="section-sub">Where I've worked</p>
+        <p className="section-sub">Where I&apos;ve worked</p>
 
         <div className="relative">
-          {/* Timeline line */}
           <div className="absolute left-6 top-0 bottom-0 w-px"
             style={{ background: 'linear-gradient(to bottom, #7c3aed44, #06b6d444, transparent)' }} />
 
           <div className="space-y-8">
-            {experiences.map((exp, i) => (
+            {experiences.map((exp) => (
               <div key={exp.id} className="relative flex gap-8">
-                {/* Timeline dot */}
                 <div className="relative flex-shrink-0 flex flex-col items-center">
                   <div className="w-12 h-12 rounded-full flex items-center justify-center z-10"
                     style={{ background: 'rgba(124,58,237,0.15)', border: '1px solid rgba(124,58,237,0.4)' }}>
@@ -47,7 +44,6 @@ export default function ExperienceSection({ experiences }: { experiences: Experi
                   </div>
                 </div>
 
-                {/* Content card */}
                 <div className="card flex-1 mb-2 group">
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-3">
                     <div>
