@@ -5,7 +5,6 @@ interface Project {
   live_url?: string; repo_url?: string; has_image: boolean; featured: boolean;
 }
 
-// Gradient fallbacks keyed by position — cycle through for variety
 const GRADIENTS = [
   'linear-gradient(135deg,#1e1b4b 0%,#0f172a 100%)',
   'linear-gradient(135deg,#042c53 0%,#0f172a 100%)',
@@ -15,16 +14,15 @@ const GRADIENTS = [
   'linear-gradient(135deg,#1e3a5f 0%,#0f172a 100%)',
 ];
 
-// Icon fallback per common tech keywords
 function getIcon(tech: string[]): string {
   const t = tech.join(' ').toLowerCase();
   if (t.includes('kubernetes') || t.includes('k8s') || t.includes('helm')) return '⎈';
-  if (t.includes('aws') || t.includes('cloud'))   return '☁';
-  if (t.includes('docker'))                        return '🐳';
-  if (t.includes('terraform') || t.includes('iac')) return '◧';
-  if (t.includes('python') || t.includes('django')) return '🐍';
-  if (t.includes('react') || t.includes('next'))   return '⚛';
-  if (t.includes('linux') || t.includes('bash'))   return '🐧';
+  if (t.includes('aws') || t.includes('cloud'))                            return '☁';
+  if (t.includes('docker'))                                                return '🐳';
+  if (t.includes('terraform') || t.includes('iac'))                       return '◧';
+  if (t.includes('python') || t.includes('django'))                       return '🐍';
+  if (t.includes('react') || t.includes('next'))                          return '⚛';
+  if (t.includes('linux') || t.includes('bash'))                          return '🐧';
   return '◈';
 }
 
@@ -33,19 +31,17 @@ export default function ProjectsSection({ projects }: { projects: Project[] }) {
 
   return (
     <section id="projects" className="relative overflow-hidden">
-      {/* Section ambient glow */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-96 pointer-events-none"
         style={{ background: 'radial-gradient(circle, rgba(79,70,229,0.08) 0%, transparent 70%)' }} aria-hidden />
 
       <div className="section relative z-10">
         <div className="section-label">Selected work</div>
         <h2 className="section-title">Projects</h2>
-        <p className="section-sub">Things I've built</p>
+        <p className="section-sub">Things I&apos;ve built</p>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {projects.map((p, i) => (
             <div key={p.id} className="card flex flex-col group overflow-hidden relative">
-              {/* Featured badge */}
               {p.featured && (
                 <div className="absolute top-3 right-3 z-10 text-xs px-2 py-0.5 rounded-full font-medium"
                   style={{ background: 'rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.4)', color: '#a78bfa' }}>
@@ -53,7 +49,6 @@ export default function ProjectsSection({ projects }: { projects: Project[] }) {
                 </div>
               )}
 
-              {/* Image or gradient fallback */}
               <div className="h-44 -mx-6 -mt-6 mb-5 overflow-hidden rounded-t-2xl relative">
                 {p.has_image ? (
                   <img
@@ -77,7 +72,6 @@ export default function ProjectsSection({ projects }: { projects: Project[] }) {
                     </div>
                   </div>
                 )}
-                {/* Gradient overlay at bottom of image */}
                 <div className="absolute inset-x-0 bottom-0 h-12"
                   style={{ background: 'linear-gradient(to top, rgba(24,24,27,0.8), transparent)' }} />
               </div>

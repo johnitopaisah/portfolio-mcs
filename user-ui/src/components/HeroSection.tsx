@@ -5,7 +5,6 @@ interface Profile {
   github_url?: string; linkedin_url?: string; has_avatar: boolean;
 }
 
-// Tech pills shown in hero — change as needed
 const TECH_PILLS = [
   { label: 'Kubernetes', color: 'rgba(124,58,237,0.15)', border: 'rgba(124,58,237,0.35)', text: '#a78bfa' },
   { label: 'AWS',        color: 'rgba(251,191,36,0.12)', border: 'rgba(251,191,36,0.3)',  text: '#fcd34d' },
@@ -19,7 +18,6 @@ export default function HeroSection({ profile }: { profile: Profile | null }) {
   return (
     <section id="about" className="relative min-h-screen flex items-center overflow-hidden">
 
-      {/* Ambient background glows */}
       <div className="absolute inset-0 pointer-events-none" aria-hidden>
         <div style={{
           position: 'absolute', top: '-10%', right: '-5%',
@@ -41,7 +39,6 @@ export default function HeroSection({ profile }: { profile: Profile | null }) {
       <div className="section relative z-10 w-full pt-16">
         <div className="grid md:grid-cols-2 gap-16 items-center">
 
-          {/* Text column */}
           <div>
             <div className="inline-flex items-center gap-2 mb-6 px-3 py-1.5 rounded-full text-xs font-medium"
               style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)', color: '#86efac' }}>
@@ -49,7 +46,10 @@ export default function HeroSection({ profile }: { profile: Profile | null }) {
               Available for opportunities
             </div>
 
-            <p className="font-mono text-violet-400 text-sm mb-3 tracking-wide">// hi, i'm</p>
+            {/* Wrap // in a JSX expression to avoid jsx-no-comment-textnodes */}
+            <p className="font-mono text-violet-400 text-sm mb-3 tracking-wide">
+              {'// hi, i\'m'}
+            </p>
 
             <h1 className="text-5xl md:text-6xl font-bold text-white leading-[1.1] mb-4">
               {profile?.name?.split(' ').slice(0, -1).join(' ') ?? 'John Itopa'}{' '}
@@ -66,7 +66,6 @@ export default function HeroSection({ profile }: { profile: Profile | null }) {
               {profile?.bio ?? 'Building scalable infrastructure and cloud-native solutions.'}
             </p>
 
-            {/* Tech pills */}
             <div className="flex flex-wrap gap-2 mb-8">
               {TECH_PILLS.map(p => (
                 <span key={p.label} className="text-xs font-medium px-3 py-1 rounded-full"
@@ -76,7 +75,6 @@ export default function HeroSection({ profile }: { profile: Profile | null }) {
               ))}
             </div>
 
-            {/* CTA buttons */}
             <div className="flex flex-wrap gap-3">
               <a href="#projects" className="btn-primary">View Projects →</a>
               <a href="/api/profile/resume" className="btn-outline">Download CV ↓</a>
@@ -93,10 +91,8 @@ export default function HeroSection({ profile }: { profile: Profile | null }) {
             </div>
           </div>
 
-          {/* Avatar column */}
           <div className="flex justify-center">
             <div className="relative">
-              {/* Glow ring behind avatar */}
               <div className="absolute inset-0 rounded-full"
                 style={{ background: 'radial-gradient(circle, rgba(124,58,237,0.3) 0%, transparent 70%)', transform: 'scale(1.15)' }} />
 
@@ -114,7 +110,6 @@ export default function HeroSection({ profile }: { profile: Profile | null }) {
                   }}
                 />
               ) : (
-                /* Fallback when no avatar uploaded */
                 <div style={{
                   width: '22rem', height: '22rem',
                   borderRadius: '50%',
@@ -137,7 +132,6 @@ export default function HeroSection({ profile }: { profile: Profile | null }) {
           </div>
         </div>
 
-        {/* Scroll indicator */}
         <div className="flex justify-center mt-16">
           <a href="#projects" className="flex flex-col items-center gap-2 text-zinc-600 hover:text-zinc-400 transition-colors">
             <span className="text-xs font-mono tracking-widest">scroll</span>
