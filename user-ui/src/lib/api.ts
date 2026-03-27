@@ -1,15 +1,17 @@
-// Server-side fetches use INTERNAL_API_URL (http://api:4000 inside Docker).
+// Server-side fetches use INTERNAL_API_URL (injected at runtime from the K8s ConfigMap).
 // The URL is read INSIDE the function — never as a module-level constant —
 // so it is always resolved at request time, not frozen during build.
-// Browser asset URLs use relative paths → proxied through Next.js (same-origin).
+// Binary asset URLs use relative paths → proxied through middleware (same-origin).
 
-function serverApi() {
-  const url =
-    process.env.INTERNAL_API_URL ||
-    process.env.NEXT_PUBLIC_API_URL;
+function serverApi(): string {
+  const url = process.env.INTERNAL_API_URL;
 
   if (!url) {
-    throw new Error("API URL is not defined");
+    throw new Error(
+      'INTERNAL_API_URL is not set. ' +
+      'In Kubernetes this comes from the portfolio-config ConfigMap. ' +
+      'For local dev, add INTERNAL_API_URL=http://localhost:4000 to .env.local'
+    );
   }
 
   return url;
@@ -17,7 +19,7 @@ function serverApi() {
 
 async function get(path: string) {
   const res = await fetch(`${serverApi()}${path}`, {
-    cache: 'no-store', // always fresh — avoids build-time cached failures
+    cache: 'no-store',
   });
   if (!res.ok) throw new Error(`API ${path} → ${res.status}`);
   return res.json();
@@ -31,7 +33,7 @@ export const api = {
   getExperiences:    () => get('/api/experiences'),
   getCertifications: () => get('/api/certifications'),
 
-  // Binary asset URLs — relative paths, proxied through Next.js (same-origin).
+  // Binary asset URLs — relative paths, proxied through middleware (same-origin).
   // Never cross-origin from the browser's perspective.
   avatarUrl:       '/api/profile/avatar',
   resumeUrl:       '/api/profile/resume',
