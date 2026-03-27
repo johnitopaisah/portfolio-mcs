@@ -2,6 +2,8 @@
 // The URL is read INSIDE the function — never as a module-level constant —
 // so it is always resolved at request time, not frozen during build.
 // Binary asset URLs use relative paths → proxied through middleware (same-origin).
+//
+// For local dev, set INTERNAL_API_URL in .env.local pointing to your local API.
 
 function serverApi(): string {
   const url = process.env.INTERNAL_API_URL;
@@ -10,7 +12,7 @@ function serverApi(): string {
     throw new Error(
       'INTERNAL_API_URL is not set. ' +
       'In Kubernetes this comes from the portfolio-config ConfigMap. ' +
-      'For local dev, add INTERNAL_API_URL=http://localhost:4000 to .env.local'
+      'For local dev, add it to .env.local'
     );
   }
 

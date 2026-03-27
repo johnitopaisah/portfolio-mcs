@@ -11,8 +11,7 @@ import type { NextRequest } from 'next/server';
  * The API service name is fully controlled by the ConfigMap —
  * no image rebuild needed when the service name changes.
  *
- * For local dev, set INTERNAL_API_URL in .env.local:
- *   INTERNAL_API_URL=http://localhost:4000
+ * For local dev, set INTERNAL_API_URL in .env.local
  */
 export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
