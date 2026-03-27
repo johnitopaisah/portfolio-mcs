@@ -6,31 +6,33 @@ import type { NextRequest } from 'next/server';
  *
  * Runs on every request at runtime (not build time).
  * Reads INTERNAL_API_URL from the live container environment,
- * which is injected by the K8s ConfigMap (portfolio-config).
+ * injected by the K8s ConfigMap (portfolio-config).
  *
- * This means the API service name (e.g. portfolio-api, api-service)
- * is fully controlled by the ConfigMap — no image rebuild needed
- * when the service name changes.
+ * The API service name is fully controlled by the ConfigMap —
+ * no image rebuild needed when the service name changes.
  *
- * Local dev fallback: http://localhost:4000
+ * For local dev, set INTERNAL_API_URL in .env.local:
+ *   INTERNAL_API_URL=http://localhost:4000
  */
 export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
-  // Only proxy /api/* routes
   if (!pathname.startsWith('/api/')) {
     return NextResponse.next();
   }
 
-  // Read from runtime environment — comes from ConfigMap INTERNAL_API_URL
-  const apiBase =
-    process.env.INTERNAL_API_URL ||
-    process.env.NEXT_PUBLIC_API_URL ||
-    'http://localhost:4000';
+  const apiBase = process.env.INTERNAL_API_URL;
+
+  if (!apiBase) {
+    console.error('[middleware] INTERNAL_API_URL is not set');
+    return new NextResponse(
+      JSON.stringify({ error: 'API proxy misconfigured: INTERNAL_API_URL is not set' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
 
   const target = `${apiBase}${pathname}${search}`;
 
-  // Forward the request to the API service
   const headers = new Headers(request.headers);
   headers.set('x-forwarded-host', request.headers.get('host') || '');
   headers.set('x-forwarded-proto', 'http');
@@ -45,7 +47,6 @@ export async function middleware(request: NextRequest) {
     });
 
     const responseHeaders = new Headers(response.headers);
-    // Remove hop-by-hop headers that must not be forwarded
     responseHeaders.delete('transfer-encoding');
 
     return new NextResponse(response.body, {
@@ -62,6 +63,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Only run middleware on /api/* paths — skip Next.js internals
   matcher: '/api/:path*',
 };
