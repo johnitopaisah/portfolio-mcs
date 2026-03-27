@@ -298,5 +298,4 @@ For issues:
 
 ---
 
-Last Updated: 2026-03-26
-Kubernetes Version: 1.20+
+Kubernetes Version: 1.34+
