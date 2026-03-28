@@ -6,10 +6,15 @@ export const metadata: Metadata = {
   description: 'Portfolio of John Itopa ISAH — DevOps, Cloud, and Kubernetes Engineer.',
   metadataBase: new URL('https://johnisah.com'),
   openGraph: {
-    type: 'website',
+    type:   'website',
     locale: 'en_US',
-    url: 'https://johnisah.com',
+    url:    'https://johnisah.com',
     siteName: 'John Itopa ISAH',
+    // og:image is served dynamically by src/app/opengraph-image.tsx
+    // Next.js picks it up automatically — no manual reference needed here
+  },
+  twitter: {
+    card: 'summary_large_image',
   },
 };
 

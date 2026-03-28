@@ -2,19 +2,34 @@ import { api } from '@/lib/api';
 
 interface Profile {
   name: string; headline: string; bio: string;
-  github_url?: string; linkedin_url?: string; has_avatar: boolean;
+  github_url?: string; linkedin_url?: string;
+  has_avatar: boolean;
+  hero_tags?: string[];
 }
 
-const TECH_PILLS = [
-  { label: 'Kubernetes', color: 'rgba(124,58,237,0.15)', border: 'rgba(124,58,237,0.35)', text: '#a78bfa' },
-  { label: 'AWS',        color: 'rgba(251,191,36,0.12)', border: 'rgba(251,191,36,0.3)',  text: '#fcd34d' },
-  { label: 'CI/CD',      color: 'rgba(6,182,212,0.12)',  border: 'rgba(6,182,212,0.3)',   text: '#67e8f9' },
-  { label: 'Docker',     color: 'rgba(59,130,246,0.12)', border: 'rgba(59,130,246,0.3)',  text: '#93c5fd' },
-  { label: 'Terraform',  color: 'rgba(139,92,246,0.12)', border: 'rgba(139,92,246,0.3)',  text: '#c4b5fd' },
-  { label: 'GitOps',     color: 'rgba(34,197,94,0.12)',  border: 'rgba(34,197,94,0.3)',   text: '#86efac' },
+// Fallback tags shown when hero_tags is empty or not yet set in the database
+const FALLBACK_TAGS = ['Kubernetes', 'AWS', 'CI/CD', 'Docker', 'Terraform', 'GitOps'];
+
+// Color palette — tags cycle through these by index position.
+// New tags automatically get the next color in the cycle.
+const TAG_COLORS = [
+  { color: 'rgba(124,58,237,0.15)',  border: 'rgba(124,58,237,0.35)',  text: '#a78bfa' }, // violet
+  { color: 'rgba(251,191,36,0.12)',  border: 'rgba(251,191,36,0.3)',   text: '#fcd34d' }, // yellow
+  { color: 'rgba(6,182,212,0.12)',   border: 'rgba(6,182,212,0.3)',    text: '#67e8f9' }, // cyan
+  { color: 'rgba(59,130,246,0.12)',  border: 'rgba(59,130,246,0.3)',   text: '#93c5fd' }, // blue
+  { color: 'rgba(139,92,246,0.12)',  border: 'rgba(139,92,246,0.3)',   text: '#c4b5fd' }, // purple
+  { color: 'rgba(34,197,94,0.12)',   border: 'rgba(34,197,94,0.3)',    text: '#86efac' }, // green
+  { color: 'rgba(249,115,22,0.12)',  border: 'rgba(249,115,22,0.3)',   text: '#fdba74' }, // orange
+  { color: 'rgba(236,72,153,0.12)',  border: 'rgba(236,72,153,0.3)',   text: '#f9a8d4' }, // pink
 ];
 
 export default function HeroSection({ profile }: { profile: Profile | null }) {
+  // Use hero_tags from DB if present and non-empty, otherwise show fallback
+  const tags =
+    profile?.hero_tags && profile.hero_tags.length > 0
+      ? profile.hero_tags
+      : FALLBACK_TAGS;
+
   return (
     <section id="about" className="relative min-h-screen flex items-center overflow-hidden">
 
@@ -46,7 +61,6 @@ export default function HeroSection({ profile }: { profile: Profile | null }) {
               Available for opportunities
             </div>
 
-            {/* Wrap // in a JSX expression to avoid jsx-no-comment-textnodes */}
             <p className="font-mono text-violet-400 text-sm mb-3 tracking-wide">
               {'// hi, i\'m'}
             </p>
@@ -66,13 +80,17 @@ export default function HeroSection({ profile }: { profile: Profile | null }) {
               {profile?.bio ?? 'Building scalable infrastructure and cloud-native solutions.'}
             </p>
 
+            {/* Dynamic tech pills — sourced from DB, editable via admin panel */}
             <div className="flex flex-wrap gap-2 mb-8">
-              {TECH_PILLS.map(p => (
-                <span key={p.label} className="text-xs font-medium px-3 py-1 rounded-full"
-                  style={{ background: p.color, border: `1px solid ${p.border}`, color: p.text }}>
-                  {p.label}
-                </span>
-              ))}
+              {tags.map((tag, i) => {
+                const c = TAG_COLORS[i % TAG_COLORS.length];
+                return (
+                  <span key={tag} className="text-xs font-medium px-3 py-1 rounded-full"
+                    style={{ background: c.color, border: `1px solid ${c.border}`, color: c.text }}>
+                    {tag}
+                  </span>
+                );
+              })}
             </div>
 
             <div className="flex flex-wrap gap-3">
