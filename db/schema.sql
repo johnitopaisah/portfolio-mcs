@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS profile (
   github_url    TEXT,
   linkedin_url  TEXT,
   email         TEXT        NOT NULL,
+  hero_tags     TEXT[]      NOT NULL DEFAULT '{}',
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
