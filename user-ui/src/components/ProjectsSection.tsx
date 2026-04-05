@@ -1,8 +1,6 @@
 'use client';
 import { useState } from 'react';
 
-// Only import the binary URL helper — pure string function, safe in client components.
-// Never import server-side fetch functions (getProfile, getProjects etc.) here.
 const projectImageUrl = (id: string) => `/api/projects/${id}/image`;
 
 interface Project {
@@ -11,7 +9,6 @@ interface Project {
   start_date?: string; end_date?: string; ongoing?: boolean;
 }
 
-// ── Color palette — same 8 colors as HeroSection ─────────────
 const TAG_COLORS = [
   { color: 'rgba(124,58,237,0.15)',  border: 'rgba(124,58,237,0.35)',  text: '#a78bfa' },
   { color: 'rgba(251,191,36,0.12)',  border: 'rgba(251,191,36,0.3)',   text: '#fcd34d' },
@@ -44,10 +41,6 @@ function getIcon(tech: string[]): string {
   return '◈';
 }
 
-// ── Duration helpers — standalone functions, fully typed ──────
-// Using standalone functions (not methods) ensures TypeScript can
-// type-check parameters without object-property narrowing issues.
-
 function calcDuration(start: string, end: string | null | undefined, ongoing: boolean): string {
   const from  = new Date(start);
   const to    = ongoing || !end ? new Date() : new Date(end);
@@ -67,16 +60,32 @@ function fmtDate(d: string | null | undefined): string {
   return new Date(d).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
 }
 
-// Separate function avoids TypeScript object-property narrowing issues
-// inside ternary expressions and closures.
 function calcProgressPct(start: string | undefined, end: string | undefined, ongoing: boolean): number {
   if (!start) return 0;
   if (!ongoing && end) return 100;
   if (ongoing) {
     const mos = (Date.now() - new Date(start).getTime()) / (1000 * 60 * 60 * 24 * 30);
-    return Math.min(100, (mos / 24) * 100); // 24 months = full bar
+    return Math.min(100, (mos / 24) * 100);
   }
   return 0;
+}
+
+// ── Paragraph renderer ────────────────────────────────────────
+// Splits on one or more consecutive newlines (\n or \n\n) so
+// descriptions render correctly regardless of how they were
+// typed in the admin textarea (single Enter or double Enter).
+function DescriptionParagraphs({ text, className }: { text: string; className: string }) {
+  const paras = text.split(/\n+/).filter(p => p.trim());
+  if (paras.length <= 1) {
+    return <p className={className}>{text}</p>;
+  }
+  return (
+    <>
+      {paras.map((para, idx) => (
+        <p key={idx} className={className}>{para}</p>
+      ))}
+    </>
+  );
 }
 
 // ── Timeline strip ────────────────────────────────────────────
@@ -108,8 +117,6 @@ function ProjectModal({ p, onClose }: { p: Project; onClose: () => void }) {
   const dur         = p.start_date
     ? calcDuration(p.start_date, p.end_date, p.ongoing ?? false)
     : null;
-
-  // calcProgressPct is a standalone typed function — no TypeScript narrowing issues
   const progressPct = calcProgressPct(p.start_date, p.end_date, p.ongoing ?? false);
   const barWidth    = Math.max(progressPct, 8);
 
@@ -128,14 +135,10 @@ function ProjectModal({ p, onClose }: { p: Project; onClose: () => void }) {
         }}
         onClick={e => e.stopPropagation()}
       >
-        {/* Header image / gradient */}
+        {/* Header */}
         <div className="h-52 rounded-t-2xl overflow-hidden relative">
           {p.has_image ? (
-            <img
-              src={projectImageUrl(p.id)}
-              alt={p.title}
-              className="w-full h-full object-cover"
-            />
+            <img src={projectImageUrl(p.id)} alt={p.title} className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full flex items-center justify-center"
               style={{ background: 'linear-gradient(135deg,#1e1b4b 0%,#0f172a 100%)' }}>
@@ -144,56 +147,42 @@ function ProjectModal({ p, onClose }: { p: Project; onClose: () => void }) {
           )}
           <div className="absolute inset-0"
             style={{ background: 'linear-gradient(to top, #18181b 0%, transparent 50%)' }} />
-
           {p.featured && (
             <div className="absolute top-4 left-4 text-xs px-2.5 py-1 rounded-full font-medium"
               style={{ background: 'rgba(124,58,237,0.3)', border: '1px solid rgba(124,58,237,0.5)', color: '#a78bfa' }}>
               ★ Featured
             </div>
           )}
-
-          <button
-            onClick={onClose}
+          <button onClick={onClose}
             className="absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center
                        text-zinc-400 hover:text-white transition-colors"
-            style={{ background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)' }}
-          >
+            style={{ background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)' }}>
             ✕
           </button>
         </div>
 
         <div className="p-8 space-y-7">
 
-          {/* Title */}
           <h2 className="text-2xl font-bold text-white leading-tight">{p.title}</h2>
 
           {/* Timeline */}
           {p.start_date && (
             <div className="space-y-3">
-              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">
-                Timeline
-              </p>
+              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">Timeline</p>
               <div className="relative">
                 <div className="h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                  <div
-                    className="h-full rounded-full transition-all duration-700"
+                  <div className="h-full rounded-full transition-all duration-700"
                     style={{
                       width: `${barWidth}%`,
                       background: p.ongoing
                         ? 'linear-gradient(90deg, #7c3aed, #22c55e)'
                         : 'linear-gradient(90deg, #7c3aed, #06b6d4)',
-                    }}
-                  />
+                    }} />
                 </div>
-                {/* Start dot */}
                 <div className="absolute -top-1 left-0 w-3 h-3 rounded-full bg-violet-500" />
-                {/* End dot */}
-                <div
-                  className={`absolute -top-1 w-3 h-3 rounded-full ${
-                    p.ongoing ? 'bg-green-400 animate-pulse' : 'bg-cyan-400'
-                  }`}
-                  style={{ right: `${100 - barWidth}%`, transform: 'translateX(50%)' }}
-                />
+                <div className={`absolute -top-1 w-3 h-3 rounded-full ${
+                  p.ongoing ? 'bg-green-400 animate-pulse' : 'bg-cyan-400'
+                }`} style={{ right: `${100 - barWidth}%`, transform: 'translateX(50%)' }} />
               </div>
               <div className="flex justify-between items-center text-sm">
                 <span className="text-zinc-400">{fmtDate(p.start_date)}</span>
@@ -208,17 +197,18 @@ function ProjectModal({ p, onClose }: { p: Project; onClose: () => void }) {
             </div>
           )}
 
-          {/* Description — split on double newline for paragraph breaks */}
+          {/* Description — split on any newline sequence */}
           <div className="space-y-3">
             <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">About</p>
             <div className="space-y-3">
-              {p.description.split('\n\n').map((para, idx) => (
-                <p key={idx} className="text-zinc-300 text-sm leading-relaxed">{para}</p>
-              ))}
+              <DescriptionParagraphs
+                text={p.description}
+                className="text-zinc-300 text-sm leading-relaxed"
+              />
             </div>
           </div>
 
-          {/* Tech stack — all tags with colors */}
+          {/* Tech stack */}
           <div className="space-y-3">
             <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">
               Tech stack · {p.tech_stack.length} technologies
@@ -227,8 +217,7 @@ function ProjectModal({ p, onClose }: { p: Project; onClose: () => void }) {
               {p.tech_stack.map((tag, ti) => {
                 const c = TAG_COLORS[ti % TAG_COLORS.length];
                 return (
-                  <span key={tag}
-                    className="text-xs font-medium px-3 py-1.5 rounded-full"
+                  <span key={tag} className="text-xs font-medium px-3 py-1.5 rounded-full"
                     style={{ background: c.color, border: `1px solid ${c.border}`, color: c.text }}>
                     {tag}
                   </span>
@@ -299,11 +288,8 @@ export default function ProjectsSection({ projects }: { projects: Project[] }) {
               {/* Thumbnail */}
               <div className="h-44 -mx-6 -mt-6 mb-5 overflow-hidden rounded-t-2xl relative">
                 {p.has_image ? (
-                  <img
-                    src={projectImageUrl(p.id)}
-                    alt={p.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
+                  <img src={projectImageUrl(p.id)} alt={p.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center"
                     style={{ background: GRADIENTS[i % GRADIENTS.length] }}>
@@ -327,32 +313,26 @@ export default function ProjectsSection({ projects }: { projects: Project[] }) {
                   style={{ background: 'linear-gradient(to top, rgba(24,24,27,0.8), transparent)' }} />
               </div>
 
-              {/* Title */}
               <h3 className="font-semibold text-white text-lg mb-2 group-hover:text-violet-300 transition-colors">
                 {p.title}
               </h3>
 
-              {/* Timeline strip */}
               <div className="mb-3">
                 <TimelineStrip p={p} compact />
               </div>
 
-              {/* Description preview */}
+              {/* Card description — clamp to 3 lines, no paragraph splitting needed here */}
               <p className="text-zinc-400 text-sm leading-relaxed mb-2 line-clamp-3">
                 {p.description}
               </p>
 
-              {/* Read more */}
-              <button
-                onClick={() => setSelectedProject(p)}
+              <button onClick={() => setSelectedProject(p)}
                 className="text-xs text-violet-400 hover:text-violet-300 transition-colors
-                           text-left mb-4 flex items-center gap-1 group/btn"
-              >
+                           text-left mb-4 flex items-center gap-1 group/btn">
                 Read more
                 <span className="group-hover/btn:translate-x-0.5 transition-transform">→</span>
               </button>
 
-              {/* Tech pills — multi-color */}
               <div className="flex flex-wrap gap-1.5 mb-5">
                 {p.tech_stack.map((t, ti) => {
                   const c = TAG_COLORS[ti % TAG_COLORS.length];
@@ -365,7 +345,6 @@ export default function ProjectsSection({ projects }: { projects: Project[] }) {
                 })}
               </div>
 
-              {/* Links */}
               <div className="flex gap-4 mt-auto pt-4 border-t border-zinc-800">
                 {p.repo_url && (
                   <a href={p.repo_url} target="_blank" rel="noopener noreferrer"
@@ -385,12 +364,8 @@ export default function ProjectsSection({ projects }: { projects: Project[] }) {
         </div>
       </div>
 
-      {/* Modal */}
       {selectedProject && (
-        <ProjectModal
-          p={selectedProject}
-          onClose={() => setSelectedProject(null)}
-        />
+        <ProjectModal p={selectedProject} onClose={() => setSelectedProject(null)} />
       )}
     </section>
   );

@@ -10,6 +10,22 @@ function formatDate(d?: string) {
   return new Date(d).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
 }
 
+// Split description on any newline sequence and render each line as its own paragraph.
+// Handles \n (single Enter) and \n\n (double Enter) from the admin textarea equally.
+function DescriptionParagraphs({ text }: { text: string }) {
+  const paras = text.split(/\n+/).filter(p => p.trim());
+  if (paras.length <= 1) {
+    return <p className="text-zinc-400 text-sm leading-relaxed">{text}</p>;
+  }
+  return (
+    <div className="space-y-2">
+      {paras.map((para, idx) => (
+        <p key={idx} className="text-zinc-400 text-sm leading-relaxed">{para}</p>
+      ))}
+    </div>
+  );
+}
+
 export default function ExperienceSection({ experiences }: { experiences: Experience[] }) {
   if (!experiences.length) return null;
 
@@ -57,7 +73,7 @@ export default function ExperienceSection({ experiences }: { experiences: Experi
                       {formatDate(exp.start_date)} – {formatDate(exp.end_date)}
                     </span>
                   </div>
-                  <p className="text-zinc-400 text-sm leading-relaxed">{exp.description}</p>
+                  <DescriptionParagraphs text={exp.description} />
                 </div>
               </div>
             ))}
