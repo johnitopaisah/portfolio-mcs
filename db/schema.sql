@@ -62,6 +62,8 @@ CREATE TABLE IF NOT EXISTS experiences (
   description   TEXT        NOT NULL,
   start_date    DATE        NOT NULL,
   end_date      DATE,
+  ongoing       BOOLEAN     NOT NULL DEFAULT FALSE,
+  tech_stack    TEXT[]      NOT NULL DEFAULT '{}',
   logo          BYTEA,
   logo_mime     TEXT,
   order_index   INT         NOT NULL DEFAULT 0,
