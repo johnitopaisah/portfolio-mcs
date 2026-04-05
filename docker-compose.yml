@@ -25,7 +25,6 @@ services:
       POSTGRES_DB:       ${POSTGRES_DB:-portfolio_db}
       POSTGRES_USER:     ${POSTGRES_USER:-portfolio_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
-      # Seed script vars — injected into 02-seed.sh at first start
       ADMIN_PASSWORD_HASH:     ${ADMIN_PASSWORD_HASH:?ADMIN_PASSWORD_HASH must be set in .env}
       ADMIN_PROFILE_NAME:      ${ADMIN_PROFILE_NAME:-John Itopa ISAH}
       ADMIN_PROFILE_HEADLINE:  ${ADMIN_PROFILE_HEADLINE:-DevOps & Cloud Engineer}
@@ -84,7 +83,7 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_URL: http://localhost:4000
-        INTERNAL_API_URL: http://api:4000
+        INTERNAL_API_URL:    http://api:4000
     container_name: portfolio-user-ui
     restart: unless-stopped
     networks: [portfolio]
@@ -92,7 +91,9 @@ services:
       api:
         condition: service_healthy
     environment:
+      # NEXT_PUBLIC_API_URL is baked at build time — listed here for documentation only
       NEXT_PUBLIC_API_URL: http://localhost:4000
+      # INTERNAL_API_URL is read at runtime by middleware — must be the Docker service name
       INTERNAL_API_URL:    http://api:4000
       PORT:                3000
     ports:
@@ -105,7 +106,7 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_URL: http://localhost:4000
-        INTERNAL_API_URL: http://api:4000
+        INTERNAL_API_URL:    http://api:4000
     container_name: portfolio-admin-ui
     restart: unless-stopped
     networks: [portfolio]
@@ -113,7 +114,10 @@ services:
       api:
         condition: service_healthy
     environment:
+      # NEXT_PUBLIC_API_URL is baked at build time — listed here for documentation only
       NEXT_PUBLIC_API_URL: http://localhost:4000
+      # INTERNAL_API_URL is read at runtime by middleware — must be the Docker service name
+      INTERNAL_API_URL:    http://api:4000
       PORT:                3001
     ports:
       - "3001:3001"
