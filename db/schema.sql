@@ -35,6 +35,9 @@ CREATE TABLE IF NOT EXISTS projects (
   featured      BOOLEAN     NOT NULL DEFAULT FALSE,
   published     BOOLEAN     NOT NULL DEFAULT FALSE,
   order_index   INT         NOT NULL DEFAULT 0,
+  start_date    DATE,
+  end_date      DATE,
+  ongoing       BOOLEAN     NOT NULL DEFAULT FALSE,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
