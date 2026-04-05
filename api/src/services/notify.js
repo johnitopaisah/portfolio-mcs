@@ -4,9 +4,20 @@ const nodemailer = require('nodemailer');
 const twilio     = require('twilio');
 
 // ── Email transport ───────────────────────────────────────────
+// Uses Zoho Mail SMTP — emails sent From: connect@johnisah.com
+// Credentials come from environment variables (Infisical in prod, .env locally).
+//
+// Required env vars:
+//   NOTIFY_EMAIL_USER  = connect@johnisah.com
+//   NOTIFY_EMAIL_PASS  = <Zoho app password>
+//   NOTIFY_SMTP_HOST   = smtppro.zoho.eu
+//   NOTIFY_SMTP_PORT   = 465
 function createTransport() {
+  const port = parseInt(process.env.NOTIFY_SMTP_PORT || '465', 10);
   return nodemailer.createTransport({
-    service: 'gmail',
+    host:   process.env.NOTIFY_SMTP_HOST || 'smtppro.zoho.eu',
+    port,
+    secure: port === 465,  // true for 465 (SSL), false for 587 (STARTTLS)
     auth: {
       user: process.env.NOTIFY_EMAIL_USER,
       pass: process.env.NOTIFY_EMAIL_PASS,
@@ -14,7 +25,7 @@ function createTransport() {
   });
 }
 
-// ── 1. Your notification email (existing — unchanged) ─────────
+// ── 1. Your notification email ────────────────────────────────
 async function sendEmail({ name, email, subject, message }) {
   if (!process.env.NOTIFY_EMAIL_USER || !process.env.NOTIFY_EMAIL_PASS) {
     console.warn('[notify] Email env vars not set — skipping email notification');
@@ -75,31 +86,21 @@ async function sendEmail({ name, email, subject, message }) {
   console.log(`[notify] Contact email sent — from: ${name} <${email}>`);
 }
 
-// ── 2. Sender acknowledgement email (new) ────────────────────
-// Sent to the person who filled the contact form so they know
-// their message was received. Uses the same Gmail credentials.
-// Reply-To is set to NOTIFY_EMAIL_USER so any reply from the
-// sender lands in your inbox, not back to themselves.
+// ── 2. Sender acknowledgement email ──────────────────────────
 async function sendAcknowledgementEmail({ name, email, subject, message }) {
   if (!process.env.NOTIFY_EMAIL_USER || !process.env.NOTIFY_EMAIL_PASS) {
-    // Same guard as sendEmail — silently skip if not configured
     return;
   }
 
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-
-      <!-- Header -->
       <div style="background: #7c3aed; padding: 24px 32px; border-radius: 12px 12px 0 0;">
         <h2 style="color: #ffffff; margin: 0; font-size: 20px;">John Itopa ISAH</h2>
         <p style="color: #c4b5fd; margin: 6px 0 0; font-size: 14px;">
           DevOps &amp; Cloud Engineer · johnisah.com
         </p>
       </div>
-
-      <!-- Body -->
       <div style="background: #18181b; padding: 32px; border: 1px solid #27272a; border-top: none;">
-
         <p style="color: #f4f4f5; font-size: 16px; font-weight: 600; margin: 0 0 8px;">
           Hi ${name},
         </p>
@@ -107,8 +108,6 @@ async function sendAcknowledgementEmail({ name, email, subject, message }) {
           Thank you for reaching out! I've received your message and will get back
           to you as soon as possible.
         </p>
-
-        <!-- Message copy -->
         <div style="background: #09090b; border: 1px solid #27272a; border-radius: 10px;
                     padding: 20px 24px; margin-bottom: 28px;">
           <p style="color: #71717a; font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
@@ -130,13 +129,10 @@ async function sendAcknowledgementEmail({ name, email, subject, message }) {
             </tr>
           </table>
         </div>
-
         <p style="color: #a1a1aa; font-size: 14px; line-height: 1.7; margin: 0 0 28px;">
           While you wait, feel free to explore my work or connect with me:
         </p>
-
-        <!-- Links -->
-        <div style="display: flex; gap: 12px;">
+        <div>
           <a href="https://johnisah.com"
             style="display: inline-block; background: #7c3aed; color: #ffffff;
                    padding: 10px 18px; border-radius: 8px; text-decoration: none;
@@ -157,22 +153,19 @@ async function sendAcknowledgementEmail({ name, email, subject, message }) {
           </a>
         </div>
       </div>
-
-      <!-- Footer -->
       <div style="background: #09090b; padding: 16px 32px; border: 1px solid #27272a;
                   border-top: none; border-radius: 0 0 12px 12px; text-align: center;">
         <p style="color: #3f3f46; font-size: 12px; margin: 0;">
           This is an automated acknowledgement — please do not reply directly to this email.
         </p>
       </div>
-
     </div>`;
 
   await createTransport().sendMail({
-    from:     `"John Itopa ISAH" <${process.env.NOTIFY_EMAIL_USER}>`,
-    to:       email,                              // → the sender's address
-    replyTo:  process.env.NOTIFY_EMAIL_USER,      // → replies land in your inbox
-    subject:  `Thanks for reaching out, ${name}!`,
+    from:    `"John Itopa ISAH" <${process.env.NOTIFY_EMAIL_USER}>`,
+    to:      email,
+    replyTo: process.env.NOTIFY_EMAIL_TO || process.env.NOTIFY_EMAIL_USER,
+    subject: `Thanks for reaching out, ${name}!`,
     html,
     text: [
       `Hi ${name},`,
@@ -197,7 +190,7 @@ async function sendAcknowledgementEmail({ name, email, subject, message }) {
   console.log(`[notify] Acknowledgement email sent to: ${name} <${email}>`);
 }
 
-// ── 3. Password reset email (existing — unchanged) ────────────
+// ── 3. Password reset email ───────────────────────────────────
 async function sendPasswordResetEmail({ email, resetLink, expiresAt }) {
   if (!process.env.NOTIFY_EMAIL_USER || !process.env.NOTIFY_EMAIL_PASS) {
     console.warn('[notify] Email env vars not set — skipping reset email');
@@ -261,7 +254,7 @@ async function sendPasswordResetEmail({ email, resetLink, expiresAt }) {
   console.log(`[notify] Password reset email sent to: ${email}`);
 }
 
-// ── 4. SMS notification (existing — unchanged) ────────────────
+// ── 4. SMS notification ───────────────────────────────────────
 async function sendSms({ name, email, subject }) {
   if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
     console.warn('[notify] Twilio env vars not set — skipping SMS notification');
@@ -285,13 +278,11 @@ async function sendSms({ name, email, subject }) {
 }
 
 // ── 5. Main notify — called by contact.js (fire-and-forget) ──
-// Runs all three notifications in parallel.
-// Promise.allSettled ensures one failure never blocks the others.
 async function notify(data) {
   const results = await Promise.allSettled([
-    sendEmail(data),                  // your notification email (existing)
-    sendAcknowledgementEmail(data),   // sender's receipt confirmation (new)
-    sendSms(data),                    // your SMS notification (existing)
+    sendEmail(data),
+    sendAcknowledgementEmail(data),
+    sendSms(data),
   ]);
 
   results.forEach((r, i) => {
