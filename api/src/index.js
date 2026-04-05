@@ -5,6 +5,8 @@ const cors        = require('cors');
 const helmet      = require('helmet');
 const morgan      = require('morgan');
 const compression = require('compression');
+const swaggerUi   = require('swagger-ui-express');
+const swaggerSpec = require('./swagger');
 
 const { errorHandler } = require('./middleware/errorHandler');
 
@@ -13,11 +15,23 @@ const PORT = process.env.PORT || 4000;
 
 // ── Security ────────────────────────────────────────────────
 app.set('trust proxy', 1);
-app.use(helmet({
-  // Allow images/assets to be loaded cross-origin (user-ui & admin-ui
-  // are on different ports/domains from the API)
-  crossOriginResourcePolicy: { policy: 'cross-origin' },
-}));
+
+// Helmet blocks Swagger UI's inline scripts/styles by default.
+// We disable contentSecurityPolicy only for the /api/docs path;
+// all other routes remain fully protected.
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/docs')) {
+    // Swagger UI needs inline scripts and the unpkg CDN for its assets
+    return helmet({
+      contentSecurityPolicy: false,
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    })(req, res, next);
+  }
+  return helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })(req, res, next);
+});
+
 app.use(compression());
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
@@ -38,9 +52,64 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // ── Health ──────────────────────────────────────────────────
+/**
+ * @swagger
+ * /api/health:
+ *   get:
+ *     summary: API health check
+ *     description: Returns ok when the API is running. Used by Kubernetes liveness probes.
+ *     tags: [Health]
+ *     responses:
+ *       200:
+ *         description: API is healthy
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: ok
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ */
 app.get('/api/health', (_req, res) =>
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 );
+
+// ── Swagger UI  — GET /api/docs ──────────────────────────────
+app.use(
+  '/api/docs',
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec, {
+    customSiteTitle: 'Portfolio MCS — API Docs',
+    customCss: `
+      .swagger-ui .topbar { background: #09090b; border-bottom: 1px solid #27272a; }
+      .swagger-ui .topbar-wrapper img { display: none; }
+      .swagger-ui .topbar-wrapper::after {
+        content: 'Portfolio MCS API';
+        color: #a78bfa;
+        font-size: 18px;
+        font-weight: 700;
+        font-family: monospace;
+      }
+      .swagger-ui .info .title { color: #a78bfa; }
+    `,
+    swaggerOptions: {
+      persistAuthorization: true,   // JWT survives page refresh
+      displayRequestDuration: true, // Shows how long each request took
+      filter: true,                 // Enables the search/filter box
+      tryItOutEnabled: true,        // "Try it out" open by default
+    },
+  })
+);
+
+// ── Raw OpenAPI spec  — GET /api/docs.json ───────────────────
+app.get('/api/docs.json', (_req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
 
 // ── Routes ──────────────────────────────────────────────────
 app.use('/api/auth',           require('./routes/auth'));

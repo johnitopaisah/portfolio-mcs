@@ -5,7 +5,23 @@ const multer = require('multer');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 3 * 1024 * 1024 } });
 
-// GET /api/certifications  — public
+/**
+ * @swagger
+ * /api/certifications:
+ *   get:
+ *     summary: List all certifications
+ *     description: Returns all certifications ordered by order_index then issue_date descending.
+ *     tags: [Certifications]
+ *     responses:
+ *       200:
+ *         description: Array of certifications
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Certification'
+ */
 router.get('/', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
@@ -18,7 +34,35 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/certifications/:id/image  — public binary
+/**
+ * @swagger
+ * /api/certifications/{id}/image:
+ *   get:
+ *     summary: Get certification badge image
+ *     description: Returns the certification image as raw binary. Cache-Control is set to 24 hours.
+ *     tags: [Certifications]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Certification image binary
+ *         content:
+ *           image/png:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *           image/jpeg:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       404:
+ *         description: Certification not found or no image uploaded
+ */
 router.get('/:id/image', async (req, res, next) => {
   try {
     const { rows } = await pool.query('SELECT image, image_mime FROM certifications WHERE id = $1', [req.params.id]);
@@ -29,7 +73,62 @@ router.get('/:id/image', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/certifications  — admin
+/**
+ * @swagger
+ * /api/certifications:
+ *   post:
+ *     summary: Create a new certification
+ *     description: Accepts `multipart/form-data`. Maximum image file size is 3 MB.
+ *     tags: [Certifications]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required: [name, issuer, issue_date]
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: Certified Kubernetes Administrator
+ *               issuer:
+ *                 type: string
+ *                 example: CNCF
+ *               issue_date:
+ *                 type: string
+ *                 format: date
+ *                 example: '2024-03-15'
+ *               expiry_date:
+ *                 type: string
+ *                 format: date
+ *                 example: '2027-03-15'
+ *               credential_id:
+ *                 type: string
+ *               credential_url:
+ *                 type: string
+ *                 format: uri
+ *               order_index:
+ *                 type: integer
+ *               image:
+ *                 type: string
+ *                 format: binary
+ *                 description: Certification badge image (max 3 MB)
+ *     responses:
+ *       201:
+ *         description: Certification created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Certification'
+ *       401:
+ *         description: Unauthorised
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.post('/', requireAuth, upload.single('image'), async (req, res, next) => {
   try {
     const { name, issuer, issue_date, expiry_date, credential_id, credential_url, order_index } = req.body;
@@ -47,7 +146,68 @@ router.post('/', requireAuth, upload.single('image'), async (req, res, next) => 
   } catch (err) { next(err); }
 });
 
-// PUT /api/certifications/:id  — admin
+/**
+ * @swagger
+ * /api/certifications/{id}:
+ *   put:
+ *     summary: Update a certification
+ *     description: Partially updates a certification. All fields are optional.
+ *     tags: [Certifications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               issuer:
+ *                 type: string
+ *               issue_date:
+ *                 type: string
+ *                 format: date
+ *               expiry_date:
+ *                 type: string
+ *                 format: date
+ *               credential_id:
+ *                 type: string
+ *               credential_url:
+ *                 type: string
+ *                 format: uri
+ *               order_index:
+ *                 type: integer
+ *               image:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: Certification updated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Certification'
+ *       401:
+ *         description: Unauthorised
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Certification not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.put('/:id', requireAuth, upload.single('image'), async (req, res, next) => {
   try {
     const { name, issuer, issue_date, expiry_date, credential_id, credential_url, order_index } = req.body;
@@ -75,7 +235,37 @@ router.put('/:id', requireAuth, upload.single('image'), async (req, res, next) =
   } catch (err) { next(err); }
 });
 
-// DELETE /api/certifications/:id  — admin
+/**
+ * @swagger
+ * /api/certifications/{id}:
+ *   delete:
+ *     summary: Delete a certification
+ *     tags: [Certifications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       204:
+ *         description: Certification deleted — no content returned
+ *       401:
+ *         description: Unauthorised
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Certification not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.delete('/:id', requireAuth, async (req, res, next) => {
   try {
     const { rowCount } = await pool.query('DELETE FROM certifications WHERE id = $1', [req.params.id]);

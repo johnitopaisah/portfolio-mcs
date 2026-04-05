@@ -5,7 +5,27 @@ const multer = require('multer');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
-// GET /api/profile  — public
+/**
+ * @swagger
+ * /api/profile:
+ *   get:
+ *     summary: Get portfolio profile
+ *     description: Returns the single profile record powering the portfolio homepage hero section.
+ *     tags: [Profile]
+ *     responses:
+ *       200:
+ *         description: Profile data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Profile'
+ *       404:
+ *         description: Profile not found (database not yet seeded)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.get('/', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
@@ -20,7 +40,28 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/profile/avatar  — public binary
+/**
+ * @swagger
+ * /api/profile/avatar:
+ *   get:
+ *     summary: Get profile avatar image
+ *     description: Returns the avatar as a raw binary image. Cache-Control is set to 24 hours.
+ *     tags: [Profile]
+ *     responses:
+ *       200:
+ *         description: Avatar image binary
+ *         content:
+ *           image/jpeg:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *           image/png:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       404:
+ *         description: No avatar uploaded yet
+ */
 router.get('/avatar', async (req, res, next) => {
   try {
     const { rows } = await pool.query('SELECT avatar, avatar_mime FROM profile LIMIT 1');
@@ -31,7 +72,26 @@ router.get('/avatar', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/profile/resume  — public binary
+/**
+ * @swagger
+ * /api/profile/resume:
+ *   get:
+ *     summary: Download resume PDF
+ *     description: >
+ *       Returns the resume as a downloadable PDF file.
+ *       Content-Disposition is set to `attachment; filename="resume.pdf"`.
+ *     tags: [Profile]
+ *     responses:
+ *       200:
+ *         description: Resume PDF file
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       404:
+ *         description: No resume uploaded yet
+ */
 router.get('/resume', async (req, res, next) => {
   try {
     const { rows } = await pool.query('SELECT resume, resume_mime FROM profile LIMIT 1');
@@ -42,7 +102,67 @@ router.get('/resume', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// PUT /api/profile  — admin only
+/**
+ * @swagger
+ * /api/profile:
+ *   put:
+ *     summary: Update portfolio profile
+ *     description: >
+ *       Updates the profile record. All fields are optional — only provided fields are changed
+ *       (COALESCE logic). Accepts `multipart/form-data` to support avatar and resume file uploads.
+ *       Maximum file size is 5 MB.
+ *     tags: [Profile]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: John Itopa ISAH
+ *               headline:
+ *                 type: string
+ *                 example: DevOps & Cloud Engineer
+ *               bio:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               github_url:
+ *                 type: string
+ *                 format: uri
+ *               linkedin_url:
+ *                 type: string
+ *                 format: uri
+ *               hero_tags:
+ *                 type: string
+ *                 description: JSON array string e.g. '["Kubernetes","Docker"]'
+ *                 example: '["Kubernetes","Docker","AWS"]'
+ *               avatar:
+ *                 type: string
+ *                 format: binary
+ *                 description: Avatar image (JPEG/PNG, max 5 MB)
+ *               resume:
+ *                 type: string
+ *                 format: binary
+ *                 description: Resume PDF (max 5 MB)
+ *     responses:
+ *       200:
+ *         description: Profile updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Profile'
+ *       401:
+ *         description: Unauthorised — valid JWT required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.put('/', requireAuth,
   upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'resume', maxCount: 1 }]),
   async (req, res, next) => {
@@ -51,8 +171,6 @@ router.put('/', requireAuth,
       const avatarFile = req.files?.avatar?.[0];
       const resumeFile = req.files?.resume?.[0];
 
-      // hero_tags arrives as a JSON string e.g. '["Kubernetes","AWS"]'
-      // Parse it only when provided; null means "keep existing value" via COALESCE
       let parsedHeroTags = null;
       if (hero_tags !== undefined && hero_tags !== null && hero_tags !== '') {
         try {
