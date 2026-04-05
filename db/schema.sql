@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS profile (
   github_url    TEXT,
   linkedin_url  TEXT,
   email         TEXT        NOT NULL,
+  hero_tags     TEXT[]      NOT NULL DEFAULT '{}',
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -34,6 +35,9 @@ CREATE TABLE IF NOT EXISTS projects (
   featured      BOOLEAN     NOT NULL DEFAULT FALSE,
   published     BOOLEAN     NOT NULL DEFAULT FALSE,
   order_index   INT         NOT NULL DEFAULT 0,
+  start_date    DATE,
+  end_date      DATE,
+  ongoing       BOOLEAN     NOT NULL DEFAULT FALSE,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -58,6 +62,8 @@ CREATE TABLE IF NOT EXISTS experiences (
   description   TEXT        NOT NULL,
   start_date    DATE        NOT NULL,
   end_date      DATE,
+  ongoing       BOOLEAN     NOT NULL DEFAULT FALSE,
+  tech_stack    TEXT[]      NOT NULL DEFAULT '{}',
   logo          BYTEA,
   logo_mime     TEXT,
   order_index   INT         NOT NULL DEFAULT 0,

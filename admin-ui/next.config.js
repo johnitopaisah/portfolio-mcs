@@ -1,18 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
-  async rewrites() {
-    const apiBase =
-      process.env.INTERNAL_API_URL ||
-      process.env.NEXT_PUBLIC_API_URL ||
-      'http://localhost:4000';
-    return [
-      {
-        source: '/api/:path*',
-        destination: `${apiBase}/api/:path*`,
-      },
-    ];
-  },
+  // API proxy is handled by src/middleware.ts at request time,
+  // reading INTERNAL_API_URL from the runtime environment (ConfigMap).
+  // This replaces the previous rewrites() approach which baked the URL
+  // into the compiled bundle at build time — making it impossible to
+  // change without rebuilding the image.
 };
 
 module.exports = nextConfig;

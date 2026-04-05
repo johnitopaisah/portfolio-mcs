@@ -10,7 +10,7 @@ router.get('/', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT id, name, headline, bio, avatar_mime, resume_mime,
-              github_url, linkedin_url, email, updated_at,
+              github_url, linkedin_url, email, hero_tags, updated_at,
               (avatar IS NOT NULL) AS has_avatar,
               (resume IS NOT NULL) AS has_resume
        FROM profile LIMIT 1`
@@ -47,9 +47,21 @@ router.put('/', requireAuth,
   upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'resume', maxCount: 1 }]),
   async (req, res, next) => {
     try {
-      const { name, headline, bio, email, github_url, linkedin_url } = req.body;
+      const { name, headline, bio, email, github_url, linkedin_url, hero_tags } = req.body;
       const avatarFile = req.files?.avatar?.[0];
       const resumeFile = req.files?.resume?.[0];
+
+      // hero_tags arrives as a JSON string e.g. '["Kubernetes","AWS"]'
+      // Parse it only when provided; null means "keep existing value" via COALESCE
+      let parsedHeroTags = null;
+      if (hero_tags !== undefined && hero_tags !== null && hero_tags !== '') {
+        try {
+          parsedHeroTags = JSON.parse(hero_tags);
+          if (!Array.isArray(parsedHeroTags)) parsedHeroTags = null;
+        } catch {
+          parsedHeroTags = null;
+        }
+      }
 
       const { rows } = await pool.query(
         `UPDATE profile SET
@@ -62,13 +74,15 @@ router.put('/', requireAuth,
            avatar       = COALESCE($7,  avatar),
            avatar_mime  = COALESCE($8,  avatar_mime),
            resume       = COALESCE($9,  resume),
-           resume_mime  = COALESCE($10, resume_mime)
-         RETURNING id, name, headline, bio, email, github_url, linkedin_url, updated_at`,
+           resume_mime  = COALESCE($10, resume_mime),
+           hero_tags    = COALESCE($11, hero_tags)
+         RETURNING id, name, headline, bio, email, github_url, linkedin_url, hero_tags, updated_at`,
         [
           name || null, headline || null, bio || null, email || null,
           github_url || null, linkedin_url || null,
           avatarFile?.buffer || null, avatarFile?.mimetype || null,
           resumeFile?.buffer || null, resumeFile?.mimetype || null,
+          parsedHeroTags,
         ]
       );
       res.json(rows[0]);
