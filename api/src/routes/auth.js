@@ -6,6 +6,10 @@ const jwt        = require('jsonwebtoken');
 const pool       = require('../db/client');
 const router     = require('express').Router();
 const { sendPasswordResetEmail } = require('../services/notify');
+const {
+  authAttemptsTotal,
+  passwordResetRequestsTotal,
+} = require('../metrics');
 
 /**
  * @swagger
@@ -66,8 +70,12 @@ router.post('/login', async (req, res, next) => {
       [username]
     );
     const user = rows[0];
-    if (!user || !(await bcrypt.compare(password, user.password_hash)))
+    if (!user || !(await bcrypt.compare(password, user.password_hash))) {
+      authAttemptsTotal.inc({ result: 'failure' });
       return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    authAttemptsTotal.inc({ result: 'success' });
 
     const token = jwt.sign(
       { id: user.id, username: user.username },
@@ -122,6 +130,8 @@ router.post('/forgot-password', async (req, res, next) => {
   try {
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: 'Email is required' });
+
+    passwordResetRequestsTotal.inc();
 
     const { rows } = await pool.query(
       'SELECT email FROM profile WHERE lower(email) = lower($1) LIMIT 1',

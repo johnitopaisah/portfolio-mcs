@@ -3,11 +3,19 @@ const pool       = require('../db/client');
 const rateLimit  = require('express-rate-limit');
 const { requireAuth } = require('../middleware/auth');
 const { notify }      = require('../services/notify');
+const {
+  contactSubmissionsTotal,
+} = require('../metrics');
 
 const contactLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, max: 5,
   message: { error: 'Too many messages sent. Please wait before trying again.' },
   standardHeaders: true, legacyHeaders: false,
+  // Count rate-limited requests as a metric
+  handler: (req, res) => {
+    contactSubmissionsTotal.inc({ status: 'rate_limited' });
+    res.status(429).json({ error: 'Too many messages sent. Please wait before trying again.' });
+  },
 });
 
 /**
@@ -74,21 +82,30 @@ const contactLimiter = rateLimit({
 router.post('/', contactLimiter, async (req, res, next) => {
   try {
     const { name, email, subject, message } = req.body;
-    if (!name || !email || !subject || !message)
+    if (!name || !email || !subject || !message) {
+      contactSubmissionsTotal.inc({ status: 'error' });
       return res.status(400).json({ error: 'All fields are required' });
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      contactSubmissionsTotal.inc({ status: 'error' });
       return res.status(400).json({ error: 'Invalid email address' });
+    }
 
     await pool.query(
       'INSERT INTO contact_messages (name, email, subject, message) VALUES ($1,$2,$3,$4)',
       [name.trim(), email.trim(), subject.trim(), message.trim()]
     );
 
+    contactSubmissionsTotal.inc({ status: 'success' });
+
     notify({ name: name.trim(), email: email.trim(), subject: subject.trim(), message: message.trim() })
       .catch(err => console.error('[notify] Unhandled error:', err));
 
     res.status(201).json({ success: true, message: 'Message sent successfully' });
-  } catch (err) { next(err); }
+  } catch (err) {
+    contactSubmissionsTotal.inc({ status: 'error' });
+    next(err);
+  }
 });
 
 /**
