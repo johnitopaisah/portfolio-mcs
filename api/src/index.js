@@ -1,12 +1,14 @@
 require('dotenv').config();
 
-const express     = require('express');
-const cors        = require('cors');
-const helmet      = require('helmet');
-const morgan      = require('morgan');
-const compression = require('compression');
-const swaggerUi   = require('swagger-ui-express');
-const swaggerSpec = require('./swagger');
+const express          = require('express');
+const cors             = require('cors');
+const helmet           = require('helmet');
+const morgan           = require('morgan');
+const compression      = require('compression');
+const swaggerUi        = require('swagger-ui-express');
+const swaggerSpec      = require('./swagger');
+const { register }     = require('./metrics');
+const metricsMiddleware = require('./metricsMiddleware');
 
 const { errorHandler } = require('./middleware/errorHandler');
 
@@ -16,12 +18,10 @@ const PORT = process.env.PORT || 4000;
 // ── Security ────────────────────────────────────────────────
 app.set('trust proxy', 1);
 
-// Helmet blocks Swagger UI's inline scripts/styles by default.
-// We disable contentSecurityPolicy only for the /api/docs path;
-// all other routes remain fully protected.
+// Helmet blocks Swagger UI's inline scripts/styles.
+// CSP is relaxed only for /api/docs — all other routes stay protected.
 app.use((req, res, next) => {
   if (req.path.startsWith('/api/docs')) {
-    // Swagger UI needs inline scripts and the unpkg CDN for its assets
     return helmet({
       contentSecurityPolicy: false,
       crossOriginResourcePolicy: { policy: 'cross-origin' },
@@ -50,6 +50,24 @@ app.use(cors({
 // ── Body parsing ────────────────────────────────────────────
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// ── Prometheus HTTP middleware ───────────────────────────────
+// Must be mounted before all route handlers so every request is measured.
+// Does NOT rate-limit or block; only observes and records.
+app.use(metricsMiddleware);
+
+// ── Prometheus metrics endpoint ─────────────────────────────
+// GET /metrics — scraped by Prometheus every 15 seconds.
+// Only reachable within the cluster (no ingress rule exposes this externally).
+// Must NOT be rate-limited, authenticated, or gzipped (Prometheus expects raw text).
+app.get('/metrics', async (_req, res) => {
+  try {
+    res.set('Content-Type', register.contentType);
+    res.end(await register.metrics());
+  } catch (err) {
+    res.status(500).end(err.message);
+  }
+});
 
 // ── Health ──────────────────────────────────────────────────
 /**
@@ -97,10 +115,10 @@ app.use(
       .swagger-ui .info .title { color: #a78bfa; }
     `,
     swaggerOptions: {
-      persistAuthorization: true,   // JWT survives page refresh
-      displayRequestDuration: true, // Shows how long each request took
-      filter: true,                 // Enables the search/filter box
-      tryItOutEnabled: true,        // "Try it out" open by default
+      persistAuthorization: true,
+      displayRequestDuration: true,
+      filter: true,
+      tryItOutEnabled: true,
     },
   })
 );
