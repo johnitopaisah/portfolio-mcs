@@ -7,37 +7,19 @@ const morgan            = require('morgan');
 const compression       = require('compression');
 const swaggerUi         = require('swagger-ui-express');
 const swaggerSpec       = require('./swagger');
-const { register, contactSubmissionsTotal } = require('./metrics');
+const { register }      = require('./metrics');
 const metricsMiddleware = require('./metricsMiddleware');
-const pool              = require('./db/client');
 
 const { errorHandler } = require('./middleware/errorHandler');
 
 const app  = express();
 const PORT = process.env.PORT || 4000;
 
-// ── Bootstrap historical counters from DB ────────────────────
-// prom-client counters start at 0 on each process start.
-// Pre-seed with existing DB counts so dashboards show accurate
-// totals immediately — not just events since last deploy.
-async function bootstrapMetrics() {
-  try {
-    const { rows } = await pool.query(
-      `SELECT COUNT(*) AS total FROM contact_messages`
-    );
-    const total = parseInt(rows[0].total, 10);
-    if (total > 0) {
-      contactSubmissionsTotal.inc({ status: 'success' }, total);
-      console.log(`[metrics] Bootstrapped contact submissions: ${total}`);
-    }
-  } catch (err) {
-    console.error('[metrics] Bootstrap failed (non-fatal):', err.message);
-  }
-}
-
 // ── Security ────────────────────────────────────────────────
 app.set('trust proxy', 1);
 
+// Helmet blocks Swagger UI inline scripts/styles.
+// CSP is relaxed only for /api/docs — all other routes stay protected.
 app.use((req, res, next) => {
   if (req.path.startsWith('/api/docs')) {
     return helmet({
@@ -70,9 +52,13 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // ── Prometheus HTTP middleware ───────────────────────────────
+// Must be mounted before all route handlers so every request is measured.
+// Does NOT rate-limit or block; only observes and records.
 app.use(metricsMiddleware);
 
 // ── Prometheus metrics endpoint ─────────────────────────────
+// GET /metrics — scraped by Prometheus every 15 seconds.
+// Only reachable within the cluster (no ingress rule exposes this externally).
 app.get('/metrics', async (_req, res) => {
   try {
     res.set('Content-Type', register.contentType);
@@ -109,7 +95,7 @@ app.get('/api/health', (_req, res) =>
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 );
 
-// ── Swagger UI ───────────────────────────────────────────────
+// ── Swagger UI  — GET /api/docs ──────────────────────────────
 app.use(
   '/api/docs',
   swaggerUi.serve,
@@ -136,6 +122,7 @@ app.use(
   })
 );
 
+// ── Raw OpenAPI spec  — GET /api/docs.json ───────────────────
 app.get('/api/docs.json', (_req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.send(swaggerSpec);
@@ -154,8 +141,6 @@ app.use('/api/contact',        require('./routes/contact'));
 app.use((req, res) => res.status(404).json({ error: `${req.method} ${req.path} not found` }));
 app.use(errorHandler);
 
-// ── Start ────────────────────────────────────────────────────
-app.listen(PORT, async () => {
-  console.log(`[API] port ${PORT}  env:${process.env.NODE_ENV || 'development'}`);
-  await bootstrapMetrics();
-});
+app.listen(PORT, () =>
+  console.log(`[API] port ${PORT}  env:${process.env.NODE_ENV || 'development'}`)
+);
