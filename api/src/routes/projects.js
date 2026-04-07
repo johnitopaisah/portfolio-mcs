@@ -3,9 +3,13 @@ const pool   = require('../db/client');
 const { requireAuth } = require('../middleware/auth');
 const multer = require('multer');
 
-const upload       = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
-// Allow up to 20 images in one multi-upload request
-const uploadMany   = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+// Single multer instance used for ALL upload routes in this file.
+// .single('image')       — cover image on POST / and PUT /:id
+// .array('images', 20)   — demo slideshow images on POST /:id/images
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },   // 5 MB per file
+});
 
 // ─────────────────────────────────────────────────────────────
 //  Existing routes — UNCHANGED
@@ -320,10 +324,6 @@ router.delete('/:id', requireAuth, async (req, res, next) => {
  * /api/projects/{id}/images:
  *   get:
  *     summary: List demo images for a project
- *     description: >
- *       Returns metadata for all slideshow images attached to a project,
- *       ordered by order_index. Does NOT return binary data — use
- *       GET /api/projects/:id/images/:imgId/file to retrieve each image.
  *     tags: [Projects]
  *     parameters:
  *       - in: path
@@ -333,18 +333,6 @@ router.delete('/:id', requireAuth, async (req, res, next) => {
  *     responses:
  *       200:
  *         description: Array of image metadata
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 type: object
- *                 properties:
- *                   id: { type: string, format: uuid }
- *                   caption: { type: string, nullable: true }
- *                   order_index: { type: integer }
- *                   image_mime: { type: string }
- *                   created_at: { type: string, format: date-time }
  */
 router.get('/:id/images', async (req, res, next) => {
   try {
@@ -364,7 +352,6 @@ router.get('/:id/images', async (req, res, next) => {
  * /api/projects/{id}/images/{imgId}/file:
  *   get:
  *     summary: Serve a single demo image binary
- *     description: Returns the raw image binary. Cache-Control is set to 24 hours.
  *     tags: [Projects]
  *     parameters:
  *       - in: path
@@ -400,11 +387,6 @@ router.get('/:id/images/:imgId/file', async (req, res, next) => {
  * /api/projects/{id}/images:
  *   post:
  *     summary: Upload one or more demo images for a project
- *     description: >
- *       Accepts multipart/form-data with a field named `images` (multiple files allowed).
- *       Optional fields: `captions` (JSON array of strings, one per file),
- *       `order_start` (integer, default 0 — first image gets this order_index).
- *       Maximum 20 images per project total. Maximum 5 MB per file.
  *     tags: [Projects]
  *     security:
  *       - bearerAuth: []
@@ -413,35 +395,9 @@ router.get('/:id/images/:imgId/file', async (req, res, next) => {
  *         name: id
  *         required: true
  *         schema: { type: string, format: uuid }
- *     requestBody:
- *       required: true
- *       content:
- *         multipart/form-data:
- *           schema:
- *             type: object
- *             properties:
- *               images:
- *                 type: array
- *                 items: { type: string, format: binary }
- *               captions:
- *                 type: string
- *                 description: "JSON array of captions e.g. [\"System Overview\",\"API Performance\"]"
- *               order_start:
- *                 type: integer
- *                 description: "order_index for the first uploaded image (default: current max + 1)"
  *     responses:
  *       201:
  *         description: Images uploaded successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 type: object
- *                 properties:
- *                   id: { type: string, format: uuid }
- *                   caption: { type: string }
- *                   order_index: { type: integer }
  *       400:
  *         description: No files provided or limit exceeded
  *       401:
@@ -449,7 +405,7 @@ router.get('/:id/images/:imgId/file', async (req, res, next) => {
  *       404:
  *         description: Project not found
  */
-router.post('/:id/images', requireAuth, uploadMany.array('images', 20), async (req, res, next) => {
+router.post('/:id/images', requireAuth, upload.array('images', 20), async (req, res, next) => {
   try {
     // Verify project exists
     const { rows: proj } = await pool.query(
@@ -462,7 +418,7 @@ router.post('/:id/images', requireAuth, uploadMany.array('images', 20), async (r
       return res.status(400).json({ error: 'No images provided' });
     }
 
-    // Check existing image count to enforce 20-image cap
+    // Enforce 20-image cap
     const { rows: countRows } = await pool.query(
       'SELECT COUNT(*)::int AS cnt FROM project_images WHERE project_id = $1',
       [req.params.id]
@@ -470,7 +426,7 @@ router.post('/:id/images', requireAuth, uploadMany.array('images', 20), async (r
     const existing = countRows[0].cnt;
     if (existing + files.length > 20) {
       return res.status(400).json({
-        error: `Upload would exceed the 20-image limit. Currently ${existing} images, uploading ${files.length}.`,
+        error: `Upload would exceed the 20-image limit. Currently ${existing}, uploading ${files.length}.`,
       });
     }
 
@@ -510,7 +466,6 @@ router.post('/:id/images', requireAuth, uploadMany.array('images', 20), async (r
  * /api/projects/{id}/images/{imgId}:
  *   put:
  *     summary: Update a demo image caption or order
- *     description: Updates caption and/or order_index of a single demo image. No file re-upload.
  *     tags: [Projects]
  *     security:
  *       - bearerAuth: []
@@ -523,14 +478,6 @@ router.post('/:id/images', requireAuth, uploadMany.array('images', 20), async (r
  *         name: imgId
  *         required: true
  *         schema: { type: string, format: uuid }
- *     requestBody:
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               caption: { type: string, nullable: true }
- *               order_index: { type: integer }
  *     responses:
  *       200:
  *         description: Image metadata updated
