@@ -42,6 +42,17 @@ CREATE TABLE IF NOT EXISTS projects (
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- project_images (demo slideshow — many per project)
+CREATE TABLE IF NOT EXISTS project_images (
+  id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id  UUID        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  image       BYTEA       NOT NULL,
+  image_mime  TEXT        NOT NULL,
+  caption     TEXT,
+  order_index INT         NOT NULL DEFAULT 0,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- skills
 CREATE TABLE IF NOT EXISTS skills (
   id            UUID     PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -117,6 +128,7 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
 CREATE INDEX IF NOT EXISTS idx_reset_token ON password_reset_tokens (token) WHERE used_at IS NULL;
 
 -- Indexes
+CREATE INDEX IF NOT EXISTS idx_project_images_project ON project_images (project_id, order_index);
 CREATE INDEX IF NOT EXISTS idx_projects_published ON projects (published, order_index);
 CREATE INDEX IF NOT EXISTS idx_projects_featured  ON projects (featured) WHERE featured = TRUE;
 CREATE INDEX IF NOT EXISTS idx_skills_category    ON skills (category, order_index);

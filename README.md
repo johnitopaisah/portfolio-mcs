@@ -1,3 +1,14 @@
+ubuntu@instance-20260323-1248:~$ k -n portfolio top pod 
+NAME                                  CPU(cores)   MEMORY(bytes)   
+portfolio-admin-ui-5f78c4b5b6-bgt5g   2m           43Mi            
+portfolio-api-77df4cdf8c-dfphq        8m           33Mi            
+portfolio-api-77df4cdf8c-lmknx        10m          34Mi            
+portfolio-db-0                        9m           39Mi            
+portfolio-user-ui-76dd994bc8-2jqmn    28m          78Mi            
+portfolio-user-ui-76dd994bc8-9dpt4    25m          85Mi            
+ubuntu@instance-20260323-1248:~$
+
+
 # Portfolio MCS
 
 A modern, microservices-based portfolio management system built with Next.js, Node.js, and PostgreSQL. Features a public portfolio website and a private admin CMS for content management.

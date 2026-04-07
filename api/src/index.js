@@ -53,7 +53,6 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // ── Prometheus HTTP middleware ───────────────────────────────
 // Must be mounted before all route handlers so every request is measured.
-// Does NOT rate-limit or block; only observes and records.
 app.use(metricsMiddleware);
 
 // ── Prometheus metrics endpoint ─────────────────────────────
@@ -129,9 +128,12 @@ app.get('/api/docs.json', (_req, res) => {
 });
 
 // ── Routes ──────────────────────────────────────────────────
+// NOTE: projectImages must be mounted BEFORE the generic projects router
+// so that /api/projects/:id/images is matched first.
+app.use('/api/projects',       require('./routes/projectImages'));
+app.use('/api/projects',       require('./routes/projects'));
 app.use('/api/auth',           require('./routes/auth'));
 app.use('/api/profile',        require('./routes/profile'));
-app.use('/api/projects',       require('./routes/projects'));
 app.use('/api/skills',         require('./routes/skills'));
 app.use('/api/experiences',    require('./routes/experiences'));
 app.use('/api/certifications', require('./routes/certifications'));
