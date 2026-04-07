@@ -65,6 +65,19 @@ export const adminApi = {
   updateProject: (id: string, fd: FormData) => upload(`/api/projects/${id}`, fd, 'PUT'),
   deleteProject: (id: string) => request(`/api/projects/${id}`, { method: 'DELETE' }),
 
+  // Project demo images (slideshow)
+  getProjectImages: (projectId: string) =>
+    request(`/api/projects/${projectId}/images`),
+  uploadProjectImages: (projectId: string, fd: FormData) =>
+    upload(`/api/projects/${projectId}/images`, fd),
+  updateProjectImage: (projectId: string, imgId: string, data: { caption?: string; order_index?: number }) =>
+    request(`/api/projects/${projectId}/images/${imgId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  deleteProjectImage: (projectId: string, imgId: string) =>
+    request(`/api/projects/${projectId}/images/${imgId}`, { method: 'DELETE' }),
+
   // Skills
   getSkills: () => request('/api/skills'),
   createSkill: (fd: FormData) => upload('/api/skills', fd),
@@ -89,10 +102,10 @@ export const adminApi = {
   deleteMessage: (id: string) => request(`/api/contact/${id}`, { method: 'DELETE' }),
 
   // Binary asset URLs — RELATIVE paths, proxied through Next.js (same-origin).
-  // This avoids CORS/CORP issues for <img> tags in the admin UI.
-  avatarUrl:   '/api/profile/avatar',
-  projectImg:  (id: string) => `/api/projects/${id}/image`,
-  skillIcon:   (id: string) => `/api/skills/${id}/icon`,
-  expLogo:     (id: string) => `/api/experiences/${id}/logo`,
-  certImg:     (id: string) => `/api/certifications/${id}/image`,
+  avatarUrl:      '/api/profile/avatar',
+  projectImg:     (id: string) => `/api/projects/${id}/image`,
+  projectSlideImg:(projectId: string, imgId: string) => `/api/projects/${projectId}/images/${imgId}/file`,
+  skillIcon:      (id: string) => `/api/skills/${id}/icon`,
+  expLogo:        (id: string) => `/api/experiences/${id}/logo`,
+  certImg:        (id: string) => `/api/certifications/${id}/image`,
 };

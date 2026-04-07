@@ -1,12 +1,18 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 
-const projectImageUrl = (id: string) => `/api/projects/${id}/image`;
+const projectImageUrl      = (id: string) => `/api/projects/${id}/image`;
+const projectSlideImageUrl = (projectId: string, imgId: string) =>
+  `/api/projects/${projectId}/images/${imgId}/file`;
 
 interface Project {
   id: string; title: string; description: string; tech_stack: string[];
   live_url?: string; repo_url?: string; has_image: boolean; featured: boolean;
   start_date?: string; end_date?: string; ongoing?: boolean;
+}
+
+interface SlideImage {
+  id: string; caption: string | null; order_index: number; image_mime: string;
 }
 
 const TAG_COLORS = [
@@ -70,15 +76,9 @@ function calcProgressPct(start: string | undefined, end: string | undefined, ong
   return 0;
 }
 
-// ── Paragraph renderer ────────────────────────────────────────
-// Splits on one or more consecutive newlines (\n or \n\n) so
-// descriptions render correctly regardless of how they were
-// typed in the admin textarea (single Enter or double Enter).
 function DescriptionParagraphs({ text, className }: { text: string; className: string }) {
   const paras = text.split(/\n+/).filter(p => p.trim());
-  if (paras.length <= 1) {
-    return <p className={className}>{text}</p>;
-  }
+  if (paras.length <= 1) return <p className={className}>{text}</p>;
   return (
     <>
       {paras.map((para, idx) => (
@@ -88,7 +88,6 @@ function DescriptionParagraphs({ text, className }: { text: string; className: s
   );
 }
 
-// ── Timeline strip ────────────────────────────────────────────
 function TimelineStrip({ p, compact = false }: { p: Project; compact?: boolean }) {
   if (!p.start_date) return null;
   const dur = calcDuration(p.start_date, p.end_date, p.ongoing ?? false);
@@ -112,8 +111,191 @@ function TimelineStrip({ p, compact = false }: { p: Project; compact?: boolean }
   );
 }
 
+// ── Image Slideshow component ─────────────────────────────────
+function ImageSlideshow({
+  projectId,
+  hascover,
+  slides,
+}: {
+  projectId: string;
+  hascover: boolean;
+  slides: SlideImage[];
+}) {
+  const [current, setCurrent]   = useState(0);
+  const [paused, setPaused]     = useState(false);
+  const [loaded, setLoaded]     = useState(false);
+
+  // Build the full list: demo slides first, fall back to cover if no slides
+  const allSlides: Array<{ url: string; caption: string | null }> =
+    slides.length > 0
+      ? slides.map(s => ({
+          url:     projectSlideImageUrl(projectId, s.id),
+          caption: s.caption,
+        }))
+      : hascover
+        ? [{ url: projectImageUrl(projectId), caption: null }]
+        : [];
+
+  const total = allSlides.length;
+
+  const prev = useCallback(() => {
+    setCurrent(c => (c - 1 + total) % total);
+    setLoaded(false);
+  }, [total]);
+
+  const next = useCallback(() => {
+    setCurrent(c => (c + 1) % total);
+    setLoaded(false);
+  }, [total]);
+
+  // Auto-advance every 4 seconds unless paused or only 1 slide
+  useEffect(() => {
+    if (total <= 1 || paused) return;
+    const t = setInterval(next, 4000);
+    return () => clearInterval(t);
+  }, [total, paused, next]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    if (total <= 1) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'ArrowLeft')  prev();
+      if (e.key === 'ArrowRight') next();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [total, prev, next]);
+
+  if (total === 0) {
+    // No cover and no demo images — show gradient placeholder
+    return (
+      <div className="h-52 rounded-t-2xl flex items-center justify-center"
+        style={{ background: 'linear-gradient(135deg,#1e1b4b 0%,#0f172a 100%)' }}>
+        <span className="text-6xl opacity-30">◈</span>
+      </div>
+    );
+  }
+
+  const slide = allSlides[current];
+
+  return (
+    <div
+      className="relative select-none"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+    >
+      {/* Image */}
+      <div className="h-64 rounded-t-2xl overflow-hidden relative bg-zinc-900">
+        <img
+          key={slide.url + current}
+          src={slide.url}
+          alt={slide.caption || `Slide ${current + 1}`}
+          onLoad={() => setLoaded(true)}
+          className={`w-full h-full object-cover transition-opacity duration-500 ${
+            loaded ? 'opacity-100' : 'opacity-0'
+          }`}
+        />
+        {!loaded && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-6 h-6 border-2 border-violet-500 border-t-transparent
+                            rounded-full animate-spin" />
+          </div>
+        )}
+        {/* Bottom gradient */}
+        <div className="absolute inset-x-0 bottom-0 h-16"
+          style={{ background: 'linear-gradient(to top, rgba(24,24,27,0.9), transparent)' }} />
+
+        {/* Prev / Next buttons — only shown when > 1 slide */}
+        {total > 1 && (
+          <>
+            <button
+              onClick={prev}
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full
+                         flex items-center justify-center text-white transition-all
+                         hover:scale-110 active:scale-95"
+              style={{ background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.15)' }}
+              aria-label="Previous slide"
+            >
+              ‹
+            </button>
+            <button
+              onClick={next}
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full
+                         flex items-center justify-center text-white transition-all
+                         hover:scale-110 active:scale-95"
+              style={{ background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.15)' }}
+              aria-label="Next slide"
+            >
+              ›
+            </button>
+          </>
+        )}
+
+        {/* Slide counter badge */}
+        {total > 1 && (
+          <div className="absolute top-3 right-3 text-xs px-2 py-0.5 rounded-full"
+            style={{ background: 'rgba(0,0,0,0.6)', color: 'rgba(255,255,255,0.7)' }}>
+            {current + 1} / {total}
+          </div>
+        )}
+
+        {/* Auto-play pause indicator */}
+        {total > 1 && paused && (
+          <div className="absolute top-3 left-3 text-xs px-2 py-0.5 rounded-full"
+            style={{ background: 'rgba(0,0,0,0.5)', color: 'rgba(255,255,255,0.5)' }}>
+            ⏸
+          </div>
+        )}
+      </div>
+
+      {/* Caption */}
+      {slide.caption && (
+        <div className="absolute bottom-2 left-0 right-0 text-center px-4">
+          <span className="text-xs text-zinc-300 bg-black/50 px-2 py-0.5 rounded-full">
+            {slide.caption}
+          </span>
+        </div>
+      )}
+
+      {/* Dot indicators */}
+      {total > 1 && (
+        <div className="flex justify-center gap-1.5 pt-2 pb-1">
+          {allSlides.map((_, idx) => (
+            <button
+              key={idx}
+              onClick={() => { setCurrent(idx); setLoaded(false); }}
+              aria-label={`Go to slide ${idx + 1}`}
+              className="transition-all duration-200 rounded-full"
+              style={{
+                width:      idx === current ? '20px' : '6px',
+                height:     '6px',
+                background: idx === current
+                  ? 'rgba(124,58,237,0.9)'
+                  : 'rgba(255,255,255,0.2)',
+              }}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Project detail modal ──────────────────────────────────────
 function ProjectModal({ p, onClose }: { p: Project; onClose: () => void }) {
+  const [slides, setSlides]       = useState<SlideImage[]>([]);
+  const [slidesLoading, setSlidesLoading] = useState(true);
+
+  // Fetch demo images when modal opens
+  useEffect(() => {
+    setSlidesLoading(true);
+    fetch(`/api/projects/${p.id}/images`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setSlides(Array.isArray(data) ? data : []))
+      .catch(() => setSlides([]))
+      .finally(() => setSlidesLoading(false));
+  }, [p.id]);
+
   const dur         = p.start_date
     ? calcDuration(p.start_date, p.end_date, p.ongoing ?? false)
     : null;
@@ -135,34 +317,44 @@ function ProjectModal({ p, onClose }: { p: Project; onClose: () => void }) {
         }}
         onClick={e => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="h-52 rounded-t-2xl overflow-hidden relative">
-          {p.has_image ? (
-            <img src={projectImageUrl(p.id)} alt={p.title} className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center"
-              style={{ background: 'linear-gradient(135deg,#1e1b4b 0%,#0f172a 100%)' }}>
-              <span className="text-6xl opacity-40">{getIcon(p.tech_stack)}</span>
+        {/* ── Slideshow or placeholder while loading ─────── */}
+        <div className="relative rounded-t-2xl overflow-hidden">
+          {slidesLoading ? (
+            // Skeleton while fetching slide list
+            <div className="h-64 bg-zinc-900 flex items-center justify-center rounded-t-2xl">
+              <div className="w-6 h-6 border-2 border-violet-500 border-t-transparent
+                              rounded-full animate-spin" />
             </div>
+          ) : (
+            <ImageSlideshow
+              projectId={p.id}
+              hascover={p.has_image}
+              slides={slides}
+            />
           )}
-          <div className="absolute inset-0"
-            style={{ background: 'linear-gradient(to top, #18181b 0%, transparent 50%)' }} />
+
+          {/* Featured badge */}
           {p.featured && (
-            <div className="absolute top-4 left-4 text-xs px-2.5 py-1 rounded-full font-medium"
-              style={{ background: 'rgba(124,58,237,0.3)', border: '1px solid rgba(124,58,237,0.5)', color: '#a78bfa' }}>
+            <div className="absolute top-4 left-4 z-10 text-xs px-2.5 py-1 rounded-full font-medium"
+              style={{
+                background: 'rgba(124,58,237,0.3)',
+                border: '1px solid rgba(124,58,237,0.5)',
+                color: '#a78bfa',
+              }}>
               ★ Featured
             </div>
           )}
+
+          {/* Close button */}
           <button onClick={onClose}
-            className="absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center
-                       text-zinc-400 hover:text-white transition-colors"
+            className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full flex items-center
+                       justify-center text-zinc-400 hover:text-white transition-colors"
             style={{ background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)' }}>
             ✕
           </button>
         </div>
 
         <div className="p-8 space-y-7">
-
           <h2 className="text-2xl font-bold text-white leading-tight">{p.title}</h2>
 
           {/* Timeline */}
@@ -197,7 +389,7 @@ function ProjectModal({ p, onClose }: { p: Project; onClose: () => void }) {
             </div>
           )}
 
-          {/* Description — split on any newline sequence */}
+          {/* Description */}
           <div className="space-y-3">
             <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">About</p>
             <div className="space-y-3">
@@ -280,12 +472,16 @@ export default function ProjectsSection({ projects }: { projects: Project[] }) {
             <div key={p.id} className="card flex flex-col group overflow-hidden relative">
               {p.featured && (
                 <div className="absolute top-3 right-3 z-10 text-xs px-2 py-0.5 rounded-full font-medium"
-                  style={{ background: 'rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.4)', color: '#a78bfa' }}>
+                  style={{
+                    background: 'rgba(124,58,237,0.2)',
+                    border: '1px solid rgba(124,58,237,0.4)',
+                    color: '#a78bfa',
+                  }}>
                   ★ Featured
                 </div>
               )}
 
-              {/* Thumbnail */}
+              {/* Thumbnail — still uses the single cover image */}
               <div className="h-44 -mx-6 -mt-6 mb-5 overflow-hidden rounded-t-2xl relative">
                 {p.has_image ? (
                   <img src={projectImageUrl(p.id)} alt={p.title}
@@ -321,7 +517,6 @@ export default function ProjectsSection({ projects }: { projects: Project[] }) {
                 <TimelineStrip p={p} compact />
               </div>
 
-              {/* Card description — clamp to 3 lines, no paragraph splitting needed here */}
               <p className="text-zinc-400 text-sm leading-relaxed mb-2 line-clamp-3">
                 {p.description}
               </p>

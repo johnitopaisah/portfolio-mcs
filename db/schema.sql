@@ -42,15 +42,17 @@ CREATE TABLE IF NOT EXISTS projects (
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- project_images (demo slideshow — many per project)
+-- project_images — multiple demo/slideshow images per project
+-- The projects.image column remains the cover/thumbnail image.
+-- This table holds additional images shown in the modal slideshow.
 CREATE TABLE IF NOT EXISTS project_images (
-  id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-  project_id  UUID        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-  image       BYTEA       NOT NULL,
-  image_mime  TEXT        NOT NULL,
-  caption     TEXT,
-  order_index INT         NOT NULL DEFAULT 0,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id    UUID        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  image         BYTEA       NOT NULL,
+  image_mime    TEXT        NOT NULL DEFAULT 'image/jpeg',
+  caption       TEXT,
+  order_index   INT         NOT NULL DEFAULT 0,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- skills
@@ -128,12 +130,12 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
 CREATE INDEX IF NOT EXISTS idx_reset_token ON password_reset_tokens (token) WHERE used_at IS NULL;
 
 -- Indexes
-CREATE INDEX IF NOT EXISTS idx_project_images_project ON project_images (project_id, order_index);
-CREATE INDEX IF NOT EXISTS idx_projects_published ON projects (published, order_index);
-CREATE INDEX IF NOT EXISTS idx_projects_featured  ON projects (featured) WHERE featured = TRUE;
-CREATE INDEX IF NOT EXISTS idx_skills_category    ON skills (category, order_index);
-CREATE INDEX IF NOT EXISTS idx_certs_order        ON certifications (order_index, issue_date DESC);
-CREATE INDEX IF NOT EXISTS idx_messages_unread    ON contact_messages (read, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_projects_published   ON projects (published, order_index);
+CREATE INDEX IF NOT EXISTS idx_projects_featured    ON projects (featured) WHERE featured = TRUE;
+CREATE INDEX IF NOT EXISTS idx_project_images_proj  ON project_images (project_id, order_index);
+CREATE INDEX IF NOT EXISTS idx_skills_category      ON skills (category, order_index);
+CREATE INDEX IF NOT EXISTS idx_certs_order          ON certifications (order_index, issue_date DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_unread      ON contact_messages (read, created_at DESC);
 
 -- Auto-update updated_at
 CREATE OR REPLACE FUNCTION set_updated_at()

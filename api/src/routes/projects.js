@@ -3,7 +3,13 @@ const pool   = require('../db/client');
 const { requireAuth } = require('../middleware/auth');
 const multer = require('multer');
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+const upload       = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+// Allow up to 20 images in one multi-upload request
+const uploadMany   = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+
+// ─────────────────────────────────────────────────────────────
+//  Existing routes — UNCHANGED
+// ─────────────────────────────────────────────────────────────
 
 /**
  * @swagger
@@ -56,10 +62,6 @@ router.get('/', async (req, res, next) => {
  *                 $ref: '#/components/schemas/Project'
  *       401:
  *         description: Unauthorised
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  */
 router.get('/all', requireAuth, async (req, res, next) => {
   try {
@@ -84,10 +86,7 @@ router.get('/all', requireAuth, async (req, res, next) => {
  *       - in: path
  *         name: id
  *         required: true
- *         schema:
- *           type: string
- *           format: uuid
- *         description: Project UUID
+ *         schema: { type: string, format: uuid }
  *     responses:
  *       200:
  *         description: Project found
@@ -97,10 +96,6 @@ router.get('/all', requireAuth, async (req, res, next) => {
  *               $ref: '#/components/schemas/Project'
  *       404:
  *         description: Project not found or not published
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  */
 router.get('/:id', async (req, res, next) => {
   try {
@@ -121,28 +116,17 @@ router.get('/:id', async (req, res, next) => {
  * @swagger
  * /api/projects/{id}/image:
  *   get:
- *     summary: Get project thumbnail image
- *     description: Returns the project image as raw binary. Cache-Control is set to 24 hours.
+ *     summary: Get project cover/thumbnail image
+ *     description: Returns the project cover image as raw binary. Cache-Control is set to 24 hours.
  *     tags: [Projects]
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
- *         schema:
- *           type: string
- *           format: uuid
+ *         schema: { type: string, format: uuid }
  *     responses:
  *       200:
  *         description: Project image binary
- *         content:
- *           image/jpeg:
- *             schema:
- *               type: string
- *               format: binary
- *           image/png:
- *             schema:
- *               type: string
- *               format: binary
  *       404:
  *         description: Project not found or no image uploaded
  */
@@ -163,9 +147,6 @@ router.get('/:id/image', async (req, res, next) => {
  * /api/projects:
  *   post:
  *     summary: Create a new project
- *     description: >
- *       Creates a new project entry. Accepts `multipart/form-data`.
- *       `tech_stack` must be sent as a JSON array string e.g. `'["Next.js","Docker"]'`.
  *     tags: [Projects]
  *     security:
  *       - bearerAuth: []
@@ -177,40 +158,18 @@ router.get('/:id/image', async (req, res, next) => {
  *             type: object
  *             required: [title, description]
  *             properties:
- *               title:
- *                 type: string
- *               description:
- *                 type: string
- *               tech_stack:
- *                 type: string
- *                 description: JSON array string e.g. '["Next.js","Docker"]'
- *               live_url:
- *                 type: string
- *                 format: uri
- *               repo_url:
- *                 type: string
- *                 format: uri
- *               featured:
- *                 type: string
- *                 enum: ['true', 'false']
- *               published:
- *                 type: string
- *                 enum: ['true', 'false']
- *               order_index:
- *                 type: integer
- *               start_date:
- *                 type: string
- *                 format: date
- *               end_date:
- *                 type: string
- *                 format: date
- *               ongoing:
- *                 type: string
- *                 enum: ['true', 'false']
- *               image:
- *                 type: string
- *                 format: binary
- *                 description: Project thumbnail (max 5 MB)
+ *               title: { type: string }
+ *               description: { type: string }
+ *               tech_stack: { type: string, description: "JSON array string" }
+ *               live_url: { type: string, format: uri }
+ *               repo_url: { type: string, format: uri }
+ *               featured: { type: string, enum: ['true','false'] }
+ *               published: { type: string, enum: ['true','false'] }
+ *               order_index: { type: integer }
+ *               start_date: { type: string, format: date }
+ *               end_date: { type: string, format: date }
+ *               ongoing: { type: string, enum: ['true','false'] }
+ *               image: { type: string, format: binary }
  *     responses:
  *       201:
  *         description: Project created
@@ -220,10 +179,6 @@ router.get('/:id/image', async (req, res, next) => {
  *               $ref: '#/components/schemas/Project'
  *       401:
  *         description: Unauthorised
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  */
 router.post('/', requireAuth, upload.single('image'), async (req, res, next) => {
   try {
@@ -261,9 +216,6 @@ router.post('/', requireAuth, upload.single('image'), async (req, res, next) => 
  * /api/projects/{id}:
  *   put:
  *     summary: Update a project
- *     description: >
- *       Partially updates a project. All fields are optional — only provided fields are changed.
- *       When `ongoing` is `'true'`, `end_date` is automatically cleared.
  *     tags: [Projects]
  *     security:
  *       - bearerAuth: []
@@ -271,45 +223,7 @@ router.post('/', requireAuth, upload.single('image'), async (req, res, next) => 
  *       - in: path
  *         name: id
  *         required: true
- *         schema:
- *           type: string
- *           format: uuid
- *     requestBody:
- *       content:
- *         multipart/form-data:
- *           schema:
- *             type: object
- *             properties:
- *               title:
- *                 type: string
- *               description:
- *                 type: string
- *               tech_stack:
- *                 type: string
- *               live_url:
- *                 type: string
- *               repo_url:
- *                 type: string
- *               featured:
- *                 type: string
- *                 enum: ['true', 'false']
- *               published:
- *                 type: string
- *                 enum: ['true', 'false']
- *               order_index:
- *                 type: integer
- *               start_date:
- *                 type: string
- *                 format: date
- *               end_date:
- *                 type: string
- *                 format: date
- *               ongoing:
- *                 type: string
- *                 enum: ['true', 'false']
- *               image:
- *                 type: string
- *                 format: binary
+ *         schema: { type: string, format: uuid }
  *     responses:
  *       200:
  *         description: Project updated
@@ -319,16 +233,8 @@ router.post('/', requireAuth, upload.single('image'), async (req, res, next) => 
  *               $ref: '#/components/schemas/Project'
  *       401:
  *         description: Unauthorised
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  *       404:
  *         description: Project not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  */
 router.put('/:id', requireAuth, upload.single('image'), async (req, res, next) => {
   try {
@@ -388,29 +294,304 @@ router.put('/:id', requireAuth, upload.single('image'), async (req, res, next) =
  *       - in: path
  *         name: id
  *         required: true
- *         schema:
- *           type: string
- *           format: uuid
+ *         schema: { type: string, format: uuid }
  *     responses:
  *       204:
- *         description: Project deleted — no content returned
+ *         description: Project deleted
  *       401:
  *         description: Unauthorised
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  *       404:
  *         description: Project not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  */
 router.delete('/:id', requireAuth, async (req, res, next) => {
   try {
     const { rowCount } = await pool.query('DELETE FROM projects WHERE id = $1', [req.params.id]);
     if (!rowCount) return res.status(404).json({ error: 'Project not found' });
+    res.status(204).end();
+  } catch (err) { next(err); }
+});
+
+// ─────────────────────────────────────────────────────────────
+//  NEW — Demo image slideshow routes
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * @swagger
+ * /api/projects/{id}/images:
+ *   get:
+ *     summary: List demo images for a project
+ *     description: >
+ *       Returns metadata for all slideshow images attached to a project,
+ *       ordered by order_index. Does NOT return binary data — use
+ *       GET /api/projects/:id/images/:imgId/file to retrieve each image.
+ *     tags: [Projects]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Array of image metadata
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id: { type: string, format: uuid }
+ *                   caption: { type: string, nullable: true }
+ *                   order_index: { type: integer }
+ *                   image_mime: { type: string }
+ *                   created_at: { type: string, format: date-time }
+ */
+router.get('/:id/images', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, caption, order_index, image_mime, created_at
+       FROM project_images
+       WHERE project_id = $1
+       ORDER BY order_index ASC, created_at ASC`,
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+/**
+ * @swagger
+ * /api/projects/{id}/images/{imgId}/file:
+ *   get:
+ *     summary: Serve a single demo image binary
+ *     description: Returns the raw image binary. Cache-Control is set to 24 hours.
+ *     tags: [Projects]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *       - in: path
+ *         name: imgId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Image binary
+ *       404:
+ *         description: Image not found
+ */
+router.get('/:id/images/:imgId/file', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT image, image_mime FROM project_images
+       WHERE id = $1 AND project_id = $2`,
+      [req.params.imgId, req.params.id]
+    );
+    if (!rows.length || !rows[0].image) return res.status(404).end();
+    res.set('Content-Type', rows[0].image_mime || 'image/jpeg');
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.send(rows[0].image);
+  } catch (err) { next(err); }
+});
+
+/**
+ * @swagger
+ * /api/projects/{id}/images:
+ *   post:
+ *     summary: Upload one or more demo images for a project
+ *     description: >
+ *       Accepts multipart/form-data with a field named `images` (multiple files allowed).
+ *       Optional fields: `captions` (JSON array of strings, one per file),
+ *       `order_start` (integer, default 0 — first image gets this order_index).
+ *       Maximum 20 images per project total. Maximum 5 MB per file.
+ *     tags: [Projects]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               images:
+ *                 type: array
+ *                 items: { type: string, format: binary }
+ *               captions:
+ *                 type: string
+ *                 description: "JSON array of captions e.g. [\"System Overview\",\"API Performance\"]"
+ *               order_start:
+ *                 type: integer
+ *                 description: "order_index for the first uploaded image (default: current max + 1)"
+ *     responses:
+ *       201:
+ *         description: Images uploaded successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id: { type: string, format: uuid }
+ *                   caption: { type: string }
+ *                   order_index: { type: integer }
+ *       400:
+ *         description: No files provided or limit exceeded
+ *       401:
+ *         description: Unauthorised
+ *       404:
+ *         description: Project not found
+ */
+router.post('/:id/images', requireAuth, uploadMany.array('images', 20), async (req, res, next) => {
+  try {
+    // Verify project exists
+    const { rows: proj } = await pool.query(
+      'SELECT id FROM projects WHERE id = $1', [req.params.id]
+    );
+    if (!proj.length) return res.status(404).json({ error: 'Project not found' });
+
+    const files = req.files;
+    if (!files || !files.length) {
+      return res.status(400).json({ error: 'No images provided' });
+    }
+
+    // Check existing image count to enforce 20-image cap
+    const { rows: countRows } = await pool.query(
+      'SELECT COUNT(*)::int AS cnt FROM project_images WHERE project_id = $1',
+      [req.params.id]
+    );
+    const existing = countRows[0].cnt;
+    if (existing + files.length > 20) {
+      return res.status(400).json({
+        error: `Upload would exceed the 20-image limit. Currently ${existing} images, uploading ${files.length}.`,
+      });
+    }
+
+    // Parse optional captions array
+    let captions = [];
+    try { captions = JSON.parse(req.body.captions || '[]'); } catch { captions = []; }
+
+    // Determine starting order_index
+    const { rows: maxRows } = await pool.query(
+      'SELECT COALESCE(MAX(order_index), -1) AS max FROM project_images WHERE project_id = $1',
+      [req.params.id]
+    );
+    const orderStart = req.body.order_start !== undefined
+      ? parseInt(req.body.order_start)
+      : maxRows[0].max + 1;
+
+    // Insert all images
+    const inserted = [];
+    for (let i = 0; i < files.length; i++) {
+      const file    = files[i];
+      const caption = captions[i] || null;
+      const { rows } = await pool.query(
+        `INSERT INTO project_images (project_id, image, image_mime, caption, order_index)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, caption, order_index, image_mime, created_at`,
+        [req.params.id, file.buffer, file.mimetype, caption, orderStart + i]
+      );
+      inserted.push(rows[0]);
+    }
+
+    res.status(201).json(inserted);
+  } catch (err) { next(err); }
+});
+
+/**
+ * @swagger
+ * /api/projects/{id}/images/{imgId}:
+ *   put:
+ *     summary: Update a demo image caption or order
+ *     description: Updates caption and/or order_index of a single demo image. No file re-upload.
+ *     tags: [Projects]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *       - in: path
+ *         name: imgId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               caption: { type: string, nullable: true }
+ *               order_index: { type: integer }
+ *     responses:
+ *       200:
+ *         description: Image metadata updated
+ *       401:
+ *         description: Unauthorised
+ *       404:
+ *         description: Image not found
+ */
+router.put('/:id/images/:imgId', requireAuth, async (req, res, next) => {
+  try {
+    const { caption, order_index } = req.body;
+    const { rows } = await pool.query(
+      `UPDATE project_images SET
+         caption     = COALESCE($1, caption),
+         order_index = COALESCE($2, order_index)
+       WHERE id = $3 AND project_id = $4
+       RETURNING id, caption, order_index, image_mime, created_at`,
+      [
+        caption     !== undefined ? caption : null,
+        order_index !== undefined ? parseInt(order_index) : null,
+        req.params.imgId,
+        req.params.id,
+      ]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Image not found' });
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+/**
+ * @swagger
+ * /api/projects/{id}/images/{imgId}:
+ *   delete:
+ *     summary: Delete a single demo image
+ *     tags: [Projects]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *       - in: path
+ *         name: imgId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       204:
+ *         description: Image deleted
+ *       401:
+ *         description: Unauthorised
+ *       404:
+ *         description: Image not found
+ */
+router.delete('/:id/images/:imgId', requireAuth, async (req, res, next) => {
+  try {
+    const { rowCount } = await pool.query(
+      'DELETE FROM project_images WHERE id = $1 AND project_id = $2',
+      [req.params.imgId, req.params.id]
+    );
+    if (!rowCount) return res.status(404).json({ error: 'Image not found' });
     res.status(204).end();
   } catch (err) { next(err); }
 });

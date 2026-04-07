@@ -8,6 +8,11 @@ interface Project {
   start_date?: string; end_date?: string; ongoing?: boolean;
 }
 
+interface ProjectImage {
+  id: string; caption: string | null; order_index: number;
+  image_mime: string; created_at: string;
+}
+
 // ── Duration helper ───────────────────────────────────────────
 function calcDuration(start: string, end: string | null, ongoing: boolean): string {
   if (!start) return '';
@@ -43,6 +48,14 @@ export default function ProjectsPage() {
   const [tagInput, setTagInput]   = useState('');
   const tagInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Demo images state ─────────────────────────────────────
+  const [demoImages, setDemoImages]         = useState<ProjectImage[]>([]);
+  const [demoImagesLoading, setDemoImagesLoading] = useState(false);
+  const [newDemoFiles, setNewDemoFiles]     = useState<File[]>([]);
+  const [newDemoCaptions, setNewDemoCaptions] = useState<string[]>([]);
+  const [uploadingDemo, setUploadingDemo]   = useState(false);
+  const demoFileInputRef = useRef<HTMLInputElement>(null);
+
   const emptyForm = {
     title: '', description: '', live_url: '', repo_url: '',
     featured: false, published: false, order_index: '0',
@@ -57,12 +70,25 @@ export default function ProjectsPage() {
   }
   useEffect(() => { load(); }, []);
 
+  // ── Load demo images when editing a project ───────────────
+  async function loadDemoImages(projectId: string) {
+    setDemoImagesLoading(true);
+    try {
+      const imgs = await adminApi.getProjectImages(projectId);
+      setDemoImages(imgs || []);
+    } catch { setDemoImages([]); }
+    finally { setDemoImagesLoading(false); }
+  }
+
   function openNew() {
     setEditing(null);
     setForm(emptyForm);
     setTechTags([]);
     setTagInput('');
     setImageFile(null);
+    setDemoImages([]);
+    setNewDemoFiles([]);
+    setNewDemoCaptions([]);
     setShowForm(true);
   }
 
@@ -83,6 +109,9 @@ export default function ProjectsPage() {
     setTechTags(Array.isArray(p.tech_stack) ? p.tech_stack : []);
     setTagInput('');
     setImageFile(null);
+    setNewDemoFiles([]);
+    setNewDemoCaptions([]);
+    loadDemoImages(p.id);
     setShowForm(true);
   }
 
@@ -101,6 +130,73 @@ export default function ProjectsPage() {
     }
   }
 
+  // ── Demo image file picker ────────────────────────────────
+  function handleDemoFilePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(e.target.files || []);
+    if (!picked.length) return;
+    const remaining = 20 - demoImages.length;
+    const allowed   = picked.slice(0, remaining);
+    setNewDemoFiles(prev => [...prev, ...allowed]);
+    setNewDemoCaptions(prev => [...prev, ...allowed.map(() => '')]);
+    // Reset input so the same file can be picked again if needed
+    if (demoFileInputRef.current) demoFileInputRef.current.value = '';
+  }
+
+  function removeNewDemoFile(idx: number) {
+    setNewDemoFiles(prev => prev.filter((_, i) => i !== idx));
+    setNewDemoCaptions(prev => prev.filter((_, i) => i !== idx));
+  }
+
+  function updateNewDemoCaption(idx: number, caption: string) {
+    setNewDemoCaptions(prev => prev.map((c, i) => i === idx ? caption : c));
+  }
+
+  // ── Upload pending demo images ────────────────────────────
+  async function uploadDemoImages(projectId: string) {
+    if (!newDemoFiles.length) return;
+    setUploadingDemo(true);
+    try {
+      const fd = new FormData();
+      newDemoFiles.forEach(f => fd.append('images', f));
+      fd.append('captions', JSON.stringify(newDemoCaptions));
+      await adminApi.uploadProjectImages(projectId, fd);
+      setNewDemoFiles([]);
+      setNewDemoCaptions([]);
+      await loadDemoImages(projectId);
+    } catch (e: any) { alert('Demo image upload failed: ' + e.message); }
+    finally { setUploadingDemo(false); }
+  }
+
+  // ── Update caption of existing demo image ─────────────────
+  async function saveImageCaption(projectId: string, imgId: string, caption: string) {
+    try {
+      await adminApi.updateProjectImage(projectId, imgId, { caption });
+      setDemoImages(prev => prev.map(img =>
+        img.id === imgId ? { ...img, caption } : img
+      ));
+    } catch (e: any) { alert('Failed to save caption: ' + e.message); }
+  }
+
+  // ── Update order of existing demo image ───────────────────
+  async function saveImageOrder(projectId: string, imgId: string, order_index: number) {
+    try {
+      await adminApi.updateProjectImage(projectId, imgId, { order_index });
+      setDemoImages(prev =>
+        [...prev.map(img => img.id === imgId ? { ...img, order_index } : img)]
+          .sort((a, b) => a.order_index - b.order_index)
+      );
+    } catch (e: any) { alert('Failed to update order: ' + e.message); }
+  }
+
+  // ── Delete existing demo image ────────────────────────────
+  async function deleteDemoImage(projectId: string, imgId: string) {
+    if (!confirm('Delete this demo image?')) return;
+    try {
+      await adminApi.deleteProjectImage(projectId, imgId);
+      setDemoImages(prev => prev.filter(img => img.id !== imgId));
+    } catch (e: any) { alert('Failed to delete image: ' + e.message); }
+  }
+
   async function handleSave() {
     setSaving(true);
     try {
@@ -117,9 +213,20 @@ export default function ProjectsPage() {
       if (form.start_date) fd.append('start_date', form.start_date);
       if (!form.ongoing && form.end_date) fd.append('end_date', form.end_date);
       if (imageFile) fd.append('image', imageFile);
-      editing
-        ? await adminApi.updateProject(editing.id, fd)
-        : await adminApi.createProject(fd);
+
+      let savedId = editing?.id;
+      if (editing) {
+        await adminApi.updateProject(editing.id, fd);
+      } else {
+        const created = await adminApi.createProject(fd);
+        savedId = created.id;
+      }
+
+      // Upload any pending demo images after project is saved
+      if (savedId && newDemoFiles.length) {
+        await uploadDemoImages(savedId);
+      }
+
       setShowForm(false);
       load();
     } catch (e: any) { alert(e.message); }
@@ -136,6 +243,8 @@ export default function ProjectsPage() {
   const durationPreview = form.start_date
     ? calcDuration(form.start_date, form.end_date || null, form.ongoing)
     : '';
+
+  const totalDemoSlots = demoImages.length + newDemoFiles.length;
 
   if (loading) return <p className="text-gray-500 text-sm">Loading…</p>;
 
@@ -173,13 +282,13 @@ export default function ProjectsPage() {
               </div>
             ))}
 
-            {/* Tech stack — tag pill input */}
+            {/* Tech stack */}
             <div>
               <label className="label">Tech stack</label>
               <p className="text-gray-600 text-xs mb-2">
                 Press <kbd className="bg-gray-800 px-1 rounded text-gray-400">Enter</kbd> or{' '}
                 <kbd className="bg-gray-800 px-1 rounded text-gray-400">,</kbd> to add.
-                Click a tag to remove. Backspace removes last.
+                Click a tag to remove.
               </p>
               <div
                 className="input flex flex-wrap gap-2 cursor-text min-h-[44px] py-2"
@@ -221,24 +330,17 @@ export default function ProjectsPage() {
                 onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />
             </div>
 
-            {/* ── Timeline ────────────────────────────────── */}
+            {/* Timeline */}
             <div className="border border-gray-800 rounded-xl p-4 space-y-4">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">
-                Timeline
-              </p>
-
-              {/* Start date */}
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Timeline</p>
               <div>
                 <label className="label">Start date</label>
                 <input className="input" type="date" value={form.start_date}
                   onChange={e => setForm(p => ({ ...p, start_date: e.target.value }))} />
               </div>
-
-              {/* Ongoing checkbox */}
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
-                  type="checkbox"
-                  checked={form.ongoing}
+                  type="checkbox" checked={form.ongoing}
                   onChange={e => setForm(p => ({ ...p, ongoing: e.target.checked, end_date: '' }))}
                   className="w-4 h-4 accent-indigo-600"
                 />
@@ -247,8 +349,6 @@ export default function ProjectsPage() {
                   <span className="ml-2 text-xs text-green-400">(uses today&apos;s date)</span>
                 </span>
               </label>
-
-              {/* End date — hidden when ongoing */}
               {!form.ongoing && (
                 <div>
                   <label className="label">End date</label>
@@ -256,17 +356,12 @@ export default function ProjectsPage() {
                     onChange={e => setForm(p => ({ ...p, end_date: e.target.value }))} />
                 </div>
               )}
-
-              {/* Duration preview */}
               {durationPreview && (
                 <div className="flex items-center gap-2 text-sm">
                   <span className="text-gray-500">Duration:</span>
                   <span className="text-indigo-300 font-medium">
-                    {fmtDate(form.start_date)}
-                    {' → '}
-                    {form.ongoing ? 'Present' : fmtDate(form.end_date)}
-                    {' · '}
-                    {durationPreview}
+                    {fmtDate(form.start_date)} → {form.ongoing ? 'Present' : fmtDate(form.end_date)}
+                    {' · '}{durationPreview}
                     {form.ongoing && (
                       <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse align-middle" />
                     )}
@@ -275,11 +370,158 @@ export default function ProjectsPage() {
               )}
             </div>
 
-            {/* Image */}
+            {/* Cover image */}
             <div>
-              <label className="label">Project image</label>
+              <label className="label">Cover image (thumbnail)</label>
               <input type="file" accept="image/*" className="input py-1.5"
                 onChange={e => setImageFile(e.target.files?.[0] ?? null)} />
+            </div>
+
+            {/* ── Demo images section ──────────────────────── */}
+            <div className="border border-gray-800 rounded-xl p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">
+                    Demo images (slideshow)
+                  </p>
+                  <p className="text-gray-600 text-xs mt-0.5">
+                    Shown in the project modal as a slideshow. Max 20 images, 5 MB each.
+                    {totalDemoSlots > 0 && (
+                      <span className="ml-1 text-gray-500">
+                        {totalDemoSlots}/20 used
+                      </span>
+                    )}
+                  </p>
+                </div>
+                {totalDemoSlots < 20 && (
+                  <button
+                    type="button"
+                    onClick={() => demoFileInputRef.current?.click()}
+                    className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600/20 border border-indigo-500/30
+                               text-indigo-300 hover:bg-indigo-600/30 transition-colors"
+                  >
+                    + Add images
+                  </button>
+                )}
+              </div>
+
+              {/* Hidden file input — multiple */}
+              <input
+                ref={demoFileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={handleDemoFilePick}
+              />
+
+              {/* Existing saved images */}
+              {demoImagesLoading ? (
+                <p className="text-gray-600 text-xs">Loading images…</p>
+              ) : demoImages.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-gray-500 text-xs font-medium">Saved ({demoImages.length})</p>
+                  {demoImages.map((img, idx) => (
+                    <div key={img.id}
+                      className="flex items-center gap-3 p-2 rounded-lg bg-gray-800/50 border border-gray-700/50">
+                      {/* Preview thumbnail */}
+                      <img
+                        src={adminApi.projectSlideImg(editing!.id, img.id)}
+                        alt={img.caption || `Slide ${idx + 1}`}
+                        className="w-16 h-10 object-cover rounded flex-shrink-0"
+                      />
+                      {/* Caption */}
+                      <input
+                        type="text"
+                        defaultValue={img.caption || ''}
+                        placeholder="Caption (optional)"
+                        className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1
+                                   text-xs text-gray-300 placeholder-gray-600 outline-none
+                                   focus:border-indigo-500/50"
+                        onBlur={e => {
+                          const val = e.target.value.trim();
+                          if (val !== (img.caption || '')) {
+                            saveImageCaption(editing!.id, img.id, val);
+                          }
+                        }}
+                      />
+                      {/* Order */}
+                      <input
+                        type="number"
+                        defaultValue={img.order_index}
+                        min={0}
+                        className="w-14 bg-gray-800 border border-gray-700 rounded px-2 py-1
+                                   text-xs text-gray-300 outline-none focus:border-indigo-500/50 text-center"
+                        onBlur={e => {
+                          const val = parseInt(e.target.value);
+                          if (!isNaN(val) && val !== img.order_index) {
+                            saveImageOrder(editing!.id, img.id, val);
+                          }
+                        }}
+                        title="Slide order"
+                      />
+                      {/* Delete */}
+                      <button
+                        type="button"
+                        onClick={() => deleteDemoImage(editing!.id, img.id)}
+                        className="text-red-500 hover:text-red-400 transition-colors text-sm flex-shrink-0"
+                        title="Delete image"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Pending new files (not yet uploaded) */}
+              {newDemoFiles.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-gray-500 text-xs font-medium">
+                    Pending upload ({newDemoFiles.length}) — will save when you click Save
+                  </p>
+                  {newDemoFiles.map((file, idx) => (
+                    <div key={idx}
+                      className="flex items-center gap-3 p-2 rounded-lg bg-indigo-900/20 border border-indigo-700/30">
+                      {/* Preview */}
+                      <img
+                        src={URL.createObjectURL(file)}
+                        alt={file.name}
+                        className="w-16 h-10 object-cover rounded flex-shrink-0"
+                      />
+                      {/* Caption */}
+                      <input
+                        type="text"
+                        value={newDemoCaptions[idx]}
+                        placeholder="Caption (optional)"
+                        onChange={e => updateNewDemoCaption(idx, e.target.value)}
+                        className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1
+                                   text-xs text-gray-300 placeholder-gray-600 outline-none
+                                   focus:border-indigo-500/50"
+                      />
+                      {/* File name / size */}
+                      <span className="text-xs text-gray-600 flex-shrink-0">
+                        {(file.size / 1024).toFixed(0)} KB
+                      </span>
+                      {/* Remove from pending */}
+                      <button
+                        type="button"
+                        onClick={() => removeNewDemoFile(idx)}
+                        className="text-red-500 hover:text-red-400 transition-colors text-sm flex-shrink-0"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Empty state */}
+              {!demoImagesLoading && demoImages.length === 0 && newDemoFiles.length === 0 && (
+                <p className="text-gray-600 text-xs text-center py-2">
+                  No demo images yet. Click &quot;+ Add images&quot; to upload screenshots.
+                </p>
+              )}
             </div>
 
             {/* Checkboxes */}
@@ -295,8 +537,8 @@ export default function ProjectsPage() {
             </div>
 
             <div className="flex gap-3 pt-2">
-              <button onClick={handleSave} disabled={saving} className="btn-primary flex-1">
-                {saving ? 'Saving…' : 'Save'}
+              <button onClick={handleSave} disabled={saving || uploadingDemo} className="btn-primary flex-1">
+                {saving || uploadingDemo ? 'Saving…' : 'Save'}
               </button>
               <button onClick={() => setShowForm(false)} className="btn-ghost flex-1">
                 Cancel
