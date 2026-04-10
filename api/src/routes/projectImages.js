@@ -91,11 +91,11 @@ router.get('/:id/images/:imgId/file', async (req, res, next) => {
  * @swagger
  * /api/projects/{id}/images:
  *   post:
- *     summary: Upload a demo image for a project
+ *     summary: Upload demo images for a project
  *     description: >
- *       Adds a new demo image to the project slideshow.
+ *       Adds one or more demo images to the project slideshow.
  *       Max 20 images per project, max 5 MB per image.
- *       Accepts multipart/form-data.
+ *       Accepts multipart/form-data with multiple images.
  *     tags: [Projects]
  *     security:
  *       - bearerAuth: []
@@ -110,30 +110,32 @@ router.get('/:id/images/:imgId/file', async (req, res, next) => {
  *         multipart/form-data:
  *           schema:
  *             type: object
- *             required: [image]
+ *             required: [images]
  *             properties:
- *               image:
+ *               images:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *                 description: One or more image files
+ *               captions:
  *                 type: string
- *                 format: binary
- *               caption:
- *                 type: string
- *                 description: Optional label shown below the slide
- *               order_index:
- *                 type: integer
- *                 description: Display order (lower = first)
+ *                 description: JSON array of optional captions matching image order
  *     responses:
  *       201:
- *         description: Image uploaded
+ *         description: Images uploaded
  *       400:
- *         description: No image file or limit reached
+ *         description: No image files or limit reached
  *       401:
  *         description: Unauthorised
  *       404:
  *         description: Project not found
  */
-router.post('/:id/images', requireAuth, upload.single('image'), async (req, res, next) => {
+router.post('/:id/images', requireAuth, upload.array('images', 20), async (req, res, next) => {
   try {
-    if (!req.file) return res.status(400).json({ error: 'Image file is required' });
+    if (!req.files || !req.files.length) {
+      return res.status(400).json({ error: 'At least one image file is required' });
+    }
 
     // Verify project exists
     const { rows: proj } = await pool.query(
@@ -146,26 +148,42 @@ router.post('/:id/images', requireAuth, upload.single('image'), async (req, res,
       'SELECT COUNT(*) AS n FROM project_images WHERE project_id = $1',
       [req.params.id]
     );
-    if (parseInt(count[0].n, 10) >= MAX_IMAGES_PER_PROJECT) {
+    const currentCount = parseInt(count[0].n, 10);
+    if (currentCount + req.files.length > MAX_IMAGES_PER_PROJECT) {
       return res.status(400).json({
-        error: `Maximum ${MAX_IMAGES_PER_PROJECT} demo images allowed per project`,
+        error: `Cannot add ${req.files.length} images. Maximum ${MAX_IMAGES_PER_PROJECT} per project, currently have ${currentCount}`,
       });
     }
 
-    const { caption, order_index } = req.body;
-    const { rows } = await pool.query(
-      `INSERT INTO project_images (project_id, image, image_mime, caption, order_index)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, project_id, caption, order_index, created_at`,
-      [
-        req.params.id,
-        req.file.buffer,
-        req.file.mimetype,
-        caption?.trim() || null,
-        parseInt(order_index || '0', 10),
-      ]
+    // Parse captions (sent as JSON string)
+    let captions = [];
+    if (req.body.captions) {
+      try {
+        captions = JSON.parse(req.body.captions);
+      } catch (e) {
+        captions = [];
+      }
+    }
+
+    // Insert all images
+    const insertPromises = req.files.map((file, idx) =>
+      pool.query(
+        `INSERT INTO project_images (project_id, image, image_mime, caption, order_index)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, project_id, caption, order_index, created_at`,
+        [
+          req.params.id,
+          file.buffer,
+          file.mimetype,
+          captions[idx]?.trim() || null,
+          currentCount + idx,  // order_index starts after existing images
+        ]
+      )
     );
-    res.status(201).json(rows[0]);
+
+    const results = await Promise.all(insertPromises);
+    const rows = results.map(r => r.rows[0]);
+    res.status(201).json(rows);
   } catch (err) { next(err); }
 });
 
