@@ -3,9 +3,8 @@ const pool   = require('../db/client');
 const { requireAuth } = require('../middleware/auth');
 const multer = require('multer');
 
-// Single multer instance used for ALL upload routes in this file.
-// .single('image')       — cover image on POST / and PUT /:id
-// .array('images', 20)   — demo slideshow images on POST /:id/images
+// Single multer instance for ALL upload routes in this file.
+// Using .fields() instead of .array() — more reliable in multer 1.4.x
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },   // 5 MB per file
@@ -20,7 +19,6 @@ const upload = multer({
  * /api/projects:
  *   get:
  *     summary: List published projects
- *     description: Returns all projects where `published = true`, ordered by `order_index` then `created_at`.
  *     tags: [Projects]
  *     responses:
  *       200:
@@ -51,7 +49,6 @@ router.get('/', async (req, res, next) => {
  * /api/projects/all:
  *   get:
  *     summary: List all projects including drafts
- *     description: Admin endpoint — returns all projects regardless of published status.
  *     tags: [Projects]
  *     security:
  *       - bearerAuth: []
@@ -121,7 +118,6 @@ router.get('/:id', async (req, res, next) => {
  * /api/projects/{id}/image:
  *   get:
  *     summary: Get project cover/thumbnail image
- *     description: Returns the project cover image as raw binary. Cache-Control is set to 24 hours.
  *     tags: [Projects]
  *     parameters:
  *       - in: path
@@ -154,26 +150,6 @@ router.get('/:id/image', async (req, res, next) => {
  *     tags: [Projects]
  *     security:
  *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         multipart/form-data:
- *           schema:
- *             type: object
- *             required: [title, description]
- *             properties:
- *               title: { type: string }
- *               description: { type: string }
- *               tech_stack: { type: string, description: "JSON array string" }
- *               live_url: { type: string, format: uri }
- *               repo_url: { type: string, format: uri }
- *               featured: { type: string, enum: ['true','false'] }
- *               published: { type: string, enum: ['true','false'] }
- *               order_index: { type: integer }
- *               start_date: { type: string, format: date }
- *               end_date: { type: string, format: date }
- *               ongoing: { type: string, enum: ['true','false'] }
- *               image: { type: string, format: binary }
  *     responses:
  *       201:
  *         description: Project created
@@ -316,7 +292,7 @@ router.delete('/:id', requireAuth, async (req, res, next) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-//  NEW — Demo image slideshow routes
+//  Demo image slideshow routes
 // ─────────────────────────────────────────────────────────────
 
 /**
@@ -405,61 +381,69 @@ router.get('/:id/images/:imgId/file', async (req, res, next) => {
  *       404:
  *         description: Project not found
  */
-router.post('/:id/images', requireAuth, upload.array('images', 20), async (req, res, next) => {
-  try {
-    // Verify project exists
-    const { rows: proj } = await pool.query(
-      'SELECT id FROM projects WHERE id = $1', [req.params.id]
-    );
-    if (!proj.length) return res.status(404).json({ error: 'Project not found' });
-
-    const files = req.files;
-    if (!files || !files.length) {
-      return res.status(400).json({ error: 'No images provided' });
-    }
-
-    // Enforce 20-image cap
-    const { rows: countRows } = await pool.query(
-      'SELECT COUNT(*)::int AS cnt FROM project_images WHERE project_id = $1',
-      [req.params.id]
-    );
-    const existing = countRows[0].cnt;
-    if (existing + files.length > 20) {
-      return res.status(400).json({
-        error: `Upload would exceed the 20-image limit. Currently ${existing}, uploading ${files.length}.`,
-      });
-    }
-
-    // Parse optional captions array
-    let captions = [];
-    try { captions = JSON.parse(req.body.captions || '[]'); } catch { captions = []; }
-
-    // Determine starting order_index
-    const { rows: maxRows } = await pool.query(
-      'SELECT COALESCE(MAX(order_index), -1) AS max FROM project_images WHERE project_id = $1',
-      [req.params.id]
-    );
-    const orderStart = req.body.order_start !== undefined
-      ? parseInt(req.body.order_start)
-      : maxRows[0].max + 1;
-
-    // Insert all images
-    const inserted = [];
-    for (let i = 0; i < files.length; i++) {
-      const file    = files[i];
-      const caption = captions[i] || null;
-      const { rows } = await pool.query(
-        `INSERT INTO project_images (project_id, image, image_mime, caption, order_index)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING id, caption, order_index, image_mime, created_at`,
-        [req.params.id, file.buffer, file.mimetype, caption, orderStart + i]
+// Using .fields() instead of .array() — more reliable in multer 1.4.x lts.
+// Access uploaded files via req.files['images'] (array or undefined).
+router.post(
+  '/:id/images',
+  requireAuth,
+  upload.fields([{ name: 'images', maxCount: 20 }]),
+  async (req, res, next) => {
+    try {
+      // Verify project exists
+      const { rows: proj } = await pool.query(
+        'SELECT id FROM projects WHERE id = $1', [req.params.id]
       );
-      inserted.push(rows[0]);
-    }
+      if (!proj.length) return res.status(404).json({ error: 'Project not found' });
 
-    res.status(201).json(inserted);
-  } catch (err) { next(err); }
-});
+      // With .fields(), files are in req.files['images']
+      const files = (req.files && req.files['images']) ? req.files['images'] : [];
+      if (!files.length) {
+        return res.status(400).json({ error: 'No images provided' });
+      }
+
+      // Enforce 20-image cap
+      const { rows: countRows } = await pool.query(
+        'SELECT COUNT(*)::int AS cnt FROM project_images WHERE project_id = $1',
+        [req.params.id]
+      );
+      const existing = countRows[0].cnt;
+      if (existing + files.length > 20) {
+        return res.status(400).json({
+          error: `Upload would exceed the 20-image limit. Currently ${existing}, uploading ${files.length}.`,
+        });
+      }
+
+      // Parse optional captions array
+      let captions = [];
+      try { captions = JSON.parse(req.body.captions || '[]'); } catch { captions = []; }
+
+      // Determine starting order_index
+      const { rows: maxRows } = await pool.query(
+        'SELECT COALESCE(MAX(order_index), -1) AS max FROM project_images WHERE project_id = $1',
+        [req.params.id]
+      );
+      const orderStart = req.body.order_start !== undefined
+        ? parseInt(req.body.order_start)
+        : maxRows[0].max + 1;
+
+      // Insert all images
+      const inserted = [];
+      for (let i = 0; i < files.length; i++) {
+        const file    = files[i];
+        const caption = captions[i] || null;
+        const { rows } = await pool.query(
+          `INSERT INTO project_images (project_id, image, image_mime, caption, order_index)
+           VALUES ($1, $2, $3, $4, $5)
+           RETURNING id, caption, order_index, image_mime, created_at`,
+          [req.params.id, file.buffer, file.mimetype, caption, orderStart + i]
+        );
+        inserted.push(rows[0]);
+      }
+
+      res.status(201).json(inserted);
+    } catch (err) { next(err); }
+  }
+);
 
 /**
  * @swagger
