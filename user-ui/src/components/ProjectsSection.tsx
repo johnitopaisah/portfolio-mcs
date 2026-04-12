@@ -47,12 +47,20 @@ function getIcon(tech: string[]): string {
   return '◈';
 }
 
+// ── Duration helper ───────────────────────────────────────────
 function calcDuration(start: string, end: string | null | undefined, ongoing: boolean): string {
-  const from  = new Date(start);
-  const to    = ongoing || !end ? new Date() : new Date(end);
-  const total = (to.getFullYear() - from.getFullYear()) * 12
-                + (to.getMonth() - from.getMonth());
-  if (total < 0) return '';
+  if (!start) return '';
+  const [fy, fm] = start.split('-').map(Number);
+  let ty: number, tm: number;
+  if (ongoing || !end) {
+    const now = new Date();
+    ty = now.getFullYear();
+    tm = now.getMonth() + 1;
+  } else {
+    [ty, tm] = end.split('-').map(Number);
+  }
+  const total = (ty - fy) * 12 + (tm - fm) + 1;
+  if (total <= 0) return '< 1 mo';
   const yrs = Math.floor(total / 12);
   const mos = total % 12;
   const parts: string[] = [];
@@ -63,14 +71,17 @@ function calcDuration(start: string, end: string | null | undefined, ongoing: bo
 
 function fmtDate(d: string | null | undefined): string {
   if (!d) return '';
-  return new Date(d).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+  const [y, m] = d.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
 }
 
 function calcProgressPct(start: string | undefined, end: string | undefined, ongoing: boolean): number {
   if (!start) return 0;
   if (!ongoing && end) return 100;
   if (ongoing) {
-    const mos = (Date.now() - new Date(start).getTime()) / (1000 * 60 * 60 * 24 * 30);
+    const [fy, fm] = start.split('-').map(Number);
+    const now = new Date();
+    const mos = (now.getFullYear() - fy) * 12 + (now.getMonth() + 1 - fm);
     return Math.min(100, (mos / 24) * 100);
   }
   return 0;
@@ -111,51 +122,40 @@ function TimelineStrip({ p, compact = false }: { p: Project; compact?: boolean }
   );
 }
 
-// ── Image Slideshow component ─────────────────────────────────
+// ── Full-screen Image Slideshow ───────────────────────────────
 function ImageSlideshow({
   projectId,
   hascover,
   slides,
+  fullHeight = false,
 }: {
   projectId: string;
   hascover: boolean;
   slides: SlideImage[];
+  fullHeight?: boolean;
 }) {
-  const [current, setCurrent]   = useState(0);
-  const [paused, setPaused]     = useState(false);
-  const [loaded, setLoaded]     = useState(false);
+  const [current, setCurrent] = useState(0);
+  const [paused,  setPaused]  = useState(false);
+  const [loaded,  setLoaded]  = useState(false);
 
-  // Build the full list: demo slides first, fall back to cover if no slides
   const allSlides: Array<{ url: string; caption: string | null }> =
     slides.length > 0
-      ? slides.map(s => ({
-          url:     projectSlideImageUrl(projectId, s.id),
-          caption: s.caption,
-        }))
+      ? slides.map(s => ({ url: projectSlideImageUrl(projectId, s.id), caption: s.caption }))
       : hascover
         ? [{ url: projectImageUrl(projectId), caption: null }]
         : [];
 
   const total = allSlides.length;
 
-  const prev = useCallback(() => {
-    setCurrent(c => (c - 1 + total) % total);
-    setLoaded(false);
-  }, [total]);
+  const prev = useCallback(() => { setCurrent(c => (c - 1 + total) % total); setLoaded(false); }, [total]);
+  const next = useCallback(() => { setCurrent(c => (c + 1) % total);         setLoaded(false); }, [total]);
 
-  const next = useCallback(() => {
-    setCurrent(c => (c + 1) % total);
-    setLoaded(false);
-  }, [total]);
-
-  // Auto-advance every 4 seconds unless paused or only 1 slide
   useEffect(() => {
     if (total <= 1 || paused) return;
     const t = setInterval(next, 4000);
     return () => clearInterval(t);
   }, [total, paused, next]);
 
-  // Keyboard navigation
   useEffect(() => {
     if (total <= 1) return;
     function onKey(e: KeyboardEvent) {
@@ -167,11 +167,10 @@ function ImageSlideshow({
   }, [total, prev, next]);
 
   if (total === 0) {
-    // No cover and no demo images — show gradient placeholder
     return (
-      <div className="h-52 rounded-t-2xl flex items-center justify-center"
+      <div className={`flex items-center justify-center ${fullHeight ? 'h-full' : 'h-52'}`}
         style={{ background: 'linear-gradient(135deg,#1e1b4b 0%,#0f172a 100%)' }}>
-        <span className="text-6xl opacity-30">◈</span>
+        <span className="text-6xl opacity-20">◈</span>
       </div>
     );
   }
@@ -179,101 +178,75 @@ function ImageSlideshow({
   const slide = allSlides[current];
 
   return (
-    <div
-      className="relative select-none"
+    <div className={`relative select-none ${fullHeight ? 'h-full' : ''}`}
       onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-    >
-      {/* Image */}
-      <div className="h-64 rounded-t-2xl overflow-hidden relative bg-zinc-900">
-        <img
-          key={slide.url + current}
-          src={slide.url}
+      onMouseLeave={() => setPaused(false)}>
+
+      {/*
+        object-contain — shows the FULL image without cropping.
+        This is correct for dashboard screenshots (wide 16:9) which
+        would be severely cut by object-cover in a tall panel.
+        The bg-zinc-950 background fills any letterbox gaps cleanly.
+
+        object-cover is intentionally kept ONLY on the card thumbnail
+        (below in ProjectsSection) where cropping is acceptable.
+      */}
+      <div className={`relative bg-zinc-950 ${fullHeight ? 'h-full' : 'h-64 rounded-t-2xl'}`}>
+        <img key={slide.url + current} src={slide.url}
           alt={slide.caption || `Slide ${current + 1}`}
           onLoad={() => setLoaded(true)}
-          className={`w-full h-full object-cover transition-opacity duration-500 ${
-            loaded ? 'opacity-100' : 'opacity-0'
-          }`}
-        />
+          className={`w-full h-full object-contain transition-opacity duration-500 ${loaded ? 'opacity-100' : 'opacity-0'}`} />
         {!loaded && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-6 h-6 border-2 border-violet-500 border-t-transparent
-                            rounded-full animate-spin" />
+            <div className="w-8 h-8 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
           </div>
         )}
-        {/* Bottom gradient */}
-        <div className="absolute inset-x-0 bottom-0 h-16"
-          style={{ background: 'linear-gradient(to top, rgba(24,24,27,0.9), transparent)' }} />
-
-        {/* Prev / Next buttons — only shown when > 1 slide */}
+        <div className="absolute inset-x-0 bottom-0 h-16 pointer-events-none"
+          style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 100%)' }} />
         {total > 1 && (
           <>
-            <button
-              onClick={prev}
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full
-                         flex items-center justify-center text-white transition-all
-                         hover:scale-110 active:scale-95"
-              style={{ background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.15)' }}
-              aria-label="Previous slide"
-            >
-              ‹
-            </button>
-            <button
-              onClick={next}
-              className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full
-                         flex items-center justify-center text-white transition-all
-                         hover:scale-110 active:scale-95"
-              style={{ background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.15)' }}
-              aria-label="Next slide"
-            >
-              ›
-            </button>
+            <button onClick={prev} aria-label="Previous slide"
+              className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full
+                         flex items-center justify-center text-white text-xl font-light
+                         transition-all hover:scale-110 active:scale-95"
+              style={{ background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.18)' }}>‹</button>
+            <button onClick={next} aria-label="Next slide"
+              className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full
+                         flex items-center justify-center text-white text-xl font-light
+                         transition-all hover:scale-110 active:scale-95"
+              style={{ background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.18)' }}>›</button>
           </>
         )}
-
-        {/* Slide counter badge */}
         {total > 1 && (
-          <div className="absolute top-3 right-3 text-xs px-2 py-0.5 rounded-full"
-            style={{ background: 'rgba(0,0,0,0.6)', color: 'rgba(255,255,255,0.7)' }}>
+          <div className="absolute top-4 right-4 text-xs px-2.5 py-0.5 rounded-full font-medium"
+            style={{ background: 'rgba(0,0,0,0.65)', color: 'rgba(255,255,255,0.75)' }}>
             {current + 1} / {total}
           </div>
         )}
-
-        {/* Auto-play pause indicator */}
         {total > 1 && paused && (
-          <div className="absolute top-3 left-3 text-xs px-2 py-0.5 rounded-full"
-            style={{ background: 'rgba(0,0,0,0.5)', color: 'rgba(255,255,255,0.5)' }}>
-            ⏸
+          <div className="absolute top-4 left-4 text-xs px-2 py-0.5 rounded-full"
+            style={{ background: 'rgba(0,0,0,0.5)', color: 'rgba(255,255,255,0.45)' }}>⏸</div>
+        )}
+        {slide.caption && (
+          <div className="absolute bottom-6 left-0 right-0 text-center px-6">
+            <span className="text-sm text-white/80 bg-black/50 px-3 py-1 rounded-full backdrop-blur-sm">
+              {slide.caption}
+            </span>
           </div>
         )}
       </div>
 
-      {/* Caption */}
-      {slide.caption && (
-        <div className="absolute bottom-2 left-0 right-0 text-center px-4">
-          <span className="text-xs text-zinc-300 bg-black/50 px-2 py-0.5 rounded-full">
-            {slide.caption}
-          </span>
-        </div>
-      )}
-
-      {/* Dot indicators */}
       {total > 1 && (
-        <div className="flex justify-center gap-1.5 pt-2 pb-1">
+        <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
           {allSlides.map((_, idx) => (
-            <button
-              key={idx}
-              onClick={() => { setCurrent(idx); setLoaded(false); }}
+            <button key={idx} onClick={() => { setCurrent(idx); setLoaded(false); }}
               aria-label={`Go to slide ${idx + 1}`}
               className="transition-all duration-200 rounded-full"
               style={{
-                width:      idx === current ? '20px' : '6px',
+                width:      idx === current ? '22px' : '6px',
                 height:     '6px',
-                background: idx === current
-                  ? 'rgba(124,58,237,0.9)'
-                  : 'rgba(255,255,255,0.2)',
-              }}
-            />
+                background: idx === current ? 'rgba(124,58,237,0.95)' : 'rgba(255,255,255,0.25)',
+              }} />
           ))}
         </div>
       )}
@@ -281,12 +254,16 @@ function ImageSlideshow({
   );
 }
 
-// ── Project detail modal ──────────────────────────────────────
+// ── Full-screen Project Modal ─────────────────────────────────
 function ProjectModal({ p, onClose }: { p: Project; onClose: () => void }) {
-  const [slides, setSlides]       = useState<SlideImage[]>([]);
+  const [slides, setSlides]               = useState<SlideImage[]>([]);
   const [slidesLoading, setSlidesLoading] = useState(true);
 
-  // Fetch demo images when modal opens
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, []);
+
   useEffect(() => {
     setSlidesLoading(true);
     fetch(`/api/projects/${p.id}/images`)
@@ -296,154 +273,131 @@ function ProjectModal({ p, onClose }: { p: Project; onClose: () => void }) {
       .finally(() => setSlidesLoading(false));
   }, [p.id]);
 
-  const dur         = p.start_date
-    ? calcDuration(p.start_date, p.end_date, p.ongoing ?? false)
-    : null;
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose(); }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const dur         = p.start_date ? calcDuration(p.start_date, p.end_date, p.ongoing ?? false) : null;
   const progressPct = calcProgressPct(p.start_date, p.end_date, p.ongoing ?? false);
   const barWidth    = Math.max(progressPct, 8);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(6px)' }}
-      onClick={onClose}
-    >
-      <div
-        className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl"
-        style={{
-          background: '#18181b',
-          border: '1px solid rgba(124,58,237,0.25)',
-          boxShadow: '0 25px 80px rgba(0,0,0,0.6), 0 0 60px rgba(124,58,237,0.1)',
-        }}
-        onClick={e => e.stopPropagation()}
-      >
-        {/* ── Slideshow or placeholder while loading ─────── */}
-        <div className="relative rounded-t-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex"
+      style={{ background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(8px)' }}
+      onClick={onClose}>
+      <div className="relative flex flex-col md:flex-row w-full h-full"
+        onClick={e => e.stopPropagation()}>
+
+        <div className="w-full md:w-[58%] h-[45vh] md:h-full flex-shrink-0 relative bg-zinc-950">
           {slidesLoading ? (
-            // Skeleton while fetching slide list
-            <div className="h-64 bg-zinc-900 flex items-center justify-center rounded-t-2xl">
-              <div className="w-6 h-6 border-2 border-violet-500 border-t-transparent
-                              rounded-full animate-spin" />
+            <div className="w-full h-full flex items-center justify-center">
+              <div className="w-10 h-10 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : (
-            <ImageSlideshow
-              projectId={p.id}
-              hascover={p.has_image}
-              slides={slides}
-            />
+            <ImageSlideshow projectId={p.id} hascover={p.has_image} slides={slides} fullHeight />
           )}
-
-          {/* Featured badge */}
           {p.featured && (
-            <div className="absolute top-4 left-4 z-10 text-xs px-2.5 py-1 rounded-full font-medium"
-              style={{
-                background: 'rgba(124,58,237,0.3)',
-                border: '1px solid rgba(124,58,237,0.5)',
-                color: '#a78bfa',
-              }}>
+            <div className="absolute top-5 left-5 z-10 text-xs px-3 py-1 rounded-full font-semibold"
+              style={{ background: 'rgba(124,58,237,0.35)', border: '1px solid rgba(124,58,237,0.6)',
+                       color: '#a78bfa', backdropFilter: 'blur(6px)' }}>
               ★ Featured
             </div>
           )}
-
-          {/* Close button */}
-          <button onClick={onClose}
-            className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full flex items-center
-                       justify-center text-zinc-400 hover:text-white transition-colors"
-            style={{ background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)' }}>
-            ✕
-          </button>
         </div>
 
-        <div className="p-8 space-y-7">
-          <h2 className="text-2xl font-bold text-white leading-tight">{p.title}</h2>
-
-          {/* Timeline */}
-          {p.start_date && (
-            <div className="space-y-3">
-              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">Timeline</p>
-              <div className="relative">
-                <div className="h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                  <div className="h-full rounded-full transition-all duration-700"
-                    style={{
-                      width: `${barWidth}%`,
-                      background: p.ongoing
-                        ? 'linear-gradient(90deg, #7c3aed, #22c55e)'
-                        : 'linear-gradient(90deg, #7c3aed, #06b6d4)',
-                    }} />
-                </div>
-                <div className="absolute -top-1 left-0 w-3 h-3 rounded-full bg-violet-500" />
-                <div className={`absolute -top-1 w-3 h-3 rounded-full ${
-                  p.ongoing ? 'bg-green-400 animate-pulse' : 'bg-cyan-400'
-                }`} style={{ right: `${100 - barWidth}%`, transform: 'translateX(50%)' }} />
-              </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-zinc-400">{fmtDate(p.start_date)}</span>
-                <div className="text-center">
-                  {dur && <span className="text-violet-300 font-semibold">{dur}</span>}
-                  {p.ongoing && <span className="ml-2 text-xs text-green-400">ongoing</span>}
-                </div>
-                <span className={p.ongoing ? 'text-green-400 font-medium' : 'text-zinc-400'}>
-                  {p.ongoing ? 'Present' : fmtDate(p.end_date)}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Description */}
-          <div className="space-y-3">
-            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">About</p>
-            <div className="space-y-3">
-              <DescriptionParagraphs
-                text={p.description}
-                className="text-zinc-300 text-sm leading-relaxed"
-              />
-            </div>
+        <div className="flex-1 overflow-y-auto" style={{ background: '#0f0f11' }}>
+          <div className="sticky top-0 z-10 flex justify-end px-6 pt-5 pb-2"
+            style={{ background: 'linear-gradient(to bottom, #0f0f11 60%, transparent)' }}>
+            <button onClick={onClose}
+              className="w-9 h-9 rounded-full flex items-center justify-center
+                         text-zinc-400 hover:text-white transition-all hover:bg-zinc-800"
+              style={{ border: '1px solid rgba(255,255,255,0.1)' }} aria-label="Close">✕</button>
           </div>
 
-          {/* Tech stack */}
-          <div className="space-y-3">
-            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">
-              Tech stack · {p.tech_stack.length} technologies
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {p.tech_stack.map((tag, ti) => {
-                const c = TAG_COLORS[ti % TAG_COLORS.length];
-                return (
-                  <span key={tag} className="text-xs font-medium px-3 py-1.5 rounded-full"
-                    style={{ background: c.color, border: `1px solid ${c.border}`, color: c.text }}>
-                    {tag}
+          <div className="px-8 pb-10 space-y-8">
+            <h2 className="text-3xl font-bold text-white leading-tight tracking-tight">{p.title}</h2>
+
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">About</p>
+              <div className="space-y-3">
+                <DescriptionParagraphs text={p.description} className="text-zinc-300 text-sm leading-relaxed" />
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">
+                Tech stack · {p.tech_stack.length} {p.tech_stack.length === 1 ? 'technology' : 'technologies'}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {p.tech_stack.map((tag, ti) => {
+                  const c = TAG_COLORS[ti % TAG_COLORS.length];
+                  return (
+                    <span key={tag} className="text-xs font-medium px-3 py-1.5 rounded-full"
+                      style={{ background: c.color, border: `1px solid ${c.border}`, color: c.text }}>
+                      {tag}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+
+            {p.start_date && (
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">Timeline</p>
+                <div className="relative">
+                  <div className="h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                    <div className="h-full rounded-full transition-all duration-700"
+                      style={{
+                        width: `${barWidth}%`,
+                        background: p.ongoing
+                          ? 'linear-gradient(90deg, #7c3aed, #22c55e)'
+                          : 'linear-gradient(90deg, #7c3aed, #06b6d4)',
+                      }} />
+                  </div>
+                  <div className="absolute -top-1 left-0 w-3 h-3 rounded-full bg-violet-500" />
+                  <div className={`absolute -top-1 w-3 h-3 rounded-full ${
+                    p.ongoing ? 'bg-green-400 animate-pulse' : 'bg-cyan-400'
+                  }`} style={{ right: `${100 - barWidth}%`, transform: 'translateX(50%)' }} />
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-zinc-400">{fmtDate(p.start_date)}</span>
+                  <div className="text-center">
+                    {dur && <span className="text-violet-300 font-semibold">{dur}</span>}
+                    {p.ongoing && <span className="ml-2 text-xs text-green-400">ongoing</span>}
+                  </div>
+                  <span className={p.ongoing ? 'text-green-400 font-medium' : 'text-zinc-400'}>
+                    {p.ongoing ? 'Present' : fmtDate(p.end_date)}
                   </span>
-                );
-              })}
-            </div>
-          </div>
+                </div>
+              </div>
+            )}
 
-          {/* Links */}
-          {(p.repo_url || p.live_url) && (
-            <div className="flex gap-3 pt-2 border-t border-zinc-800">
-              {p.repo_url && (
-                <a href={p.repo_url} target="_blank" rel="noopener noreferrer"
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl
-                             text-sm font-medium text-zinc-300 hover:text-white
-                             transition-all duration-200 hover:bg-zinc-800"
-                  style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
-                  Source code ↗
-                </a>
-              )}
-              {p.live_url && (
-                <a href={p.live_url} target="_blank" rel="noopener noreferrer"
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl
-                             text-sm font-medium text-white transition-all duration-200
-                             hover:scale-[1.02] active:scale-[0.98]"
-                  style={{
-                    background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
-                    boxShadow: '0 0 20px rgba(124,58,237,0.3)',
-                  }}>
-                  Live demo ↗
-                </a>
-              )}
-            </div>
-          )}
+            {(p.repo_url || p.live_url) && (
+              <div className="flex gap-3 pt-2 border-t border-zinc-800/60">
+                {p.repo_url && (
+                  <a href={p.repo_url} target="_blank" rel="noopener noreferrer"
+                    className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl
+                               text-sm font-medium text-zinc-300 hover:text-white
+                               transition-all duration-200 hover:bg-zinc-800"
+                    style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
+                    Source code ↗
+                  </a>
+                )}
+                {p.live_url && (
+                  <a href={p.live_url} target="_blank" rel="noopener noreferrer"
+                    className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl
+                               text-sm font-medium text-white transition-all duration-200
+                               hover:scale-[1.02] active:scale-[0.98]"
+                    style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
+                             boxShadow: '0 0 24px rgba(124,58,237,0.35)' }}>
+                    Live demo ↗
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -469,19 +423,30 @@ export default function ProjectsSection({ projects }: { projects: Project[] }) {
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {projects.map((p, i) => (
-            <div key={p.id} className="card flex flex-col group overflow-hidden relative">
+            <div key={p.id}
+              onClick={() => setSelectedProject(p)}
+              className="card flex flex-col group overflow-hidden relative cursor-pointer
+                         transition-all duration-300 hover:-translate-y-1"
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(124,58,237,0.45)';
+                (e.currentTarget as HTMLDivElement).style.boxShadow   = '0 8px 32px rgba(124,58,237,0.15)';
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLDivElement).style.borderColor = '';
+                (e.currentTarget as HTMLDivElement).style.boxShadow   = '';
+              }}
+              role="button" tabIndex={0}
+              aria-label={`View ${p.title} details`}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setSelectedProject(p); }}>
+
               {p.featured && (
                 <div className="absolute top-3 right-3 z-10 text-xs px-2 py-0.5 rounded-full font-medium"
-                  style={{
-                    background: 'rgba(124,58,237,0.2)',
-                    border: '1px solid rgba(124,58,237,0.4)',
-                    color: '#a78bfa',
-                  }}>
+                  style={{ background: 'rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.4)', color: '#a78bfa' }}>
                   ★ Featured
                 </div>
               )}
 
-              {/* Thumbnail — still uses the single cover image */}
+              {/* Card thumbnail — object-cover is correct here: crops to fill the fixed-height preview */}
               <div className="h-44 -mx-6 -mt-6 mb-5 overflow-hidden rounded-t-2xl relative">
                 {p.has_image ? (
                   <img src={projectImageUrl(p.id)} alt={p.title}
@@ -512,30 +477,15 @@ export default function ProjectsSection({ projects }: { projects: Project[] }) {
               <h3 className="font-semibold text-white text-lg mb-2 group-hover:text-violet-300 transition-colors">
                 {p.title}
               </h3>
-
-              <div className="mb-3">
-                <TimelineStrip p={p} compact />
-              </div>
-
-              <p className="text-zinc-400 text-sm leading-relaxed mb-2 line-clamp-3">
-                {p.description}
-              </p>
-
-              <button onClick={() => setSelectedProject(p)}
-                className="text-xs text-violet-400 hover:text-violet-300 transition-colors
-                           text-left mb-4 flex items-center gap-1 group/btn">
-                Read more
-                <span className="group-hover/btn:translate-x-0.5 transition-transform">→</span>
-              </button>
+              <div className="mb-3"><TimelineStrip p={p} compact /></div>
+              <p className="text-zinc-400 text-sm leading-relaxed mb-4 line-clamp-3">{p.description}</p>
 
               <div className="flex flex-wrap gap-1.5 mb-5">
                 {p.tech_stack.map((t, ti) => {
                   const c = TAG_COLORS[ti % TAG_COLORS.length];
                   return (
                     <span key={t} className="text-xs font-medium px-2.5 py-0.5 rounded-full"
-                      style={{ background: c.color, border: `1px solid ${c.border}`, color: c.text }}>
-                      {t}
-                    </span>
+                      style={{ background: c.color, border: `1px solid ${c.border}`, color: c.text }}>{t}</span>
                   );
                 })}
               </div>
@@ -543,16 +493,22 @@ export default function ProjectsSection({ projects }: { projects: Project[] }) {
               <div className="flex gap-4 mt-auto pt-4 border-t border-zinc-800">
                 {p.repo_url && (
                   <a href={p.repo_url} target="_blank" rel="noopener noreferrer"
+                    onClick={e => e.stopPropagation()}
                     className="text-sm text-zinc-400 hover:text-violet-400 transition-colors flex items-center gap-1">
                     Source <span className="text-xs">↗</span>
                   </a>
                 )}
                 {p.live_url && (
                   <a href={p.live_url} target="_blank" rel="noopener noreferrer"
+                    onClick={e => e.stopPropagation()}
                     className="text-sm text-zinc-400 hover:text-cyan-400 transition-colors flex items-center gap-1">
                     Live demo <span className="text-xs">↗</span>
                   </a>
                 )}
+                <span className="ml-auto text-xs text-zinc-600 group-hover:text-zinc-500 transition-colors
+                                 flex items-center gap-1 pointer-events-none">
+                  View details →
+                </span>
               </div>
             </div>
           ))}

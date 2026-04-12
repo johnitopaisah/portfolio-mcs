@@ -14,13 +14,24 @@ interface ProjectImage {
 }
 
 // ── Duration helper ───────────────────────────────────────────
+// LinkedIn-style: every calendar month touched counts as 1 month.
+// Both the start month and end/current month are always included (+1).
+// Parses year/month directly from ISO string to avoid UTC timezone
+// shifting (new Date('2025-09-01') lands in August in UTC+ zones).
 function calcDuration(start: string, end: string | null, ongoing: boolean): string {
   if (!start) return '';
-  const from  = new Date(start);
-  const to    = ongoing || !end ? new Date() : new Date(end);
-  const total = (to.getFullYear() - from.getFullYear()) * 12
-                + (to.getMonth() - from.getMonth());
-  if (total < 0) return '';
+  const [fy, fm] = start.split('-').map(Number);
+  let ty: number, tm: number;
+  if (ongoing || !end) {
+    const now = new Date();
+    ty = now.getFullYear();
+    tm = now.getMonth() + 1;
+  } else {
+    [ty, tm] = end.split('-').map(Number);
+  }
+  // Always +1: counts both the start month and end/current month as full months
+  const total = (ty - fy) * 12 + (tm - fm) + 1;
+  if (total <= 0) return '< 1 mo';
   const yrs = Math.floor(total / 12);
   const mos = total % 12;
   const parts: string[] = [];
@@ -31,7 +42,8 @@ function calcDuration(start: string, end: string | null, ongoing: boolean): stri
 
 function fmtDate(d?: string): string {
   if (!d) return '';
-  return new Date(d).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+  const [y, m] = d.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
 }
 
 export default function ProjectsPage() {
@@ -43,17 +55,15 @@ export default function ProjectsPage() {
   const [saving, setSaving]       = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
 
-  // ── Tech stack tag state ──────────────────────────────────
   const [techTags, setTechTags]   = useState<string[]>([]);
   const [tagInput, setTagInput]   = useState('');
   const tagInputRef = useRef<HTMLInputElement>(null);
 
-  // ── Demo images state ─────────────────────────────────────
-  const [demoImages, setDemoImages]         = useState<ProjectImage[]>([]);
+  const [demoImages, setDemoImages]             = useState<ProjectImage[]>([]);
   const [demoImagesLoading, setDemoImagesLoading] = useState(false);
-  const [newDemoFiles, setNewDemoFiles]     = useState<File[]>([]);
-  const [newDemoCaptions, setNewDemoCaptions] = useState<string[]>([]);
-  const [uploadingDemo, setUploadingDemo]   = useState(false);
+  const [newDemoFiles, setNewDemoFiles]         = useState<File[]>([]);
+  const [newDemoCaptions, setNewDemoCaptions]   = useState<string[]>([]);
+  const [uploadingDemo, setUploadingDemo]       = useState(false);
   const demoFileInputRef = useRef<HTMLInputElement>(null);
 
   const emptyForm = {
@@ -70,25 +80,16 @@ export default function ProjectsPage() {
   }
   useEffect(() => { load(); }, []);
 
-  // ── Load demo images when editing a project ───────────────
   async function loadDemoImages(projectId: string) {
     setDemoImagesLoading(true);
-    try {
-      const imgs = await adminApi.getProjectImages(projectId);
-      setDemoImages(imgs || []);
-    } catch { setDemoImages([]); }
+    try { setDemoImages(await adminApi.getProjectImages(projectId) || []); }
+    catch { setDemoImages([]); }
     finally { setDemoImagesLoading(false); }
   }
 
   function openNew() {
-    setEditing(null);
-    setForm(emptyForm);
-    setTechTags([]);
-    setTagInput('');
-    setImageFile(null);
-    setDemoImages([]);
-    setNewDemoFiles([]);
-    setNewDemoCaptions([]);
+    setEditing(null); setForm(emptyForm); setTechTags([]); setTagInput('');
+    setImageFile(null); setDemoImages([]); setNewDemoFiles([]); setNewDemoCaptions([]);
     setShowForm(true);
   }
 
@@ -107,51 +108,39 @@ export default function ProjectsPage() {
       ongoing:     p.ongoing ?? false,
     });
     setTechTags(Array.isArray(p.tech_stack) ? p.tech_stack : []);
-    setTagInput('');
-    setImageFile(null);
-    setNewDemoFiles([]);
-    setNewDemoCaptions([]);
+    setTagInput(''); setImageFile(null); setNewDemoFiles([]); setNewDemoCaptions([]);
     loadDemoImages(p.id);
     setShowForm(true);
   }
 
-  // ── Tag input handlers ────────────────────────────────────
   function addTag() {
     const val = tagInput.trim().replace(/,$/, '');
     if (!val || techTags.includes(val)) { setTagInput(''); return; }
-    setTechTags(prev => [...prev, val]);
-    setTagInput('');
+    setTechTags(prev => [...prev, val]); setTagInput('');
   }
   function removeTag(tag: string) { setTechTags(prev => prev.filter(t => t !== tag)); }
   function handleTagKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(); }
-    if (e.key === 'Backspace' && tagInput === '' && techTags.length > 0) {
+    if (e.key === 'Backspace' && tagInput === '' && techTags.length > 0)
       setTechTags(prev => prev.slice(0, -1));
-    }
   }
 
-  // ── Demo image file picker ────────────────────────────────
   function handleDemoFilePick(e: React.ChangeEvent<HTMLInputElement>) {
     const picked = Array.from(e.target.files || []);
     if (!picked.length) return;
-    const remaining = 20 - demoImages.length;
-    const allowed   = picked.slice(0, remaining);
+    const allowed = picked.slice(0, 20 - demoImages.length);
     setNewDemoFiles(prev => [...prev, ...allowed]);
     setNewDemoCaptions(prev => [...prev, ...allowed.map(() => '')]);
-    // Reset input so the same file can be picked again if needed
     if (demoFileInputRef.current) demoFileInputRef.current.value = '';
   }
-
   function removeNewDemoFile(idx: number) {
     setNewDemoFiles(prev => prev.filter((_, i) => i !== idx));
     setNewDemoCaptions(prev => prev.filter((_, i) => i !== idx));
   }
-
   function updateNewDemoCaption(idx: number, caption: string) {
     setNewDemoCaptions(prev => prev.map((c, i) => i === idx ? caption : c));
   }
 
-  // ── Upload pending demo images ────────────────────────────
   async function uploadDemoImages(projectId: string) {
     if (!newDemoFiles.length) return;
     setUploadingDemo(true);
@@ -160,24 +149,19 @@ export default function ProjectsPage() {
       newDemoFiles.forEach(f => fd.append('images', f));
       fd.append('captions', JSON.stringify(newDemoCaptions));
       await adminApi.uploadProjectImages(projectId, fd);
-      setNewDemoFiles([]);
-      setNewDemoCaptions([]);
+      setNewDemoFiles([]); setNewDemoCaptions([]);
       await loadDemoImages(projectId);
     } catch (e: any) { alert('Demo image upload failed: ' + e.message); }
     finally { setUploadingDemo(false); }
   }
 
-  // ── Update caption of existing demo image ─────────────────
   async function saveImageCaption(projectId: string, imgId: string, caption: string) {
     try {
       await adminApi.updateProjectImage(projectId, imgId, { caption });
-      setDemoImages(prev => prev.map(img =>
-        img.id === imgId ? { ...img, caption } : img
-      ));
+      setDemoImages(prev => prev.map(img => img.id === imgId ? { ...img, caption } : img));
     } catch (e: any) { alert('Failed to save caption: ' + e.message); }
   }
 
-  // ── Update order of existing demo image ───────────────────
   async function saveImageOrder(projectId: string, imgId: string, order_index: number) {
     try {
       await adminApi.updateProjectImage(projectId, imgId, { order_index });
@@ -188,7 +172,6 @@ export default function ProjectsPage() {
     } catch (e: any) { alert('Failed to update order: ' + e.message); }
   }
 
-  // ── Delete existing demo image ────────────────────────────
   async function deleteDemoImage(projectId: string, imgId: string) {
     if (!confirm('Delete this demo image?')) return;
     try {
@@ -221,14 +204,8 @@ export default function ProjectsPage() {
         const created = await adminApi.createProject(fd);
         savedId = created.id;
       }
-
-      // Upload any pending demo images after project is saved
-      if (savedId && newDemoFiles.length) {
-        await uploadDemoImages(savedId);
-      }
-
-      setShowForm(false);
-      load();
+      if (savedId && newDemoFiles.length) await uploadDemoImages(savedId);
+      setShowForm(false); load();
     } catch (e: any) { alert(e.message); }
     finally { setSaving(false); }
   }
@@ -239,11 +216,8 @@ export default function ProjectsPage() {
     catch (e: any) { alert(e.message); }
   }
 
-  // ── Duration preview ──────────────────────────────────────
   const durationPreview = form.start_date
-    ? calcDuration(form.start_date, form.end_date || null, form.ongoing)
-    : '';
-
+    ? calcDuration(form.start_date, form.end_date || null, form.ongoing) : '';
   const totalDemoSlots = demoImages.length + newDemoFiles.length;
 
   if (loading) return <p className="text-gray-500 text-sm">Loading…</p>;
@@ -260,7 +234,6 @@ export default function ProjectsPage() {
 
       {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
 
-      {/* ── Form modal ────────────────────────────────────── */}
       {showForm && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
           <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto space-y-4">
@@ -268,7 +241,6 @@ export default function ProjectsPage() {
               {editing ? 'Edit project' : 'New project'}
             </h2>
 
-            {/* Basic fields */}
             {[
               { key: 'title',       label: 'Title',       type: 'text'   },
               { key: 'live_url',    label: 'Live URL',    type: 'url'    },
@@ -282,55 +254,37 @@ export default function ProjectsPage() {
               </div>
             ))}
 
-            {/* Tech stack */}
             <div>
               <label className="label">Tech stack</label>
               <p className="text-gray-600 text-xs mb-2">
                 Press <kbd className="bg-gray-800 px-1 rounded text-gray-400">Enter</kbd> or{' '}
-                <kbd className="bg-gray-800 px-1 rounded text-gray-400">,</kbd> to add.
-                Click a tag to remove.
+                <kbd className="bg-gray-800 px-1 rounded text-gray-400">,</kbd> to add. Click to remove.
               </p>
-              <div
-                className="input flex flex-wrap gap-2 cursor-text min-h-[44px] py-2"
-                onClick={() => tagInputRef.current?.focus()}
-              >
+              <div className="input flex flex-wrap gap-2 cursor-text min-h-[44px] py-2"
+                onClick={() => tagInputRef.current?.focus()}>
                 {techTags.map(tag => (
-                  <span
-                    key={tag}
-                    onClick={e => { e.stopPropagation(); removeTag(tag); }}
+                  <span key={tag} onClick={e => { e.stopPropagation(); removeTag(tag); }}
                     className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium
                                bg-indigo-600/20 border border-indigo-500/40 text-indigo-300
-                               cursor-pointer hover:bg-red-500/20 hover:border-red-500/40 hover:text-red-300
-                               transition-colors"
-                    title="Click to remove"
-                  >
+                               cursor-pointer hover:bg-red-500/20 hover:border-red-500/40 hover:text-red-300 transition-colors">
                     {tag}<span className="opacity-60">×</span>
                   </span>
                 ))}
-                <input
-                  ref={tagInputRef}
-                  type="text"
-                  value={tagInput}
+                <input ref={tagInputRef} type="text" value={tagInput}
                   onChange={e => setTagInput(e.target.value)}
-                  onKeyDown={handleTagKeyDown}
-                  onBlur={addTag}
-                  placeholder={techTags.length === 0 ? 'e.g. Next.js, Docker, Kubernetes…' : ''}
-                  className="flex-1 min-w-[140px] bg-transparent outline-none text-sm text-white placeholder-gray-600"
-                />
+                  onKeyDown={handleTagKeyDown} onBlur={addTag}
+                  placeholder={techTags.length === 0 ? 'e.g. Next.js, Docker…' : ''}
+                  className="flex-1 min-w-[140px] bg-transparent outline-none text-sm text-white placeholder-gray-600" />
               </div>
-              <p className="text-gray-600 text-xs mt-1">
-                {techTags.length} tag{techTags.length !== 1 ? 's' : ''}
-              </p>
+              <p className="text-gray-600 text-xs mt-1">{techTags.length} tag{techTags.length !== 1 ? 's' : ''}</p>
             </div>
 
-            {/* Description */}
             <div>
               <label className="label">Description</label>
               <textarea className="input min-h-32 resize-none" value={form.description}
                 onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />
             </div>
 
-            {/* Timeline */}
             <div className="border border-gray-800 rounded-xl p-4 space-y-4">
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Timeline</p>
               <div>
@@ -339,11 +293,9 @@ export default function ProjectsPage() {
                   onChange={e => setForm(p => ({ ...p, start_date: e.target.value }))} />
               </div>
               <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox" checked={form.ongoing}
+                <input type="checkbox" checked={form.ongoing}
                   onChange={e => setForm(p => ({ ...p, ongoing: e.target.checked, end_date: '' }))}
-                  className="w-4 h-4 accent-indigo-600"
-                />
+                  className="w-4 h-4 accent-indigo-600" />
                 <span className="text-sm text-gray-300">
                   Still in progress
                   <span className="ml-2 text-xs text-green-400">(uses today&apos;s date)</span>
@@ -370,14 +322,12 @@ export default function ProjectsPage() {
               )}
             </div>
 
-            {/* Cover image */}
             <div>
               <label className="label">Cover image (thumbnail)</label>
               <input type="file" accept="image/*" className="input py-1.5"
                 onChange={e => setImageFile(e.target.files?.[0] ?? null)} />
             </div>
 
-            {/* ── Demo images section ──────────────────────── */}
             <div className="border border-gray-800 rounded-xl p-4 space-y-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -385,37 +335,22 @@ export default function ProjectsPage() {
                     Demo images (slideshow)
                   </p>
                   <p className="text-gray-600 text-xs mt-0.5">
-                    Shown in the project modal as a slideshow. Max 20 images, 5 MB each.
-                    {totalDemoSlots > 0 && (
-                      <span className="ml-1 text-gray-500">
-                        {totalDemoSlots}/20 used
-                      </span>
-                    )}
+                    Max 20 images, 5 MB each.
+                    {totalDemoSlots > 0 && <span className="ml-1 text-gray-500">{totalDemoSlots}/20 used</span>}
                   </p>
                 </div>
                 {totalDemoSlots < 20 && (
-                  <button
-                    type="button"
-                    onClick={() => demoFileInputRef.current?.click()}
+                  <button type="button" onClick={() => demoFileInputRef.current?.click()}
                     className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600/20 border border-indigo-500/30
-                               text-indigo-300 hover:bg-indigo-600/30 transition-colors"
-                  >
+                               text-indigo-300 hover:bg-indigo-600/30 transition-colors">
                     + Add images
                   </button>
                 )}
               </div>
 
-              {/* Hidden file input — multiple */}
-              <input
-                ref={demoFileInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                onChange={handleDemoFilePick}
-              />
+              <input ref={demoFileInputRef} type="file" accept="image/*" multiple
+                className="hidden" onChange={handleDemoFilePick} />
 
-              {/* Existing saved images */}
               {demoImagesLoading ? (
                 <p className="text-gray-600 text-xs">Loading images…</p>
               ) : demoImages.length > 0 && (
@@ -424,99 +359,52 @@ export default function ProjectsPage() {
                   {demoImages.map((img, idx) => (
                     <div key={img.id}
                       className="flex items-center gap-3 p-2 rounded-lg bg-gray-800/50 border border-gray-700/50">
-                      {/* Preview thumbnail */}
-                      <img
-                        src={adminApi.projectSlideImg(editing!.id, img.id)}
+                      <img src={adminApi.projectSlideImg(editing!.id, img.id)}
                         alt={img.caption || `Slide ${idx + 1}`}
-                        className="w-16 h-10 object-cover rounded flex-shrink-0"
-                      />
-                      {/* Caption */}
-                      <input
-                        type="text"
-                        defaultValue={img.caption || ''}
-                        placeholder="Caption (optional)"
+                        className="w-16 h-10 object-cover rounded flex-shrink-0" />
+                      <input type="text" defaultValue={img.caption || ''} placeholder="Caption (optional)"
                         className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1
-                                   text-xs text-gray-300 placeholder-gray-600 outline-none
-                                   focus:border-indigo-500/50"
+                                   text-xs text-gray-300 placeholder-gray-600 outline-none focus:border-indigo-500/50"
                         onBlur={e => {
                           const val = e.target.value.trim();
-                          if (val !== (img.caption || '')) {
-                            saveImageCaption(editing!.id, img.id, val);
-                          }
-                        }}
-                      />
-                      {/* Order */}
-                      <input
-                        type="number"
-                        defaultValue={img.order_index}
-                        min={0}
+                          if (val !== (img.caption || '')) saveImageCaption(editing!.id, img.id, val);
+                        }} />
+                      <input type="number" defaultValue={img.order_index} min={0} title="Slide order"
                         className="w-14 bg-gray-800 border border-gray-700 rounded px-2 py-1
                                    text-xs text-gray-300 outline-none focus:border-indigo-500/50 text-center"
                         onBlur={e => {
                           const val = parseInt(e.target.value);
-                          if (!isNaN(val) && val !== img.order_index) {
-                            saveImageOrder(editing!.id, img.id, val);
-                          }
-                        }}
-                        title="Slide order"
-                      />
-                      {/* Delete */}
-                      <button
-                        type="button"
-                        onClick={() => deleteDemoImage(editing!.id, img.id)}
-                        className="text-red-500 hover:text-red-400 transition-colors text-sm flex-shrink-0"
-                        title="Delete image"
-                      >
-                        ✕
-                      </button>
+                          if (!isNaN(val) && val !== img.order_index) saveImageOrder(editing!.id, img.id, val);
+                        }} />
+                      <button type="button" onClick={() => deleteDemoImage(editing!.id, img.id)}
+                        className="text-red-500 hover:text-red-400 transition-colors text-sm flex-shrink-0">✕</button>
                     </div>
                   ))}
                 </div>
               )}
 
-              {/* Pending new files (not yet uploaded) */}
               {newDemoFiles.length > 0 && (
                 <div className="space-y-2">
                   <p className="text-gray-500 text-xs font-medium">
-                    Pending upload ({newDemoFiles.length}) — will save when you click Save
+                    Pending upload ({newDemoFiles.length}) — saved when you click Save
                   </p>
                   {newDemoFiles.map((file, idx) => (
                     <div key={idx}
                       className="flex items-center gap-3 p-2 rounded-lg bg-indigo-900/20 border border-indigo-700/30">
-                      {/* Preview */}
-                      <img
-                        src={URL.createObjectURL(file)}
-                        alt={file.name}
-                        className="w-16 h-10 object-cover rounded flex-shrink-0"
-                      />
-                      {/* Caption */}
-                      <input
-                        type="text"
-                        value={newDemoCaptions[idx]}
-                        placeholder="Caption (optional)"
+                      <img src={URL.createObjectURL(file)} alt={file.name}
+                        className="w-16 h-10 object-cover rounded flex-shrink-0" />
+                      <input type="text" value={newDemoCaptions[idx]} placeholder="Caption (optional)"
                         onChange={e => updateNewDemoCaption(idx, e.target.value)}
                         className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1
-                                   text-xs text-gray-300 placeholder-gray-600 outline-none
-                                   focus:border-indigo-500/50"
-                      />
-                      {/* File name / size */}
-                      <span className="text-xs text-gray-600 flex-shrink-0">
-                        {(file.size / 1024).toFixed(0)} KB
-                      </span>
-                      {/* Remove from pending */}
-                      <button
-                        type="button"
-                        onClick={() => removeNewDemoFile(idx)}
-                        className="text-red-500 hover:text-red-400 transition-colors text-sm flex-shrink-0"
-                      >
-                        ✕
-                      </button>
+                                   text-xs text-gray-300 placeholder-gray-600 outline-none focus:border-indigo-500/50" />
+                      <span className="text-xs text-gray-600 flex-shrink-0">{(file.size / 1024).toFixed(0)} KB</span>
+                      <button type="button" onClick={() => removeNewDemoFile(idx)}
+                        className="text-red-500 hover:text-red-400 transition-colors text-sm flex-shrink-0">✕</button>
                     </div>
                   ))}
                 </div>
               )}
 
-              {/* Empty state */}
               {!demoImagesLoading && demoImages.length === 0 && newDemoFiles.length === 0 && (
                 <p className="text-gray-600 text-xs text-center py-2">
                   No demo images yet. Click &quot;+ Add images&quot; to upload screenshots.
@@ -524,7 +412,6 @@ export default function ProjectsPage() {
               )}
             </div>
 
-            {/* Checkboxes */}
             <div className="flex gap-6">
               {(['featured', 'published'] as const).map(key => (
                 <label key={key} className="flex items-center gap-2 cursor-pointer">
@@ -540,82 +427,71 @@ export default function ProjectsPage() {
               <button onClick={handleSave} disabled={saving || uploadingDemo} className="btn-primary flex-1">
                 {saving || uploadingDemo ? 'Saving…' : 'Save'}
               </button>
-              <button onClick={() => setShowForm(false)} className="btn-ghost flex-1">
-                Cancel
-              </button>
+              <button onClick={() => setShowForm(false)} className="btn-ghost flex-1">Cancel</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Table ─────────────────────────────────────────── */}
+      {/* Table — overflow-x-auto for mobile horizontal scroll */}
       <div className="card p-0 overflow-hidden">
-        <table className="w-full">
-          <thead className="border-b border-gray-800">
-            <tr>
-              {['Title', 'Timeline', 'Tech stack', 'Status', 'Actions'].map(h => (
-                <th key={h} className="table-header">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-800">
-            {projects.map(p => {
-              const dur = p.start_date
-                ? calcDuration(p.start_date, p.end_date ?? null, p.ongoing ?? false)
-                : null;
-              return (
-                <tr key={p.id} className="hover:bg-gray-800/30 transition-colors">
-                  <td className="table-cell font-medium text-white">{p.title}</td>
-                  <td className="table-cell text-xs text-gray-400">
-                    {p.start_date ? (
-                      <span>
-                        {fmtDate(p.start_date)} → {p.ongoing ? (
-                          <span className="text-green-400">Present</span>
-                        ) : fmtDate(p.end_date)}
-                        {dur && <span className="ml-1 text-gray-500">· {dur}</span>}
-                      </span>
-                    ) : (
-                      <span className="text-gray-600">—</span>
-                    )}
-                  </td>
-                  <td className="table-cell">
-                    <div className="flex flex-wrap gap-1">
-                      {p.tech_stack.slice(0, 3).map(t => (
-                        <span key={t} className="text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded">
-                          {t}
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[600px]">
+            <thead className="border-b border-gray-800">
+              <tr>
+                {['Title', 'Timeline', 'Tech stack', 'Status', 'Actions'].map(h => (
+                  <th key={h} className="table-header">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-800">
+              {projects.map(p => {
+                const dur = p.start_date
+                  ? calcDuration(p.start_date, p.end_date ?? null, p.ongoing ?? false) : null;
+                return (
+                  <tr key={p.id} className="hover:bg-gray-800/30 transition-colors">
+                    <td className="table-cell font-medium text-white">{p.title}</td>
+                    <td className="table-cell text-xs text-gray-400">
+                      {p.start_date ? (
+                        <span>
+                          {fmtDate(p.start_date)} → {p.ongoing
+                            ? <span className="text-green-400">Present</span>
+                            : fmtDate(p.end_date)}
+                          {dur && <span className="ml-1 text-gray-500">· {dur}</span>}
                         </span>
-                      ))}
-                      {p.tech_stack.length > 3 && (
-                        <span className="text-xs text-gray-500">+{p.tech_stack.length - 3}</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="table-cell">
-                    <span className={`text-xs px-2 py-1 rounded-full ${
-                      p.published
-                        ? 'bg-green-500/10 text-green-400'
-                        : 'bg-gray-700 text-gray-400'
-                    }`}>
-                      {p.published ? 'Published' : 'Draft'}
-                    </span>
-                  </td>
-                  <td className="table-cell">
-                    <div className="flex gap-2">
-                      <button onClick={() => openEdit(p)}
-                        className="text-xs text-indigo-400 hover:text-indigo-300">Edit</button>
-                      <button onClick={() => handleDelete(p.id)}
-                        className="text-xs text-red-400 hover:text-red-300">Delete</button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                      ) : <span className="text-gray-600">—</span>}
+                    </td>
+                    <td className="table-cell">
+                      <div className="flex flex-wrap gap-1">
+                        {p.tech_stack.slice(0, 3).map(t => (
+                          <span key={t} className="text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded">{t}</span>
+                        ))}
+                        {p.tech_stack.length > 3 && (
+                          <span className="text-xs text-gray-500">+{p.tech_stack.length - 3}</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="table-cell">
+                      <span className={`text-xs px-2 py-1 rounded-full ${
+                        p.published ? 'bg-green-500/10 text-green-400' : 'bg-gray-700 text-gray-400'
+                      }`}>
+                        {p.published ? 'Published' : 'Draft'}
+                      </span>
+                    </td>
+                    <td className="table-cell">
+                      <div className="flex gap-2">
+                        <button onClick={() => openEdit(p)} className="text-xs text-indigo-400 hover:text-indigo-300">Edit</button>
+                        <button onClick={() => handleDelete(p.id)} className="text-xs text-red-400 hover:text-red-300">Delete</button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
         {!projects.length && (
-          <p className="text-center text-gray-500 text-sm py-12">
-            No projects yet. Add one above.
-          </p>
+          <p className="text-center text-gray-500 text-sm py-12">No projects yet. Add one above.</p>
         )}
       </div>
     </div>
