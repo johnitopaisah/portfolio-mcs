@@ -11,7 +11,6 @@ function groupBy(arr: Skill[], key: keyof Skill) {
   }, {} as Record<string, Skill[]>);
 }
 
-// Convert 1–5 proficiency to a percentage label and bar width
 function proficiencyToPercent(p: number): number {
   return Math.round((p / 5) * 100);
 }
@@ -22,9 +21,9 @@ export default function SkillsSection({ skills }: { skills: Skill[] }) {
 
   return (
     <section id="skills" className="relative overflow-hidden">
-      {/* Ambient glow */}
       <div className="absolute top-1/2 right-0 -translate-y-1/2 w-80 h-80 pointer-events-none"
-        style={{ background: 'radial-gradient(circle, rgba(6,182,212,0.07) 0%, transparent 70%)' }} aria-hidden />
+        style={{ background: 'radial-gradient(circle, rgba(6,182,212,0.07) 0%, transparent 70%)' }}
+        aria-hidden />
 
       <div className="section relative z-10">
         <div className="section-label">What I use</div>
@@ -34,14 +33,12 @@ export default function SkillsSection({ skills }: { skills: Skill[] }) {
         <div className="grid md:grid-cols-2 gap-8">
           {Object.entries(grouped).map(([category, items]) => (
             <div key={category} className="card">
-              {/* Category header */}
               <h3 className="font-mono text-xs font-semibold uppercase tracking-widest mb-6 flex items-center gap-2"
                 style={{ color: '#06b6d4' }}>
                 <span className="w-4 h-px bg-cyan-500 inline-block" />
                 {category}
               </h3>
 
-              {/* Bar per skill */}
               <div className="space-y-4">
                 {items.map(skill => {
                   const pct = proficiencyToPercent(skill.proficiency);
@@ -53,13 +50,17 @@ export default function SkillsSection({ skills }: { skills: Skill[] }) {
                             <img src={api.skillIconUrl(skill.id)} alt={skill.name}
                               className="w-4 h-4 object-contain opacity-80" />
                           )}
-                          <span className="text-sm font-medium text-zinc-200">{skill.name}</span>
+                          <span className="text-sm font-medium" style={{ color: 'var(--text-1)' }}>
+                            {skill.name}
+                          </span>
                         </div>
-                        <span className="text-xs font-mono text-zinc-500">{pct}%</span>
+                        <span className="text-xs font-mono" style={{ color: 'var(--text-3)' }}>
+                          {pct}%
+                        </span>
                       </div>
-                      {/* Track */}
+                      {/* Track — uses CSS var so it adapts to light/dark */}
                       <div className="h-1.5 rounded-full overflow-hidden"
-                        style={{ background: 'rgba(39,39,42,0.8)' }}>
+                        style={{ background: 'var(--bg-track)' }}>
                         <div
                           className="h-full rounded-full"
                           style={{
