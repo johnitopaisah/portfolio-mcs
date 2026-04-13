@@ -17,6 +17,8 @@ dist/
 ./api/.env.production
 ./api/.env.*.local
 
+cv/*
+
 # OS
 .DS_Store
 *.log

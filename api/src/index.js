@@ -9,6 +9,7 @@ const swaggerUi         = require('swagger-ui-express');
 const swaggerSpec       = require('./swagger');
 const { register }      = require('./metrics');
 const metricsMiddleware = require('./metricsMiddleware');
+const { startDailyDigest } = require('./services/visitorDigest');
 
 const { errorHandler } = require('./middleware/errorHandler');
 
@@ -18,8 +19,6 @@ const PORT = process.env.PORT || 4000;
 // ── Security ────────────────────────────────────────────────
 app.set('trust proxy', 1);
 
-// Helmet blocks Swagger UI inline scripts/styles.
-// CSP is relaxed only for /api/docs — all other routes stay protected.
 app.use((req, res, next) => {
   if (req.path.startsWith('/api/docs')) {
     return helmet({
@@ -52,12 +51,9 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // ── Prometheus HTTP middleware ───────────────────────────────
-// Must be mounted before all route handlers so every request is measured.
 app.use(metricsMiddleware);
 
 // ── Prometheus metrics endpoint ─────────────────────────────
-// GET /metrics — scraped by Prometheus every 15 seconds.
-// Only reachable within the cluster (no ingress rule exposes this externally).
 app.get('/metrics', async (_req, res) => {
   try {
     res.set('Content-Type', register.contentType);
@@ -73,28 +69,16 @@ app.get('/metrics', async (_req, res) => {
  * /api/health:
  *   get:
  *     summary: API health check
- *     description: Returns ok when the API is running. Used by Kubernetes liveness probes.
  *     tags: [Health]
  *     responses:
  *       200:
  *         description: API is healthy
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: ok
- *                 timestamp:
- *                   type: string
- *                   format: date-time
  */
 app.get('/api/health', (_req, res) =>
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 );
 
-// ── Swagger UI  — GET /api/docs ──────────────────────────────
+// ── Swagger UI ───────────────────────────────────────────────
 app.use(
   '/api/docs',
   swaggerUi.serve,
@@ -121,15 +105,12 @@ app.use(
   })
 );
 
-// ── Raw OpenAPI spec  — GET /api/docs.json ───────────────────
 app.get('/api/docs.json', (_req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.send(swaggerSpec);
 });
 
 // ── Routes ──────────────────────────────────────────────────
-// NOTE: projectImages must be mounted BEFORE the generic projects router
-// so that /api/projects/:id/images is matched first.
 app.use('/api/projects',       require('./routes/projectImages'));
 app.use('/api/projects',       require('./routes/projects'));
 app.use('/api/auth',           require('./routes/auth'));
@@ -138,11 +119,14 @@ app.use('/api/skills',         require('./routes/skills'));
 app.use('/api/experiences',    require('./routes/experiences'));
 app.use('/api/certifications', require('./routes/certifications'));
 app.use('/api/contact',        require('./routes/contact'));
+app.use('/api/visitors',       require('./routes/visitors'));  // ← visitor analytics
 
 // ── 404 + Error handler ─────────────────────────────────────
 app.use((req, res) => res.status(404).json({ error: `${req.method} ${req.path} not found` }));
 app.use(errorHandler);
 
-app.listen(PORT, () =>
-  console.log(`[API] port ${PORT}  env:${process.env.NODE_ENV || 'development'}`)
-);
+app.listen(PORT, () => {
+  console.log(`[API] port ${PORT}  env:${process.env.NODE_ENV || 'development'}`);
+  // Start daily visitor digest — fires at 08:00 Europe/Paris every day
+  startDailyDigest();
+});

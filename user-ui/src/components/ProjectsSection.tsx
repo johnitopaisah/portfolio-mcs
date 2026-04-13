@@ -47,9 +47,6 @@ function getIcon(tech: string[]): string {
 }
 
 // ── Duration helper (LinkedIn-style) ─────────────────────────
-// Both start AND end/current month always count (+1 unconditionally).
-// Parses ISO string directly — avoids UTC timezone shift.
-// Examples: Mar→Apr (completed)=2mos | Sep2025→Feb2026=6mos | Jan2024→Dec2024=12mos
 function calcDuration(start: string, end: string | null | undefined, ongoing: boolean): string {
   if (!start) return '';
   const [fy, fm] = start.split('-').map(Number);
@@ -61,7 +58,7 @@ function calcDuration(start: string, end: string | null | undefined, ongoing: bo
   } else {
     [ty, tm] = end.split('-').map(Number);
   }
-  const total = (ty - fy) * 12 + (tm - fm) + 1; // +1 always — LinkedIn counts both endpoints
+  const total = (ty - fy) * 12 + (tm - fm) + 1;
   if (total <= 0) return '< 1 mo';
   const yrs = Math.floor(total / 12);
   const mos = total % 12;
@@ -89,7 +86,6 @@ function calcProgressPct(start?: string, end?: string, ongoing?: boolean): numbe
   return 0;
 }
 
-// ── Fix: added optional style prop so modal can pass color CSS var ──
 function DescriptionParagraphs({
   text,
   className,
@@ -271,7 +267,6 @@ function ProjectModal({ p, onClose }: { p: Project; onClose: () => void }) {
       <div className="relative flex flex-col md:flex-row w-full h-full"
         onClick={e => e.stopPropagation()}>
 
-        {/* Slideshow panel */}
         <div className="w-full md:w-[58%] h-[45vh] md:h-full flex-shrink-0 relative"
           style={{ background: 'var(--bg-slide)' }}>
           {loading ? (
@@ -289,7 +284,6 @@ function ProjectModal({ p, onClose }: { p: Project; onClose: () => void }) {
           )}
         </div>
 
-        {/* Content panel */}
         <div className="flex-1 overflow-y-auto" style={{ background: 'var(--bg-modal)' }}>
           <div className="sticky top-0 z-10 flex justify-end px-6 pt-5 pb-2"
             style={{ background: `linear-gradient(to bottom, var(--bg-modal) 60%, transparent)` }}>
@@ -314,7 +308,6 @@ function ProjectModal({ p, onClose }: { p: Project; onClose: () => void }) {
 
             <div className="space-y-3">
               <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-3)' }}>About</p>
-              {/* style prop now properly typed — no cast needed */}
               <DescriptionParagraphs
                 text={p.description}
                 className="text-sm leading-relaxed"
@@ -431,10 +424,16 @@ export default function ProjectsSection({ projects }: { projects: Project[] }) {
                 </div>
               )}
 
+              {/* Thumbnail — loading="lazy" skips the request until card enters viewport */}
               <div className="h-44 -mx-6 -mt-6 mb-5 overflow-hidden rounded-t-2xl relative">
                 {p.has_image ? (
-                  <img src={projectImageUrl(p.id)} alt={p.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  <img
+                    src={projectImageUrl(p.id)}
+                    alt={p.title}
+                    loading="lazy"
+                    decoding="async"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center"
                     style={{ background: GRADIENTS[i % GRADIENTS.length] }}>

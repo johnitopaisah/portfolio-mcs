@@ -90,7 +90,11 @@ jobs:
             src/routes/experiences.js \
             src/routes/certifications.js \
             src/routes/contact.js \
-            src/services/notify.js; do
+            src/routes/visitors.js \
+            src/services/notify.js \
+            src/services/geoip.js \
+            src/services/parseVisitor.js \
+            src/services/visitorDigest.js; do
             test -f "$f" && echo "✅ $f" || (echo "❌ Missing: $f" && exit 1)
           done
 
@@ -135,7 +139,6 @@ jobs:
           context:    ./api
           push:       true
           provenance: false
-          # No build args — all config injected at runtime via k8s secrets
           tags: |
             ${{ vars.IMAGE_REGISTRY_BASE }}/api:${{ needs.validate.outputs.tag }}
             ${{ vars.IMAGE_REGISTRY_BASE }}/api:latest

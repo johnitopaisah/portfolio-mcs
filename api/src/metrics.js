@@ -1,12 +1,9 @@
 'use strict';
 // ============================================================
 //  Portfolio MCS — Prometheus Metrics
-//  All application metrics are defined and exported here.
-//  Imported once in index.js; all route files share this module.
 // ============================================================
 
 const client = require('prom-client');
-
 const register = client.register;
 
 client.collectDefaultMetrics({
@@ -120,6 +117,50 @@ const contentDeletedTotal = new client.Counter({
   registers: [register],
 });
 
+// ── Visitor Analytics ─────────────────────────────────────────
+// These power the Grafana "Visitor Analytics" dashboard (07).
+// Incremented in api/src/routes/visitors.js on every non-bot visit.
+
+const visitorsTotal = new client.Counter({
+  name: 'portfolio_visitors_total',
+  help: 'Total real (non-bot) portfolio homepage visits',
+  registers: [register],
+});
+
+const visitorsByCountry = new client.Counter({
+  name: 'portfolio_visitors_by_country_total',
+  help: 'Portfolio visitors segmented by country',
+  labelNames: ['country'],
+  registers: [register],
+});
+
+const visitorsByDevice = new client.Counter({
+  name: 'portfolio_visitors_by_device_total',
+  help: 'Portfolio visitors segmented by device type (desktop/mobile/tablet)',
+  labelNames: ['device'],
+  registers: [register],
+});
+
+const visitorsByReferrer = new client.Counter({
+  name: 'portfolio_visitors_by_referrer_total',
+  help: 'Portfolio visitors segmented by traffic source',
+  labelNames: ['referrer'],
+  registers: [register],
+});
+
+const visitorsByBrowser = new client.Counter({
+  name: 'portfolio_visitors_by_browser_total',
+  help: 'Portfolio visitors segmented by browser',
+  labelNames: ['browser'],
+  registers: [register],
+});
+
+const visitorBotsFiltered = new client.Counter({
+  name: 'portfolio_visitor_bots_filtered_total',
+  help: 'Bot requests detected and excluded from visitor analytics',
+  registers: [register],
+});
+
 module.exports = {
   register,
   httpRequestsTotal,
@@ -137,4 +178,11 @@ module.exports = {
   contentCreatedTotal,
   contentUpdatedTotal,
   contentDeletedTotal,
+  // Visitor analytics
+  visitorsTotal,
+  visitorsByCountry,
+  visitorsByDevice,
+  visitorsByReferrer,
+  visitorsByBrowser,
+  visitorBotsFiltered,
 };

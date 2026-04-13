@@ -6,7 +6,7 @@ metadata:
   labels:
     app: grafana
 spec:
-  replicas: 1      # ReadWriteOnce PVC — only 1 replica can mount at a time
+  replicas: 1
   selector:
     matchLabels:
       app: grafana
@@ -17,7 +17,7 @@ spec:
     spec:
       securityContext:
         runAsNonRoot: true
-        runAsUser: 472    # grafana official image default UID
+        runAsUser: 472
         fsGroup: 472
 
       initContainers:
@@ -40,7 +40,6 @@ spec:
               protocol: TCP
 
           env:
-            # Admin credentials from secret
             - name: GF_SECURITY_ADMIN_USER
               valueFrom:
                 secretKeyRef:
@@ -51,7 +50,6 @@ spec:
                 secretKeyRef:
                   name: grafana-admin-secret
                   key: admin-password
-            # Security hardening
             - name: GF_SECURITY_DISABLE_GRAVATAR
               value: "true"
             - name: GF_SECURITY_COOKIE_SECURE
@@ -60,30 +58,24 @@ spec:
               value: "strict"
             - name: GF_SECURITY_STRICT_TRANSPORT_SECURITY
               value: "true"
-            # Disable anonymous access — require login
             - name: GF_AUTH_ANONYMOUS_ENABLED
               value: "false"
             - name: GF_AUTH_DISABLE_LOGIN_FORM
               value: "false"
-            # Allow embedding dashboards (for portfolio use)
             - name: GF_SECURITY_ALLOW_EMBEDDING
               value: "true"
-            # Server settings
             - name: GF_SERVER_DOMAIN
               value: "grafana.johnisah.com"
             - name: GF_SERVER_ROOT_URL
               value: "https://grafana.johnisah.com"
             - name: GF_SERVER_HTTP_PORT
               value: "3000"
-            # Branding
             - name: GF_UI_DEFAULT_THEME
               value: "dark"
-            # Disable telemetry
             - name: GF_ANALYTICS_REPORTING_ENABLED
               value: "false"
             - name: GF_ANALYTICS_CHECK_FOR_UPDATES
               value: "false"
-            # Provisioning paths
             - name: GF_PATHS_PROVISIONING
               value: "/etc/grafana/provisioning"
 
@@ -138,6 +130,10 @@ spec:
             - name: dashboard-06
               mountPath: /var/lib/grafana/dashboards/06-alerts-slo.json
               subPath: 06-alerts-slo.json
+            # ── Visitor Analytics dashboard (07) ──────────────
+            - name: dashboard-07
+              mountPath: /var/lib/grafana/dashboards/07-visitor-analytics.json
+              subPath: 07-visitor-analytics.json
 
       volumes:
         - name: grafana-data
@@ -167,3 +163,7 @@ spec:
         - name: dashboard-06
           configMap:
             name: grafana-dashboard-06-alerts
+        # ── Visitor Analytics dashboard (07) ──────────────────
+        - name: dashboard-07
+          configMap:
+            name: grafana-dashboard-07-visitors
