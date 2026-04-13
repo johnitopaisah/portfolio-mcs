@@ -13,14 +13,19 @@ export const metadata: Metadata = {
   twitter: { card: 'summary_large_image' },
 };
 
-// Inline script that runs BEFORE first paint — prevents any flash of wrong theme
+// Runs BEFORE first paint — zero flash of wrong theme.
+// Policy: dark is always the default for first-time visitors.
+// Only switches to light if the user has explicitly chosen it before
+// (stored in localStorage). OS preference is intentionally ignored
+// because the portfolio's design and brand are optimised for dark.
 const themeScript = `
 (function(){
   try{
     var t=localStorage.getItem('portfolio-theme');
-    if(!t) t=window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
-    document.documentElement.setAttribute('data-theme',t);
-  }catch(e){}
+    document.documentElement.setAttribute('data-theme', t === 'light' ? 'light' : 'dark');
+  }catch(e){
+    document.documentElement.setAttribute('data-theme','dark');
+  }
 })();
 `;
 
