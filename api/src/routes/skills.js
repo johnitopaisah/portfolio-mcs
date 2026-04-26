@@ -5,7 +5,23 @@ const multer = require('multer');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 1 * 1024 * 1024 } });
 
-// GET /api/skills  — public
+/**
+ * @swagger
+ * /api/skills:
+ *   get:
+ *     summary: List all skills
+ *     description: Returns all skills ordered by category then order_index. Grouped by category on the portfolio frontend.
+ *     tags: [Skills]
+ *     responses:
+ *       200:
+ *         description: Array of skills
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Skill'
+ */
 router.get('/', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
@@ -17,7 +33,35 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/skills/:id/icon  — public binary
+/**
+ * @swagger
+ * /api/skills/{id}/icon:
+ *   get:
+ *     summary: Get skill icon image
+ *     description: Returns the skill icon as raw binary (typically SVG or PNG). Cache-Control is set to 24 hours.
+ *     tags: [Skills]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Skill icon binary
+ *         content:
+ *           image/svg+xml:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *           image/png:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       404:
+ *         description: Skill not found or no icon uploaded
+ */
 router.get('/:id/icon', async (req, res, next) => {
   try {
     const { rows } = await pool.query('SELECT icon, icon_mime FROM skills WHERE id = $1', [req.params.id]);
@@ -28,7 +72,54 @@ router.get('/:id/icon', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/skills  — admin
+/**
+ * @swagger
+ * /api/skills:
+ *   post:
+ *     summary: Create a new skill
+ *     description: Accepts `multipart/form-data`. Maximum icon file size is 1 MB.
+ *     tags: [Skills]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required: [name, category, proficiency]
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: Kubernetes
+ *               category:
+ *                 type: string
+ *                 example: DevOps
+ *               proficiency:
+ *                 type: integer
+ *                 minimum: 1
+ *                 maximum: 5
+ *                 example: 5
+ *               order_index:
+ *                 type: integer
+ *               icon:
+ *                 type: string
+ *                 format: binary
+ *                 description: Skill icon image (SVG/PNG, max 1 MB)
+ *     responses:
+ *       201:
+ *         description: Skill created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Skill'
+ *       401:
+ *         description: Unauthorised
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.post('/', requireAuth, upload.single('icon'), async (req, res, next) => {
   try {
     const { name, category, proficiency, order_index } = req.body;
@@ -44,7 +135,61 @@ router.post('/', requireAuth, upload.single('icon'), async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// PUT /api/skills/:id  — admin
+/**
+ * @swagger
+ * /api/skills/{id}:
+ *   put:
+ *     summary: Update a skill
+ *     description: Partially updates a skill. All fields are optional.
+ *     tags: [Skills]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               category:
+ *                 type: string
+ *               proficiency:
+ *                 type: integer
+ *                 minimum: 1
+ *                 maximum: 5
+ *               order_index:
+ *                 type: integer
+ *               icon:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: Skill updated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Skill'
+ *       401:
+ *         description: Unauthorised
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Skill not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.put('/:id', requireAuth, upload.single('icon'), async (req, res, next) => {
   try {
     const { name, category, proficiency, order_index } = req.body;
@@ -69,7 +214,37 @@ router.put('/:id', requireAuth, upload.single('icon'), async (req, res, next) =>
   } catch (err) { next(err); }
 });
 
-// DELETE /api/skills/:id  — admin
+/**
+ * @swagger
+ * /api/skills/{id}:
+ *   delete:
+ *     summary: Delete a skill
+ *     tags: [Skills]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       204:
+ *         description: Skill deleted — no content returned
+ *       401:
+ *         description: Unauthorised
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Skill not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.delete('/:id', requireAuth, async (req, res, next) => {
   try {
     const { rowCount } = await pool.query('DELETE FROM skills WHERE id = $1', [req.params.id]);

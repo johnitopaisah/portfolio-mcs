@@ -42,6 +42,17 @@ CREATE TABLE IF NOT EXISTS projects (
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- project_images — multiple demo/slideshow images per project
+CREATE TABLE IF NOT EXISTS project_images (
+  id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id    UUID        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  image         BYTEA       NOT NULL,
+  image_mime    TEXT        NOT NULL DEFAULT 'image/jpeg',
+  caption       TEXT,
+  order_index   INT         NOT NULL DEFAULT 0,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- skills
 CREATE TABLE IF NOT EXISTS skills (
   id            UUID     PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -116,12 +127,38 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
 );
 CREATE INDEX IF NOT EXISTS idx_reset_token ON password_reset_tokens (token) WHERE used_at IS NULL;
 
+-- visitor_logs — portfolio visitor analytics
+CREATE TABLE IF NOT EXISTS visitor_logs (
+  id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  visited_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  ip_address    TEXT,                     -- raw IP (for geo lookup)
+  country_code  TEXT,                     -- CF-IPCountry 2-letter code
+  country       TEXT,                     -- full country name from ip-api.com
+  city          TEXT,
+  region        TEXT,
+  latitude      NUMERIC(9,6),
+  longitude     NUMERIC(9,6),
+  browser       TEXT,                     -- parsed from User-Agent
+  os            TEXT,
+  device_type   TEXT,                     -- desktop | mobile | tablet
+  referer_raw   TEXT,
+  referer_label TEXT,                     -- LinkedIn | Google | GitHub | Direct | Other
+  language      TEXT,
+  is_bot        BOOLEAN     NOT NULL DEFAULT FALSE,
+  session_id    TEXT                      -- cookie UUID for session dedup
+);
+
 -- Indexes
-CREATE INDEX IF NOT EXISTS idx_projects_published ON projects (published, order_index);
-CREATE INDEX IF NOT EXISTS idx_projects_featured  ON projects (featured) WHERE featured = TRUE;
-CREATE INDEX IF NOT EXISTS idx_skills_category    ON skills (category, order_index);
-CREATE INDEX IF NOT EXISTS idx_certs_order        ON certifications (order_index, issue_date DESC);
-CREATE INDEX IF NOT EXISTS idx_messages_unread    ON contact_messages (read, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_projects_published   ON projects (published, order_index);
+CREATE INDEX IF NOT EXISTS idx_projects_featured    ON projects (featured) WHERE featured = TRUE;
+CREATE INDEX IF NOT EXISTS idx_project_images_proj  ON project_images (project_id, order_index);
+CREATE INDEX IF NOT EXISTS idx_skills_category      ON skills (category, order_index);
+CREATE INDEX IF NOT EXISTS idx_certs_order          ON certifications (order_index, issue_date DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_unread      ON contact_messages (read, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_visitor_visited_at   ON visitor_logs (visited_at DESC);
+CREATE INDEX IF NOT EXISTS idx_visitor_country      ON visitor_logs (country_code);
+CREATE INDEX IF NOT EXISTS idx_visitor_session      ON visitor_logs (session_id);
+CREATE INDEX IF NOT EXISTS idx_visitor_not_bot      ON visitor_logs (is_bot) WHERE is_bot = FALSE;
 
 -- Auto-update updated_at
 CREATE OR REPLACE FUNCTION set_updated_at()

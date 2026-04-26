@@ -5,7 +5,23 @@ const multer = require('multer');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
 
-// GET /api/experiences  — public
+/**
+ * @swagger
+ * /api/experiences:
+ *   get:
+ *     summary: List all work experiences
+ *     description: Returns all experience entries ordered by order_index then start_date descending.
+ *     tags: [Experiences]
+ *     responses:
+ *       200:
+ *         description: Array of experiences
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Experience'
+ */
 router.get('/', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
@@ -18,7 +34,35 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/experiences/:id/logo  — public binary
+/**
+ * @swagger
+ * /api/experiences/{id}/logo:
+ *   get:
+ *     summary: Get company logo image
+ *     description: Returns the company logo as raw binary. Cache-Control is set to 24 hours.
+ *     tags: [Experiences]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Company logo binary
+ *         content:
+ *           image/png:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *           image/jpeg:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       404:
+ *         description: Experience not found or no logo uploaded
+ */
 router.get('/:id/logo', async (req, res, next) => {
   try {
     const { rows } = await pool.query('SELECT logo, logo_mime FROM experiences WHERE id = $1', [req.params.id]);
@@ -29,7 +73,69 @@ router.get('/:id/logo', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/experiences  — admin
+/**
+ * @swagger
+ * /api/experiences:
+ *   post:
+ *     summary: Create a new experience entry
+ *     description: >
+ *       Accepts `multipart/form-data`. `tech_stack` must be a JSON array string.
+ *       When `ongoing` is `'true'`, `end_date` is automatically set to null.
+ *       Maximum logo file size is 2 MB.
+ *     tags: [Experiences]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required: [company, role, description, start_date]
+ *             properties:
+ *               company:
+ *                 type: string
+ *                 example: ALX Africa
+ *               role:
+ *                 type: string
+ *                 example: DevOps Engineer
+ *               description:
+ *                 type: string
+ *               start_date:
+ *                 type: string
+ *                 format: date
+ *                 example: '2023-01-01'
+ *               end_date:
+ *                 type: string
+ *                 format: date
+ *                 example: '2024-06-01'
+ *               ongoing:
+ *                 type: string
+ *                 enum: ['true', 'false']
+ *                 description: When true, end_date is ignored and set to null
+ *               tech_stack:
+ *                 type: string
+ *                 description: JSON array string e.g. '["Kubernetes","Docker"]'
+ *               order_index:
+ *                 type: integer
+ *               logo:
+ *                 type: string
+ *                 format: binary
+ *                 description: Company logo image (max 2 MB)
+ *     responses:
+ *       201:
+ *         description: Experience created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Experience'
+ *       401:
+ *         description: Unauthorised
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.post('/', requireAuth, upload.single('logo'), async (req, res, next) => {
   try {
     const { company, role, description, start_date, end_date, order_index, ongoing } = req.body;
@@ -56,7 +162,72 @@ router.post('/', requireAuth, upload.single('logo'), async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// PUT /api/experiences/:id  — admin
+/**
+ * @swagger
+ * /api/experiences/{id}:
+ *   put:
+ *     summary: Update an experience entry
+ *     description: >
+ *       Partially updates an experience. All fields are optional.
+ *       When `ongoing` is `'true'`, `end_date` is automatically cleared to null.
+ *     tags: [Experiences]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               company:
+ *                 type: string
+ *               role:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               start_date:
+ *                 type: string
+ *                 format: date
+ *               end_date:
+ *                 type: string
+ *                 format: date
+ *               ongoing:
+ *                 type: string
+ *                 enum: ['true', 'false']
+ *               tech_stack:
+ *                 type: string
+ *               order_index:
+ *                 type: integer
+ *               logo:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: Experience updated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Experience'
+ *       401:
+ *         description: Unauthorised
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Experience not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.put('/:id', requireAuth, upload.single('logo'), async (req, res, next) => {
   try {
     const { company, role, description, start_date, end_date, order_index, ongoing } = req.body;
@@ -83,7 +254,6 @@ router.put('/:id', requireAuth, upload.single('logo'), async (req, res, next) =>
         role        || null,
         description || null,
         start_date  || null,
-        // When ongoing is being set to true, explicitly clear end_date
         isOngoing === true ? null : (end_date || null),
         isOngoing,
         tech_stack,
@@ -98,7 +268,37 @@ router.put('/:id', requireAuth, upload.single('logo'), async (req, res, next) =>
   } catch (err) { next(err); }
 });
 
-// DELETE /api/experiences/:id  — admin
+/**
+ * @swagger
+ * /api/experiences/{id}:
+ *   delete:
+ *     summary: Delete an experience entry
+ *     tags: [Experiences]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       204:
+ *         description: Experience deleted — no content returned
+ *       401:
+ *         description: Unauthorised
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Experience not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.delete('/:id', requireAuth, async (req, res, next) => {
   try {
     const { rowCount } = await pool.query('DELETE FROM experiences WHERE id = $1', [req.params.id]);

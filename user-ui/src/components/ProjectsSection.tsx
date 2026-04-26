@@ -1,12 +1,17 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 
-const projectImageUrl = (id: string) => `/api/projects/${id}/image`;
+const projectImageUrl      = (id: string) => `/api/projects/${id}/image`;
+const projectSlideImageUrl = (projectId: string, imgId: string) =>
+  `/api/projects/${projectId}/images/${imgId}/file`;
 
 interface Project {
   id: string; title: string; description: string; tech_stack: string[];
   live_url?: string; repo_url?: string; has_image: boolean; featured: boolean;
   start_date?: string; end_date?: string; ongoing?: boolean;
+}
+interface SlideImage {
+  id: string; caption: string | null; order_index: number; image_mime: string;
 }
 
 const TAG_COLORS = [
@@ -41,12 +46,20 @@ function getIcon(tech: string[]): string {
   return '◈';
 }
 
+// ── Duration helper (LinkedIn-style) ─────────────────────────
 function calcDuration(start: string, end: string | null | undefined, ongoing: boolean): string {
-  const from  = new Date(start);
-  const to    = ongoing || !end ? new Date() : new Date(end);
-  const total = (to.getFullYear() - from.getFullYear()) * 12
-                + (to.getMonth() - from.getMonth());
-  if (total < 0) return '';
+  if (!start) return '';
+  const [fy, fm] = start.split('-').map(Number);
+  let ty: number, tm: number;
+  if (ongoing || !end) {
+    const now = new Date();
+    ty = now.getFullYear();
+    tm = now.getMonth() + 1;
+  } else {
+    [ty, tm] = end.split('-').map(Number);
+  }
+  const total = (ty - fy) * 12 + (tm - fm) + 1;
+  if (total <= 0) return '< 1 mo';
   const yrs = Math.floor(total / 12);
   const mos = total % 12;
   const parts: string[] = [];
@@ -57,201 +70,323 @@ function calcDuration(start: string, end: string | null | undefined, ongoing: bo
 
 function fmtDate(d: string | null | undefined): string {
   if (!d) return '';
-  return new Date(d).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+  const [y, m] = d.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
 }
 
-function calcProgressPct(start: string | undefined, end: string | undefined, ongoing: boolean): number {
+function calcProgressPct(start?: string, end?: string, ongoing?: boolean): number {
   if (!start) return 0;
   if (!ongoing && end) return 100;
   if (ongoing) {
-    const mos = (Date.now() - new Date(start).getTime()) / (1000 * 60 * 60 * 24 * 30);
+    const [fy, fm] = start.split('-').map(Number);
+    const now = new Date();
+    const mos = (now.getFullYear() - fy) * 12 + (now.getMonth() + 1 - fm);
     return Math.min(100, (mos / 24) * 100);
   }
   return 0;
 }
 
-// ── Paragraph renderer ────────────────────────────────────────
-// Splits on one or more consecutive newlines (\n or \n\n) so
-// descriptions render correctly regardless of how they were
-// typed in the admin textarea (single Enter or double Enter).
-function DescriptionParagraphs({ text, className }: { text: string; className: string }) {
+function DescriptionParagraphs({
+  text,
+  className,
+  style,
+}: {
+  text: string;
+  className: string;
+  style?: React.CSSProperties;
+}) {
   const paras = text.split(/\n+/).filter(p => p.trim());
-  if (paras.length <= 1) {
-    return <p className={className}>{text}</p>;
-  }
+  if (paras.length <= 1) return <p className={className} style={style}>{text}</p>;
   return (
-    <>
-      {paras.map((para, idx) => (
-        <p key={idx} className={className}>{para}</p>
+    <div className="space-y-2">
+      {paras.map((p, i) => (
+        <p key={i} className={className} style={style}>{p}</p>
       ))}
-    </>
+    </div>
   );
 }
 
-// ── Timeline strip ────────────────────────────────────────────
 function TimelineStrip({ p, compact = false }: { p: Project; compact?: boolean }) {
   if (!p.start_date) return null;
   const dur = calcDuration(p.start_date, p.end_date, p.ongoing ?? false);
   return (
-    <div className={`flex items-center gap-2 ${compact ? 'text-xs' : 'text-sm'} text-zinc-500`}>
+    <div className={`flex items-center gap-2 ${compact ? 'text-xs' : 'text-sm'}`}
+      style={{ color: 'var(--text-3)' }}>
       <span style={{ fontSize: compact ? '11px' : '13px' }}>📅</span>
       <span>
         {fmtDate(p.start_date)}
-        <span className="mx-1 text-zinc-600">→</span>
+        <span className="mx-1" style={{ color: 'var(--text-4)' }}>→</span>
         {p.ongoing ? (
-          <span className="text-green-400 inline-flex items-center gap-1">
+          <span className="text-green-500 inline-flex items-center gap-1">
             Present
-            <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block" />
           </span>
         ) : (
           <span>{fmtDate(p.end_date)}</span>
         )}
-        {dur && <span className="ml-2 text-zinc-600">· {dur}</span>}
+        {dur && <span className="ml-2" style={{ color: 'var(--text-4)' }}>· {dur}</span>}
       </span>
     </div>
   );
 }
 
-// ── Project detail modal ──────────────────────────────────────
-function ProjectModal({ p, onClose }: { p: Project; onClose: () => void }) {
-  const dur         = p.start_date
-    ? calcDuration(p.start_date, p.end_date, p.ongoing ?? false)
-    : null;
-  const progressPct = calcProgressPct(p.start_date, p.end_date, p.ongoing ?? false);
-  const barWidth    = Math.max(progressPct, 8);
+// ── Slideshow ─────────────────────────────────────────────────
+function ImageSlideshow({ projectId, hascover, slides, fullHeight = false }: {
+  projectId: string; hascover: boolean; slides: SlideImage[]; fullHeight?: boolean;
+}) {
+  const [current, setCurrent] = useState(0);
+  const [paused,  setPaused]  = useState(false);
+  const [loaded,  setLoaded]  = useState(false);
+
+  const allSlides = slides.length > 0
+    ? slides.map(s => ({ url: projectSlideImageUrl(projectId, s.id), caption: s.caption }))
+    : hascover
+      ? [{ url: projectImageUrl(projectId), caption: null }]
+      : [];
+
+  const total = allSlides.length;
+  const prev = useCallback(() => { setCurrent(c => (c - 1 + total) % total); setLoaded(false); }, [total]);
+  const next = useCallback(() => { setCurrent(c => (c + 1) % total); setLoaded(false); }, [total]);
+
+  useEffect(() => {
+    if (total <= 1 || paused) return;
+    const t = setInterval(next, 4000);
+    return () => clearInterval(t);
+  }, [total, paused, next]);
+
+  useEffect(() => {
+    if (total <= 1) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') prev();
+      if (e.key === 'ArrowRight') next();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [total, prev, next]);
+
+  if (total === 0) {
+    return (
+      <div className={`flex items-center justify-center ${fullHeight ? 'h-full' : 'h-52'}`}
+        style={{ background: 'var(--bg-slide)' }}>
+        <span className="text-6xl opacity-20">◈</span>
+      </div>
+    );
+  }
+
+  const slide = allSlides[current];
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(6px)' }}
-      onClick={onClose}
-    >
-      <div
-        className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl"
-        style={{
-          background: '#18181b',
-          border: '1px solid rgba(124,58,237,0.25)',
-          boxShadow: '0 25px 80px rgba(0,0,0,0.6), 0 0 60px rgba(124,58,237,0.1)',
-        }}
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="h-52 rounded-t-2xl overflow-hidden relative">
-          {p.has_image ? (
-            <img src={projectImageUrl(p.id)} alt={p.title} className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center"
-              style={{ background: 'linear-gradient(135deg,#1e1b4b 0%,#0f172a 100%)' }}>
-              <span className="text-6xl opacity-40">{getIcon(p.tech_stack)}</span>
+    <div className={`relative select-none ${fullHeight ? 'h-full' : ''}`}
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}>
+      <div className={`relative ${fullHeight ? 'h-full' : 'h-64 rounded-t-2xl'}`}
+        style={{ background: 'var(--bg-slide)' }}>
+        <img key={slide.url + current} src={slide.url}
+          alt={slide.caption || `Slide ${current + 1}`}
+          onLoad={() => setLoaded(true)}
+          className={`w-full h-full object-contain transition-opacity duration-500 ${loaded ? 'opacity-100' : 'opacity-0'}`} />
+        {!loaded && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-8 h-8 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
+        <div className="absolute inset-x-0 bottom-0 h-16 pointer-events-none"
+          style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 100%)' }} />
+        {total > 1 && (
+          <>
+            <button onClick={prev} aria-label="Previous"
+              className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center text-white text-xl font-light transition-all hover:scale-110"
+              style={{ background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.18)' }}>‹</button>
+            <button onClick={next} aria-label="Next"
+              className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center text-white text-xl font-light transition-all hover:scale-110"
+              style={{ background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.18)' }}>›</button>
+          </>
+        )}
+        {total > 1 && (
+          <div className="absolute top-4 right-4 text-xs px-2.5 py-0.5 rounded-full font-medium"
+            style={{ background: 'rgba(0,0,0,0.6)', color: 'rgba(255,255,255,0.8)' }}>
+            {current + 1} / {total}
+          </div>
+        )}
+        {total > 1 && paused && (
+          <div className="absolute top-4 left-4 text-xs px-2 py-0.5 rounded-full"
+            style={{ background: 'rgba(0,0,0,0.45)', color: 'rgba(255,255,255,0.5)' }}>⏸</div>
+        )}
+        {slide.caption && (
+          <div className="absolute bottom-6 left-0 right-0 text-center px-6">
+            <span className="text-sm text-white/80 bg-black/45 px-3 py-1 rounded-full backdrop-blur-sm">
+              {slide.caption}
+            </span>
+          </div>
+        )}
+      </div>
+      {total > 1 && (
+        <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
+          {allSlides.map((_, idx) => (
+            <button key={idx} onClick={() => { setCurrent(idx); setLoaded(false); }}
+              aria-label={`Go to slide ${idx + 1}`}
+              className="transition-all duration-200 rounded-full"
+              style={{
+                width: idx === current ? '22px' : '6px', height: '6px',
+                background: idx === current ? 'rgba(124,58,237,0.95)' : 'rgba(255,255,255,0.3)',
+              }} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Full-screen Modal ─────────────────────────────────────────
+function ProjectModal({ p, onClose }: { p: Project; onClose: () => void }) {
+  const [slides, setSlides] = useState<SlideImage[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { document.body.style.overflow = 'hidden'; return () => { document.body.style.overflow = ''; }; }, []);
+  useEffect(() => {
+    setLoading(true);
+    fetch(`/api/projects/${p.id}/images`)
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setSlides(Array.isArray(d) ? d : []))
+      .catch(() => setSlides([]))
+      .finally(() => setLoading(false));
+  }, [p.id]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const dur = p.start_date ? calcDuration(p.start_date, p.end_date, p.ongoing ?? false) : null;
+  const barWidth = Math.max(calcProgressPct(p.start_date, p.end_date, p.ongoing), 8);
+
+  return (
+    <div className="fixed inset-0 z-50 flex"
+      style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)' }}
+      onClick={onClose}>
+      <div className="relative flex flex-col md:flex-row w-full h-full"
+        onClick={e => e.stopPropagation()}>
+
+        <div className="w-full md:w-[58%] h-[45vh] md:h-full flex-shrink-0 relative"
+          style={{ background: 'var(--bg-slide)' }}>
+          {loading ? (
+            <div className="w-full h-full flex items-center justify-center">
+              <div className="w-10 h-10 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
             </div>
+          ) : (
+            <ImageSlideshow projectId={p.id} hascover={p.has_image} slides={slides} fullHeight />
           )}
-          <div className="absolute inset-0"
-            style={{ background: 'linear-gradient(to top, #18181b 0%, transparent 50%)' }} />
           {p.featured && (
-            <div className="absolute top-4 left-4 text-xs px-2.5 py-1 rounded-full font-medium"
-              style={{ background: 'rgba(124,58,237,0.3)', border: '1px solid rgba(124,58,237,0.5)', color: '#a78bfa' }}>
+            <div className="absolute top-5 left-5 z-10 text-xs px-3 py-1 rounded-full font-semibold"
+              style={{ background: 'rgba(124,58,237,0.35)', border: '1px solid rgba(124,58,237,0.6)', color: '#a78bfa', backdropFilter: 'blur(6px)' }}>
               ★ Featured
             </div>
           )}
-          <button onClick={onClose}
-            className="absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center
-                       text-zinc-400 hover:text-white transition-colors"
-            style={{ background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)' }}>
-            ✕
-          </button>
         </div>
 
-        <div className="p-8 space-y-7">
+        <div className="flex-1 overflow-y-auto" style={{ background: 'var(--bg-modal)' }}>
+          <div className="sticky top-0 z-10 flex justify-end px-6 pt-5 pb-2"
+            style={{ background: `linear-gradient(to bottom, var(--bg-modal) 60%, transparent)` }}>
+            <button onClick={onClose}
+              className="w-9 h-9 rounded-full flex items-center justify-center transition-all"
+              style={{ color: 'var(--text-2)', border: '1px solid var(--border)' }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLElement).style.color = 'var(--text-1)';
+                (e.currentTarget as HTMLElement).style.background = 'var(--bg-card)';
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLElement).style.color = 'var(--text-2)';
+                (e.currentTarget as HTMLElement).style.background = 'transparent';
+              }}
+              aria-label="Close">✕</button>
+          </div>
 
-          <h2 className="text-2xl font-bold text-white leading-tight">{p.title}</h2>
+          <div className="px-8 pb-10 space-y-8">
+            <h2 className="text-3xl font-bold leading-tight tracking-tight" style={{ color: 'var(--text-1)' }}>
+              {p.title}
+            </h2>
 
-          {/* Timeline */}
-          {p.start_date && (
             <div className="space-y-3">
-              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">Timeline</p>
-              <div className="relative">
-                <div className="h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                  <div className="h-full rounded-full transition-all duration-700"
-                    style={{
-                      width: `${barWidth}%`,
-                      background: p.ongoing
-                        ? 'linear-gradient(90deg, #7c3aed, #22c55e)'
-                        : 'linear-gradient(90deg, #7c3aed, #06b6d4)',
-                    }} />
-                </div>
-                <div className="absolute -top-1 left-0 w-3 h-3 rounded-full bg-violet-500" />
-                <div className={`absolute -top-1 w-3 h-3 rounded-full ${
-                  p.ongoing ? 'bg-green-400 animate-pulse' : 'bg-cyan-400'
-                }`} style={{ right: `${100 - barWidth}%`, transform: 'translateX(50%)' }} />
-              </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-zinc-400">{fmtDate(p.start_date)}</span>
-                <div className="text-center">
-                  {dur && <span className="text-violet-300 font-semibold">{dur}</span>}
-                  {p.ongoing && <span className="ml-2 text-xs text-green-400">ongoing</span>}
-                </div>
-                <span className={p.ongoing ? 'text-green-400 font-medium' : 'text-zinc-400'}>
-                  {p.ongoing ? 'Present' : fmtDate(p.end_date)}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Description — split on any newline sequence */}
-          <div className="space-y-3">
-            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">About</p>
-            <div className="space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-3)' }}>About</p>
               <DescriptionParagraphs
                 text={p.description}
-                className="text-zinc-300 text-sm leading-relaxed"
+                className="text-sm leading-relaxed"
+                style={{ color: 'var(--text-2)' }}
               />
             </div>
-          </div>
 
-          {/* Tech stack */}
-          <div className="space-y-3">
-            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">
-              Tech stack · {p.tech_stack.length} technologies
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {p.tech_stack.map((tag, ti) => {
-                const c = TAG_COLORS[ti % TAG_COLORS.length];
-                return (
-                  <span key={tag} className="text-xs font-medium px-3 py-1.5 rounded-full"
-                    style={{ background: c.color, border: `1px solid ${c.border}`, color: c.text }}>
-                    {tag}
+            <div className="space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-3)' }}>
+                Tech stack · {p.tech_stack.length} {p.tech_stack.length === 1 ? 'technology' : 'technologies'}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {p.tech_stack.map((tag, ti) => {
+                  const c = TAG_COLORS[ti % TAG_COLORS.length];
+                  return (
+                    <span key={tag} className="text-xs font-medium px-3 py-1.5 rounded-full"
+                      style={{ background: c.color, border: `1px solid ${c.border}`, color: c.text }}>
+                      {tag}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+
+            {p.start_date && (
+              <div className="space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-3)' }}>Timeline</p>
+                <div className="relative">
+                  <div className="h-1.5 rounded-full" style={{ background: 'var(--bg-track)' }}>
+                    <div className="h-full rounded-full transition-all duration-700"
+                      style={{
+                        width: `${barWidth}%`,
+                        background: p.ongoing ? 'linear-gradient(90deg,#7c3aed,#22c55e)' : 'linear-gradient(90deg,#7c3aed,#06b6d4)',
+                      }} />
+                  </div>
+                  <div className="absolute -top-1 left-0 w-3 h-3 rounded-full bg-violet-500" />
+                  <div className={`absolute -top-1 w-3 h-3 rounded-full ${p.ongoing ? 'bg-green-500 animate-pulse' : 'bg-cyan-400'}`}
+                    style={{ right: `${100 - barWidth}%`, transform: 'translateX(50%)' }} />
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span style={{ color: 'var(--text-2)' }}>{fmtDate(p.start_date)}</span>
+                  <div className="text-center">
+                    {dur && <span className="text-violet-400 font-semibold">{dur}</span>}
+                    {p.ongoing && <span className="ml-2 text-xs text-green-500">ongoing</span>}
+                  </div>
+                  <span style={{ color: p.ongoing ? '#22c55e' : 'var(--text-2)', fontWeight: p.ongoing ? 500 : 400 }}>
+                    {p.ongoing ? 'Present' : fmtDate(p.end_date)}
                   </span>
-                );
-              })}
-            </div>
-          </div>
+                </div>
+              </div>
+            )}
 
-          {/* Links */}
-          {(p.repo_url || p.live_url) && (
-            <div className="flex gap-3 pt-2 border-t border-zinc-800">
-              {p.repo_url && (
-                <a href={p.repo_url} target="_blank" rel="noopener noreferrer"
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl
-                             text-sm font-medium text-zinc-300 hover:text-white
-                             transition-all duration-200 hover:bg-zinc-800"
-                  style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
-                  Source code ↗
-                </a>
-              )}
-              {p.live_url && (
-                <a href={p.live_url} target="_blank" rel="noopener noreferrer"
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl
-                             text-sm font-medium text-white transition-all duration-200
-                             hover:scale-[1.02] active:scale-[0.98]"
-                  style={{
-                    background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
-                    boxShadow: '0 0 20px rgba(124,58,237,0.3)',
-                  }}>
-                  Live demo ↗
-                </a>
-              )}
-            </div>
-          )}
+            {(p.repo_url || p.live_url) && (
+              <div className="flex gap-3 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+                {p.repo_url && (
+                  <a href={p.repo_url} target="_blank" rel="noopener noreferrer"
+                    className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition-all duration-200"
+                    style={{ color: 'var(--text-2)', border: '1px solid var(--border)' }}
+                    onMouseEnter={e => {
+                      (e.currentTarget as HTMLElement).style.color = 'var(--text-1)';
+                      (e.currentTarget as HTMLElement).style.background = 'var(--bg-card)';
+                    }}
+                    onMouseLeave={e => {
+                      (e.currentTarget as HTMLElement).style.color = 'var(--text-2)';
+                      (e.currentTarget as HTMLElement).style.background = 'transparent';
+                    }}>
+                    Source code ↗
+                  </a>
+                )}
+                {p.live_url && (
+                  <a href={p.live_url} target="_blank" rel="noopener noreferrer"
+                    className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium text-white transition-all duration-200 hover:scale-[1.02]"
+                    style={{ background: 'linear-gradient(135deg,#7c3aed,#4f46e5)', boxShadow: '0 0 20px rgba(124,58,237,0.3)' }}>
+                    Live demo ↗
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -260,15 +395,13 @@ function ProjectModal({ p, onClose }: { p: Project; onClose: () => void }) {
 
 // ── Main section ──────────────────────────────────────────────
 export default function ProjectsSection({ projects }: { projects: Project[] }) {
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-
+  const [selected, setSelected] = useState<Project | null>(null);
   if (!projects.length) return null;
 
   return (
     <section id="projects" className="relative overflow-hidden">
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-96 pointer-events-none"
-        style={{ background: 'radial-gradient(circle, rgba(79,70,229,0.08) 0%, transparent 70%)' }}
-        aria-hidden />
+        style={{ background: 'radial-gradient(circle, rgba(79,70,229,0.07) 0%, transparent 70%)' }} aria-hidden />
 
       <div className="section relative z-10">
         <div className="section-label">Selected work</div>
@@ -277,7 +410,13 @@ export default function ProjectsSection({ projects }: { projects: Project[] }) {
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {projects.map((p, i) => (
-            <div key={p.id} className="card flex flex-col group overflow-hidden relative">
+            <div key={p.id}
+              onClick={() => setSelected(p)}
+              className="card flex flex-col group overflow-hidden relative cursor-pointer transition-all duration-300 hover:-translate-y-1"
+              role="button" tabIndex={0}
+              aria-label={`View ${p.title} details`}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setSelected(p); }}>
+
               {p.featured && (
                 <div className="absolute top-3 right-3 z-10 text-xs px-2 py-0.5 rounded-full font-medium"
                   style={{ background: 'rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.4)', color: '#a78bfa' }}>
@@ -285,11 +424,16 @@ export default function ProjectsSection({ projects }: { projects: Project[] }) {
                 </div>
               )}
 
-              {/* Thumbnail */}
+              {/* Thumbnail — loading="lazy" skips the request until card enters viewport */}
               <div className="h-44 -mx-6 -mt-6 mb-5 overflow-hidden rounded-t-2xl relative">
                 {p.has_image ? (
-                  <img src={projectImageUrl(p.id)} alt={p.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  <img
+                    src={projectImageUrl(p.id)}
+                    alt={p.title}
+                    loading="lazy"
+                    decoding="async"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center"
                     style={{ background: GRADIENTS[i % GRADIENTS.length] }}>
@@ -309,64 +453,57 @@ export default function ProjectsSection({ projects }: { projects: Project[] }) {
                     </div>
                   </div>
                 )}
-                <div className="absolute inset-x-0 bottom-0 h-12"
-                  style={{ background: 'linear-gradient(to top, rgba(24,24,27,0.8), transparent)' }} />
+                <div className="absolute inset-x-0 bottom-0 h-12 pointer-events-none"
+                  style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6), transparent)' }} />
               </div>
 
-              <h3 className="font-semibold text-white text-lg mb-2 group-hover:text-violet-300 transition-colors">
+              <h3 className="font-semibold text-lg mb-2 group-hover:text-violet-500 transition-colors"
+                style={{ color: 'var(--text-1)' }}>
                 {p.title}
               </h3>
-
-              <div className="mb-3">
-                <TimelineStrip p={p} compact />
-              </div>
-
-              {/* Card description — clamp to 3 lines, no paragraph splitting needed here */}
-              <p className="text-zinc-400 text-sm leading-relaxed mb-2 line-clamp-3">
+              <div className="mb-3"><TimelineStrip p={p} compact /></div>
+              <p className="text-sm leading-relaxed mb-4 line-clamp-3" style={{ color: 'var(--text-2)' }}>
                 {p.description}
               </p>
-
-              <button onClick={() => setSelectedProject(p)}
-                className="text-xs text-violet-400 hover:text-violet-300 transition-colors
-                           text-left mb-4 flex items-center gap-1 group/btn">
-                Read more
-                <span className="group-hover/btn:translate-x-0.5 transition-transform">→</span>
-              </button>
 
               <div className="flex flex-wrap gap-1.5 mb-5">
                 {p.tech_stack.map((t, ti) => {
                   const c = TAG_COLORS[ti % TAG_COLORS.length];
                   return (
                     <span key={t} className="text-xs font-medium px-2.5 py-0.5 rounded-full"
-                      style={{ background: c.color, border: `1px solid ${c.border}`, color: c.text }}>
-                      {t}
-                    </span>
+                      style={{ background: c.color, border: `1px solid ${c.border}`, color: c.text }}>{t}</span>
                   );
                 })}
               </div>
 
-              <div className="flex gap-4 mt-auto pt-4 border-t border-zinc-800">
+              <div className="flex gap-4 mt-auto pt-4" style={{ borderTop: '1px solid var(--border)' }}>
                 {p.repo_url && (
                   <a href={p.repo_url} target="_blank" rel="noopener noreferrer"
-                    className="text-sm text-zinc-400 hover:text-violet-400 transition-colors flex items-center gap-1">
+                    onClick={e => e.stopPropagation()}
+                    className="text-sm transition-colors flex items-center gap-1 hover:text-violet-500"
+                    style={{ color: 'var(--text-2)' }}>
                     Source <span className="text-xs">↗</span>
                   </a>
                 )}
                 {p.live_url && (
                   <a href={p.live_url} target="_blank" rel="noopener noreferrer"
-                    className="text-sm text-zinc-400 hover:text-cyan-400 transition-colors flex items-center gap-1">
+                    onClick={e => e.stopPropagation()}
+                    className="text-sm transition-colors flex items-center gap-1 hover:text-cyan-500"
+                    style={{ color: 'var(--text-2)' }}>
                     Live demo <span className="text-xs">↗</span>
                   </a>
                 )}
+                <span className="ml-auto text-xs pointer-events-none transition-colors group-hover:text-violet-400"
+                  style={{ color: 'var(--text-4)' }}>
+                  View details →
+                </span>
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      {selectedProject && (
-        <ProjectModal p={selectedProject} onClose={() => setSelectedProject(null)} />
-      )}
+      {selected && <ProjectModal p={selected} onClose={() => setSelected(null)} />}
     </section>
   );
 }

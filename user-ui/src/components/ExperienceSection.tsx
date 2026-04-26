@@ -7,7 +7,6 @@ interface Experience {
   has_logo: boolean;
 }
 
-// ── Same 8-color palette as HeroSection and ProjectsSection ──
 const TAG_COLORS = [
   { color: 'rgba(124,58,237,0.15)',  border: 'rgba(124,58,237,0.35)',  text: '#a78bfa' },
   { color: 'rgba(251,191,36,0.12)',  border: 'rgba(251,191,36,0.3)',   text: '#fcd34d' },
@@ -19,13 +18,29 @@ const TAG_COLORS = [
   { color: 'rgba(236,72,153,0.12)',  border: 'rgba(236,72,153,0.3)',   text: '#f9a8d4' },
 ];
 
-// ── Standalone duration helper — avoids TS narrowing issues ──
+// ── Duration helper — LinkedIn style ─────────────────────────
+// +1 unconditionally: both the start month AND end/current month
+// are counted as full months, matching LinkedIn's calculation.
+// Parses ISO string directly to avoid UTC timezone shift.
+//
+// Examples:
+//   Mar → Apr (completed)        = (4-3) + 1 = 2 mos ✅
+//   Sep 2025 → Feb 2026 (done)   = 12+(2-9)+1 = 6 mos ✅
+//   Jan 2024 → Dec 2024 (done)   = 0+11+1 = 12 mos = 1 yr ✅
+//   Jan 2024 ongoing Apr 2026    = 24+(4-1)+1 = 28 mos = 2 yrs 4 mos ✅
 function calcDuration(start: string, end: string | null | undefined, ongoing: boolean): string {
-  const from  = new Date(start);
-  const to    = ongoing || !end ? new Date() : new Date(end);
-  const total = (to.getFullYear() - from.getFullYear()) * 12
-                + (to.getMonth() - from.getMonth());
-  if (total < 0) return '';
+  if (!start) return '';
+  const [fy, fm] = start.split('-').map(Number);
+  let ty: number, tm: number;
+  if (ongoing || !end) {
+    const now = new Date();
+    ty = now.getFullYear();
+    tm = now.getMonth() + 1;
+  } else {
+    [ty, tm] = end.split('-').map(Number);
+  }
+  const total = (ty - fy) * 12 + (tm - fm) + 1; // +1 always — LinkedIn counts both endpoints
+  if (total <= 0) return '< 1 mo';
   const yrs = Math.floor(total / 12);
   const mos = total % 12;
   const parts: string[] = [];
@@ -34,22 +49,28 @@ function calcDuration(start: string, end: string | null | undefined, ongoing: bo
   return parts.length ? parts.join(' ') : '< 1 mo';
 }
 
-function formatDate(d?: string) {
+// Parse year/month directly — avoids new Date('YYYY-MM-DD') UTC shift
+function formatDate(d?: string): string {
   if (!d) return 'Present';
-  return new Date(d).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+  const [y, m] = d.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
 }
 
-// ── Description paragraph renderer ───────────────────────────
-// Splits on \n or \n\n — handles single or double Enter from the admin textarea.
 function DescriptionParagraphs({ text }: { text: string }) {
   const paras = text.split(/\n+/).filter(p => p.trim());
   if (paras.length <= 1) {
-    return <p className="text-zinc-400 text-sm leading-relaxed">{text}</p>;
+    return (
+      <p className="text-sm leading-relaxed" style={{ color: 'var(--text-2)' }}>
+        {text}
+      </p>
+    );
   }
   return (
     <div className="space-y-2">
       {paras.map((para, idx) => (
-        <p key={idx} className="text-zinc-400 text-sm leading-relaxed">{para}</p>
+        <p key={idx} className="text-sm leading-relaxed" style={{ color: 'var(--text-2)' }}>
+          {para}
+        </p>
       ))}
     </div>
   );
@@ -70,8 +91,9 @@ export default function ExperienceSection({ experiences }: { experiences: Experi
         <p className="section-sub">Where I&apos;ve worked</p>
 
         <div className="relative">
+          {/* Vertical timeline spine */}
           <div className="absolute left-6 top-0 bottom-0 w-px"
-            style={{ background: 'linear-gradient(to bottom, #7c3aed44, #06b6d444, transparent)' }} />
+            style={{ background: 'linear-gradient(to bottom, rgba(124,58,237,0.4), rgba(6,182,212,0.3), transparent)' }} />
 
           <div className="space-y-8">
             {experiences.map((exp) => {
@@ -80,10 +102,14 @@ export default function ExperienceSection({ experiences }: { experiences: Experi
 
               return (
                 <div key={exp.id} className="relative flex gap-8">
-                  {/* Timeline dot */}
+
+                  {/* Timeline dot / logo */}
                   <div className="relative flex-shrink-0 flex flex-col items-center">
                     <div className="w-12 h-12 rounded-full flex items-center justify-center z-10"
-                      style={{ background: 'rgba(124,58,237,0.15)', border: '1px solid rgba(124,58,237,0.4)' }}>
+                      style={{
+                        background: 'rgba(124,58,237,0.12)',
+                        border: '1px solid rgba(124,58,237,0.38)',
+                      }}>
                       {exp.has_logo ? (
                         <img src={api.expLogoUrl(exp.id)} alt={exp.company}
                           className="w-7 h-7 object-contain rounded-sm" />
@@ -97,19 +123,27 @@ export default function ExperienceSection({ experiences }: { experiences: Experi
 
                   {/* Card */}
                   <div className="card flex-1 mb-2 group">
-                    {/* Header row */}
+
+                    {/* Header */}
                     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-3">
                       <div>
-                        <h3 className="text-white font-semibold text-lg group-hover:text-violet-300 transition-colors">
+                        <h3 className="font-semibold text-lg transition-colors group-hover:text-violet-400"
+                          style={{ color: 'var(--text-1)' }}>
                           {exp.role}
                         </h3>
-                        <p className="font-medium" style={{ color: '#06b6d4' }}>{exp.company}</p>
+                        <p className="font-medium text-sm" style={{ color: '#06b6d4' }}>
+                          {exp.company}
+                        </p>
                       </div>
 
-                      {/* Date range + duration badge */}
-                      <div className="flex flex-col items-start sm:items-end gap-1 flex-shrink-0 self-start">
-                        <span className="text-xs font-mono px-3 py-1 rounded-full"
-                          style={{ background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.25)', color: '#a78bfa' }}>
+                      <div className="flex flex-col items-start sm:items-end gap-1.5 flex-shrink-0 self-start">
+                        {/* Date range */}
+                        <span className="text-xs font-mono px-3 py-1 rounded-full whitespace-nowrap"
+                          style={{
+                            background: 'rgba(124,58,237,0.1)',
+                            border: '1px solid rgba(124,58,237,0.25)',
+                            color: '#a78bfa',
+                          }}>
                           {formatDate(exp.start_date)}
                           {' – '}
                           {exp.ongoing ? (
@@ -123,8 +157,12 @@ export default function ExperienceSection({ experiences }: { experiences: Experi
                         </span>
                         {/* Duration pill */}
                         {dur && (
-                          <span className="text-xs px-2 py-0.5 rounded-full"
-                            style={{ background: 'rgba(6,182,212,0.08)', border: '1px solid rgba(6,182,212,0.2)', color: '#67e8f9' }}>
+                          <span className="text-xs px-2.5 py-0.5 rounded-full"
+                            style={{
+                              background: 'rgba(6,182,212,0.08)',
+                              border: '1px solid rgba(6,182,212,0.22)',
+                              color: '#67e8f9',
+                            }}>
                             {dur}
                           </span>
                         )}
@@ -134,14 +172,14 @@ export default function ExperienceSection({ experiences }: { experiences: Experi
                     {/* Description */}
                     <DescriptionParagraphs text={exp.description} />
 
-                    {/* Tech stack pills — only shown when tech_stack has entries */}
+                    {/* Tech stack */}
                     {hasTech && (
-                      <div className="flex flex-wrap gap-1.5 mt-4 pt-4 border-t border-zinc-800">
+                      <div className="flex flex-wrap gap-1.5 mt-4 pt-4"
+                        style={{ borderTop: '1px solid var(--border)' }}>
                         {exp.tech_stack!.map((tag, ti) => {
                           const c = TAG_COLORS[ti % TAG_COLORS.length];
                           return (
-                            <span key={tag}
-                              className="text-xs font-medium px-2.5 py-0.5 rounded-full"
+                            <span key={tag} className="text-xs font-medium px-2.5 py-0.5 rounded-full"
                               style={{ background: c.color, border: `1px solid ${c.border}`, color: c.text }}>
                               {tag}
                             </span>

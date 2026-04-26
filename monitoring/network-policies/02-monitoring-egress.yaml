@@ -1,0 +1,62 @@
+# NetworkPolicy in the MONITORING namespace.
+# Controls what monitoring pods can talk to.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: monitoring-egress-policy
+  namespace: monitoring
+  labels:
+    app: portfolio-monitoring
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    # DNS resolution
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+    # Prometheus → portfolio API and DB (via postgres-exporter)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: portfolio
+      ports:
+        - protocol: TCP
+          port: 4000   # API /metrics
+        - protocol: TCP
+          port: 5432   # PostgreSQL (postgres-exporter)
+
+    # Intra-monitoring namespace communication
+    # (Prometheus → Alertmanager, Grafana → Prometheus, etc.)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+
+    # Alertmanager → Zoho SMTP for email alerts
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 465   # Zoho SMTPS
+
+    # Prometheus → Kubernetes API (for kubernetes_sd_configs)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 6443   # Kubernetes API server

@@ -30,21 +30,24 @@ export default async function HomePage() {
         <ContactSection />
       </main>
 
-      <footer className="border-t border-zinc-800/60 py-10 mt-8">
+      <footer className="py-10 mt-8" style={{ borderTop: '1px solid var(--border)' }}>
         <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-zinc-500 text-sm">
+          <p className="text-sm" style={{ color: 'var(--text-3)' }}>
             © {new Date().getFullYear()} John Itopa ISAH
           </p>
-          <p className="text-zinc-700 text-xs font-mono">
+          <p className="text-xs font-mono" style={{ color: 'var(--text-4)' }}>
             Built with Next.js · Deployed on Kubernetes
           </p>
           <div className="flex gap-5">
             {[
-              { label: 'GitHub',   href: '#' },
-              { label: 'LinkedIn', href: '#' },
+              { label: 'GitHub',   href: profile?.github_url   || '#' },
+              { label: 'LinkedIn', href: profile?.linkedin_url || '#' },
             ].map(l => (
               <a key={l.label} href={l.href}
-                className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors">
+                target={l.href !== '#' ? '_blank' : undefined}
+                rel="noopener noreferrer"
+                className="text-sm transition-colors hover:text-violet-400"
+                style={{ color: 'var(--text-3)' }}>
                 {l.label}
               </a>
             ))}
