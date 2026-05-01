@@ -1,93 +1,79 @@
 #!/usr/bin/env node
+'use strict';
 /**
  * Job Ingestion & Filtering Worker
- * Run this via:
- * - Node: node src/workers/jobWorker.js
- * - Docker: node src/workers/jobWorker.js
- * - Kubernetes CronJob: every 15 minutes
+ * Runs via Kubernetes CronJob every 15 minutes.
+ * Steps: ingest → AI filter → send digest → expire old jobs
  */
 
 require('dotenv').config();
 
-const jobIngestionService = require('../services/jobIngestion/jobIngestionService');
-const aiFilteringService = require('../services/jobIngestion/aiFilteringService');
-const notificationService = require('../services/jobIngestion/notificationService');
-const pool = require('../db/client');
+const jobIngestionService  = require('../services/jobIngestion/jobIngestionService');
+const aiFilteringService   = require('../services/jobIngestion/aiFilteringService');
+const notificationService  = require('../services/jobIngestion/notificationService');
+const pool                 = require('../db/client');
 
-const WORKER_TIMEOUT = 30 * 60 * 1000; // 30 minutes max
+const WORKER_TIMEOUT = 30 * 60 * 1000; // 30 min hard limit
 
 async function runJobWorker() {
-  console.log('[Worker] ========================================');
-  console.log('[Worker] Starting job ingestion worker...');
+  console.log('[Worker] ======================================');
+  console.log('[Worker] Job worker starting…');
   console.log('[Worker] Time:', new Date().toISOString());
-  console.log('[Worker] ========================================');
+  console.log('[Worker] LLM engine: Claude Haiku (ANTHROPIC_API_KEY',
+    process.env.ANTHROPIC_API_KEY ? 'SET ✅' : 'NOT SET — using pattern fallback ⚠️', ')');
+  console.log('[Worker] Adzuna:', process.env.ADZUNA_APP_ID ? 'enabled ✅' : 'disabled ⚠️');
+  console.log('[Worker] ======================================\n');
 
-  const startTime = Date.now();
+  const t0 = Date.now();
 
   try {
-    // Step 1: Ingest jobs from all providers
-    console.log('\n[Worker:Step1] Ingesting jobs from APIs...');
-    const ingestionResults = await jobIngestionService.ingestAllJobs();
-    console.log('[Worker:Step1] Complete:', JSON.stringify(ingestionResults, null, 2));
+    // Step 1: Ingest from all providers
+    console.log('\n[Worker:1] Ingesting from Jooble / RemoteOK / Adzuna…');
+    const ingestion = await jobIngestionService.ingestAllJobs();
+    console.log('[Worker:1] Done:', ingestion);
 
-    // Step 2: AI filtering of new jobs
-    console.log('\n[Worker:Step2] Running AI filtering...');
-    const filteringResults = await aiFilteringService.filterUnprocessedJobs();
-    console.log('[Worker:Step2] Complete:', JSON.stringify(filteringResults, null, 2));
+    // Step 2: AI filter new raw jobs
+    console.log('\n[Worker:2] Running AI filtering…');
+    const filtering = await aiFilteringService.filterUnprocessedJobs();
+    console.log('[Worker:2] Done:', filtering);
 
-    // Step 3: Send alerts for new relevant jobs
-    console.log('\n[Worker:Step3] Sending job alerts...');
-    const notificationResults = await notificationService.sendNewJobAlerts();
-    console.log('[Worker:Step3] Complete:', JSON.stringify(notificationResults, null, 2));
+    // Step 3: Send daily digest (only fires at scheduled time, not every run)
+    // The notificationService.sendNewJobAlerts() is a no-op outside digest time
+    // because sendJobDigest() is scheduled via startJobDigest() in index.js.
+    // Here we only send if the FORCE_DIGEST env var is set (for manual testing).
+    if (process.env.FORCE_DIGEST === 'true') {
+      console.log('\n[Worker:3] Sending job digest (FORCE_DIGEST=true)…');
+      const notification = await notificationService.sendNow();
+      console.log('[Worker:3] Done:', notification);
+    } else {
+      console.log('\n[Worker:3] Digest skipped (handled by scheduler in API process)');
+    }
 
-    // Step 4: Cleanup expired jobs
-    console.log('\n[Worker:Step4] Marking expired jobs...');
-    const expiredCount = await jobIngestionService.markExpiredJobs();
-    console.log('[Worker:Step4] Complete: Marked', expiredCount, 'jobs as expired');
+    // Step 4: Expire stale jobs
+    console.log('\n[Worker:4] Expiring old jobs…');
+    const expired = await jobIngestionService.markExpiredJobs();
+    console.log(`[Worker:4] Done: ${expired} expired`);
 
-    const duration = Math.round((Date.now() - startTime) / 1000);
-    console.log('\n[Worker] ========================================');
-    console.log('[Worker] ✅ Worker completed successfully!');
-    console.log('[Worker] Duration:', duration, 'seconds');
-    console.log('[Worker] ========================================\n');
+    const secs = Math.round((Date.now() - t0) / 1000);
+    console.log(`\n[Worker] ✅ Completed in ${secs}s`);
+    console.log('[Worker] ======================================\n');
 
     process.exit(0);
-  } catch (error) {
-    console.error('\n[Worker] ❌ Worker failed with error:');
-    console.error(error);
-
-    const duration = Math.round((Date.now() - startTime) / 1000);
-    console.log('\n[Worker] Duration:', duration, 'seconds');
-    console.log('[Worker] ========================================\n');
-
+  } catch (err) {
+    console.error('\n[Worker] ❌ Fatal error:', err);
     process.exit(1);
   } finally {
-    // Close database connection
-    try {
-      await pool.end();
-      console.log('[Worker] Database connection closed');
-    } catch (error) {
-      console.error('[Worker] Failed to close database:', error.message);
-    }
+    try { await pool.end(); }
+    catch (_) {}
   }
 }
 
-// Set a hard timeout to prevent hanging
 setTimeout(() => {
-  console.error('[Worker] Hard timeout reached (30 minutes). Exiting...');
+  console.error('[Worker] Hard timeout (30 min). Exiting.');
   process.exit(1);
 }, WORKER_TIMEOUT);
 
-// Handle signals
-process.on('SIGTERM', () => {
-  console.log('[Worker] SIGTERM received, gracefully shutting down...');
-  process.exit(0);
-});
+process.on('SIGTERM', () => { console.log('[Worker] SIGTERM'); process.exit(0); });
+process.on('SIGINT',  () => { console.log('[Worker] SIGINT');  process.exit(0); });
 
-process.on('SIGINT', () => {
-  console.log('[Worker] SIGINT received, gracefully shutting down...');
-  process.exit(0);
-});
-
-// Run the worker
 runJobWorker();

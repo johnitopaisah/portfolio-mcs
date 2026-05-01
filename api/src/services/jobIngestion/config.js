@@ -1,112 +1,70 @@
 /**
  * Job API Configuration & Provider Setup
- * Manages API keys, rate limits, and provider-specific logic
+ * Providers: Jooble, RemoteOK, Adzuna (free API, 250 req/day)
  */
 
 module.exports = {
-  // Job API provider: JoobleAPI (Jooble.org - largest job aggregator in Europe)
-  // You can also use: RemoteOK, Indeed, LinkedIn, Greenhouse, Lever, Workday
   providers: {
     joobleApi: {
       name: 'Jooble',
       baseUrl: 'https://api.jooble.org/api/v2/search',
       apiKey: process.env.JOOBLE_API_KEY,
-      rateLimit: {
-        requestsPerSecond: 1,
-        dailyLimit: 1000,
-      },
-      features: {
-        pagination: true,
-        dateFiltering: true,
-        locationFiltering: true,
-        keywordFiltering: true,
-      },
+      rateLimit: { requestsPerSecond: 1, dailyLimit: 1000 },
+      features: { pagination: true, dateFiltering: true, locationFiltering: true },
     },
     remoteOk: {
       name: 'RemoteOK',
       baseUrl: 'https://remoteok.com/api',
-      apiKey: process.env.REMOTE_OK_API_KEY,
-      rateLimit: {
-        requestsPerSecond: 1,
-        dailyLimit: 2000,
-      },
-      features: {
-        pagination: false,
-        dateFiltering: false,
-        locationFiltering: true,
-        keywordFiltering: true,
-      },
+      apiKey: process.env.REMOTE_OK_API_KEY || 'public', // RemoteOK is free
+      rateLimit: { requestsPerSecond: 1, dailyLimit: 2000 },
+      features: { pagination: false, dateFiltering: false, locationFiltering: true },
+    },
+    adzuna: {
+      name: 'Adzuna',
+      // Base URL built dynamically in fetcher (includes country + page)
+      baseUrl: 'https://api.adzuna.com/v1/api/jobs',
+      appId:   process.env.ADZUNA_APP_ID,
+      apiKey:  process.env.ADZUNA_API_KEY,
+      rateLimit: { requestsPerSecond: 1, dailyLimit: 250 },
+      features: { pagination: true, dateFiltering: true, locationFiltering: true },
+      // Countries to search (Adzuna has separate endpoints per country)
+      countries: ['gb', 'fr', 'de', 'nl', 'us', 'ca'],
     },
   },
 
-  // Polling schedule
   pollSchedule: {
     intervalMinutes: parseInt(process.env.JOB_POLL_INTERVAL_MINUTES || '15'),
-    retryOnFailure: true,
-    maxRetries: 3,
+    retryOnFailure:  true,
+    maxRetries:      3,
     backoffMultiplier: 2,
   },
 
-  // Job filtering rules
   jobFiltering: {
-    // Only ingest jobs posted within this window
     maxAgeHours: 30 * 24, // 30 days
-    
-    // Keyword filters (inclusive) — must match at least one
+
     keywordFilters: [
-      'DevOps',
-      'Cloud',
-      'Kubernetes',
-      'AWS',
-      'Google Cloud',
-      'Azure',
-      'Docker',
-      'Infrastructure',
-      'Site Reliability',
-      'SRE',
-      'Embedded',
-      'Firmware',
-      'Systems',
-      'Backend',
-      'Full-stack',
+      'DevOps', 'Cloud', 'Kubernetes', 'AWS', 'Google Cloud', 'Azure',
+      'Docker', 'Infrastructure', 'Site Reliability', 'SRE',
+      'Embedded', 'Firmware', 'Systems', 'Backend', 'Platform Engineer',
     ],
 
-    // Location filters (inclusive)
     locationFilters: [
-      'Remote',
-      'France',
-      'EU',
-      'Europe',
-      'Germany',
-      'Netherlands',
-      'UK',
-      'Canada',
-      'US',
+      'Remote', 'France', 'EU', 'Europe', 'Germany',
+      'Netherlands', 'UK', 'Canada', 'US',
     ],
 
-    // Exclude keywords (exclusive)
-    excludeKeywords: [
-      'Sales',
-      'Marketing',
-      'HR',
-      'Recruiter',
-    ],
-
-    // Minimum job description length (chars)
+    excludeKeywords: ['Sales', 'Marketing', 'HR', 'Recruiter', 'Accounting'],
     minDescriptionLength: 100,
   },
 
-  // Search queries per provider
   searchQueries: {
     joobleApi: [
       'DevOps Engineer Remote',
-      'Cloud Infrastructure Engineer',
+      'Cloud Infrastructure Engineer Europe',
       'Kubernetes Administrator',
       'SRE Site Reliability Engineer',
-      'Infrastructure as Code',
-      'AWS Solutions Architect',
       'Embedded Systems Engineer',
-      'Backend Engineer Go Rust',
+      'Backend Engineer Go Rust Python',
     ],
     remoteOk: [
       'devops',
@@ -114,13 +72,19 @@ module.exports = {
       'cloud',
       'infrastructure',
     ],
+    adzuna: [
+      'devops engineer',
+      'site reliability engineer',
+      'cloud infrastructure',
+      'kubernetes',
+      'embedded systems',
+      'platform engineer',
+    ],
   },
 
-  // Notification thresholds
   notifications: {
-    enableForNewJobs: true,
-    minRelevanceScore: 75,
-    batchNotifications: true, // Send daily digest instead of real-time
-    batchTime: '09:00', // 9 AM user's timezone
+    enableDigest: true,
+    minRelevanceScore: 65,
+    digestTime: process.env.NOTIFY_JOB_DIGEST_TIME || '08:15', // HH:MM Europe/Paris
   },
 };

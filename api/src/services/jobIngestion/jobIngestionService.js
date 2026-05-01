@@ -1,297 +1,245 @@
+'use strict';
 /**
  * Job Ingestion Service
- * Polls job APIs, deduplicates, and stores raw jobs for AI filtering
+ * Providers: Jooble, RemoteOK, Adzuna (free official API — cleaner signal than aggregators)
+ * Uses native fetch (Node 20+) — no axios dependency needed here.
  */
 
-const axios = require('axios');
-const pool = require('../../db/client');
+const pool   = require('../../db/client');
 const config = require('./config');
 const { deduplicateJobs, calculateDeduplicationHash } = require('./deduplicationService');
-const { recordIngestionLog, getLastSuccessfulRun } = require('./ingestionLogsService');
+const { recordIngestionLog } = require('./ingestionLogsService');
+
+// ── HTTP helpers ─────────────────────────────────────────────
+async function httpGet(url, opts = {}) {
+  const res = await fetch(url, {
+    signal:  AbortSignal.timeout(opts.timeout || 12_000),
+    headers: opts.headers || {},
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status} — ${url}`);
+  return res.json();
+}
+
+async function httpPost(url, body, opts = {}) {
+  const res = await fetch(url, {
+    method:  'POST',
+    signal:  AbortSignal.timeout(opts.timeout || 12_000),
+    headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+    body:    JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status} — ${url}`);
+  return res.json();
+}
 
 class JobIngestionService {
-  /**
-   * Main ingestion entry point
-   * Polls all configured providers and stores raw jobs
-   */
+
   async ingestAllJobs() {
-    const startTime = Date.now();
+    const t0 = Date.now();
     const results = {};
+    console.log('[JobIngestion] Starting ingestion cycle…');
 
-    console.log('[JobIngestion] Starting job ingestion cycle...');
+    for (const [key, provider] of Object.entries(config.providers)) {
+      // Adzuna needs appId + apiKey; RemoteOK is public; others need apiKey
+      const ok = key === 'adzuna'
+        ? (provider.appId && provider.apiKey)
+        : key === 'remoteOk' ? true : !!provider.apiKey;
 
-    for (const [providerKey, provider] of Object.entries(config.providers)) {
-      if (!provider.apiKey) {
-        console.warn(`[JobIngestion] Skipping provider ${providerKey} - API key not set`);
+      if (!ok) {
+        console.warn(`[JobIngestion] Skipping ${key} — credentials not set`);
         continue;
       }
 
       try {
-        results[providerKey] = await this.ingestFromProvider(providerKey, provider);
-      } catch (error) {
-        console.error(`[JobIngestion] Failed to ingest from ${providerKey}:`, error.message);
-        await recordIngestionLog(
-          providerKey,
-          'FAILED',
-          0,
-          0,
-          0,
-          0,
-          error.message,
-          Date.now() - startTime
-        );
+        results[key] = await this.ingestFromProvider(key, provider);
+      } catch (err) {
+        console.error(`[JobIngestion:${key}] Failed:`, err.message);
+        await recordIngestionLog(key, 'FAILED', 0, 0, 0, 0, err.message, Date.now() - t0);
       }
     }
 
-    console.log('[JobIngestion] Completed:', results);
+    console.log('[JobIngestion] Complete:', results);
     return results;
   }
 
-  /**
-   * Ingest from a single provider
-   */
-  async ingestFromProvider(providerKey, provider) {
-    const startTime = Date.now();
-    let jobsFetched = 0;
-    let jobsNew = 0;
-    let jobsDuplicates = 0;
+  async ingestFromProvider(key, provider) {
+    const t0 = Date.now();
+    let fetched = 0, newCount = 0, dupeCount = 0;
 
-    console.log(`[JobIngestion:${providerKey}] Starting ingestion...`);
-
-    const queries = config.searchQueries[providerKey] || [];
+    const queries = config.searchQueries[key] || [];
     const allJobs = [];
 
-    // Fetch from all search queries
     for (const query of queries) {
       try {
-        const jobs = await this.fetchJobsFromApi(providerKey, provider, query);
+        let jobs = [];
+        if      (key === 'joobleApi')  jobs = await this.fetchFromJooble(provider, query);
+        else if (key === 'remoteOk')   jobs = await this.fetchFromRemoteOk(provider, query);
+        else if (key === 'adzuna')     jobs = await this.fetchFromAdzuna(provider, query);
         allJobs.push(...jobs);
-        jobsFetched += jobs.length;
-      } catch (error) {
-        console.error(`[JobIngestion:${providerKey}] Failed to fetch for query "${query}":`, error.message);
+        fetched += jobs.length;
+      } catch (err) {
+        console.error(`[JobIngestion:${key}] Query "${query}" failed:`, err.message);
       }
     }
 
-    console.log(`[JobIngestion:${providerKey}] Fetched ${jobsFetched} jobs from ${queries.length} queries`);
+    console.log(`[JobIngestion:${key}] Fetched ${fetched} across ${queries.length} queries`);
 
-    // Deduplicate and store
-    const { newJobs, duplicates } = await deduplicateJobs(allJobs, providerKey);
-    jobsNew = newJobs.length;
-    jobsDuplicates = duplicates.length;
+    const { newJobs, duplicates } = await deduplicateJobs(allJobs, key);
+    newCount  = newJobs.length;
+    dupeCount = duplicates.length;
 
-    // Store raw jobs
     for (const job of newJobs) {
-      try {
-        await this.storeRawJob(job, providerKey);
-      } catch (error) {
-        console.error(`[JobIngestion:${providerKey}] Failed to store job ${job.external_id}:`, error.message);
-      }
+      try { await this.storeRawJob(job, key); }
+      catch (err) { console.error(`[JobIngestion:${key}] Store error:`, err.message); }
     }
 
-    const durationMs = Date.now() - startTime;
+    const ms = Date.now() - t0;
+    await recordIngestionLog(key, 'SUCCESS', fetched, newCount, dupeCount, 0, null, ms);
+    console.log(`[JobIngestion:${key}] ${newCount} new, ${dupeCount} dupes — ${ms}ms`);
 
-    // Log ingestion run
-    await recordIngestionLog(
-      providerKey,
-      'SUCCESS',
-      jobsFetched,
-      jobsNew,
-      jobsDuplicates,
-      0, // filtered jobs (AI filtering happens later)
-      null,
-      durationMs
-    );
-
-    console.log(
-      `[JobIngestion:${providerKey}] Complete: ${jobsNew} new, ${jobsDuplicates} duplicates in ${durationMs}ms`
-    );
-
-    return { jobsFetched, jobsNew, jobsDuplicates, durationMs };
+    return { fetched, newCount, dupeCount, ms };
   }
 
-  /**
-   * Fetch jobs from a specific provider's API
-   */
-  async fetchJobsFromApi(providerKey, provider, query) {
-    console.log(`[JobIngestion:${providerKey}] Fetching for query: "${query}"`);
-
-    if (providerKey === 'joobleApi') {
-      return this.fetchFromJooble(provider, query);
-    } else if (providerKey === 'remoteOk') {
-      return this.fetchFromRemoteOk(provider, query);
-    }
-
-    throw new Error(`Unknown provider: ${providerKey}`);
-  }
-
-  /**
-   * Jooble API Implementation
-   * Reference: https://jooble.org/api/about
-   */
+  // ── Jooble ─────────────────────────────────────────────────
   async fetchFromJooble(provider, query) {
-    const pageLimit = 5; // Fetch 5 pages (100 jobs per page)
-    const allJobs = [];
-
-    for (let page = 0; page < pageLimit; page++) {
+    const all = [];
+    // 3 pages × ~20 results = ~60 per query (down from 5 to reduce volume)
+    for (let page = 0; page < 3; page++) {
       try {
-        const response = await axios.post(provider.baseUrl, {
-          keywords: query,
-          location: 'Remote',
-          // datePosted: 7, // Last 7 days (optional)
-        }, {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          params: {
-            apiKey: provider.apiKey,
-          },
-          timeout: 10000,
-        });
+        const data = await httpPost(
+          `${provider.baseUrl}?apiKey=${provider.apiKey}`,
+          { keywords: query, location: 'Remote', page }
+        );
+        const jobs = data.jobs || [];
+        if (!jobs.length) break;
 
-        const jobs = response.data.jobs || [];
-        console.log(`[JobIngestion:joobleApi] Page ${page + 1}: ${jobs.length} jobs`);
-
-        if (jobs.length === 0) break; // No more jobs
-
-        const normalized = jobs.map((job) => ({
-          external_id: job.id,
-          company_name: job.company,
-          title: job.title,
-          location: job.location || 'Remote',
-          job_type: job.type || 'Full-time',
-          description: job.snippet || job.description || '',
-          requirements: job.requirements || '',
-          salary_min: job.salary_min || null,
-          salary_max: job.salary_max || null,
-          salary_currency: job.salary_currency || 'USD',
-          posted_at: new Date(job.updated * 1000 || Date.now()), // Jooble uses Unix timestamp
-          apply_url: job.link,
-          source_api: 'joobleApi',
-          raw_data: job,
-        }));
-
-        allJobs.push(...normalized);
-      } catch (error) {
-        console.error(`[JobIngestion:joobleApi] Page ${page} error:`, error.message);
-        if (page === 0) throw error; // Fail if first page fails
+        all.push(...jobs.map(j => ({
+          external_id:     String(j.id),
+          company_name:    j.company            || 'Unknown',
+          title:           j.title              || '',
+          location:        j.location           || 'Remote',
+          job_type:        j.type               || 'Full-time',
+          description:     j.snippet || j.description || '',
+          requirements:    j.requirements       || '',
+          salary_min:      j.salary_min         || null,
+          salary_max:      j.salary_max         || null,
+          salary_currency: j.salary_currency    || 'USD',
+          posted_at:       j.updated ? new Date(j.updated * 1000) : new Date(),
+          apply_url:       j.link               || '',
+          source_api:      'joobleApi',
+          raw_data:        j,
+        })));
+      } catch (err) {
+        console.error(`[Jooble] Page ${page} error:`, err.message);
+        if (page === 0) throw err;
         break;
       }
     }
-
-    return allJobs;
+    return all;
   }
 
-  /**
-   * RemoteOK API Implementation
-   * Reference: https://remoteok.com/api
-   */
+  // ── RemoteOK ───────────────────────────────────────────────
   async fetchFromRemoteOk(provider, keyword) {
-    try {
-      const response = await axios.get(`${provider.baseUrl}?search=${keyword}`, {
-        timeout: 10000,
-      });
-
-      const jobs = response.data || [];
-      console.log(`[JobIngestion:remoteOk] Fetched ${jobs.length} jobs`);
-
-      const normalized = jobs
-        .filter((job) => job.id !== 'api-ad') // Filter out API ad
-        .map((job) => ({
-          external_id: `remote_ok_${job.id}`,
-          company_name: job.company,
-          title: job.title,
-          location: job.location || 'Remote',
-          job_type: 'Remote',
-          description: job.description || job.title,
-          requirements: '',
-          salary_min: null,
-          salary_max: null,
-          salary_currency: null,
-          posted_at: new Date(job.date_posted * 1000 || Date.now()),
-          apply_url: job.url,
-          source_api: 'remoteOk',
-          raw_data: job,
-        }));
-
-      return normalized;
-    } catch (error) {
-      console.error('[JobIngestion:remoteOk] API error:', error.message);
-      throw error;
-    }
-  }
-
-  /**
-   * Store a raw job in the database
-   */
-  async storeRawJob(job, sourceApi) {
-    const dedup_hash = calculateDeduplicationHash(
-      job.title,
-      job.company_name,
-      job.location
+    const data = await httpGet(
+      `${provider.baseUrl}?search=${encodeURIComponent(keyword)}`,
+      { headers: { 'User-Agent': 'portfolio-mcs/1.0 (job aggregator)' } }
     );
-
-    const query = `
-      INSERT INTO jobs_raw (
-        external_id,
-        company_name,
-        title,
-        location,
-        job_type,
-        description,
-        requirements,
-        salary_min,
-        salary_max,
-        salary_currency,
-        posted_at,
-        apply_url,
-        source_api,
-        dedup_hash,
-        raw_data
-      ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
-      )
-      ON CONFLICT (external_id) DO NOTHING
-      RETURNING id;
-    `;
-
-    const values = [
-      job.external_id,
-      job.company_name,
-      job.title,
-      job.location,
-      job.job_type,
-      job.description,
-      job.requirements,
-      job.salary_min,
-      job.salary_max,
-      job.salary_currency,
-      job.posted_at,
-      job.apply_url,
-      sourceApi,
-      dedup_hash,
-      JSON.stringify(job.raw_data),
-    ];
-
-    const result = await pool.query(query, values);
-    return result.rows[0]?.id;
+    return (data || [])
+      .filter(j => j.id && j.id !== 'api-ad')
+      .map(j => ({
+        external_id:     `remoteok_${j.id}`,
+        company_name:    j.company   || 'Unknown',
+        title:           j.title     || '',
+        location:        j.location  || 'Remote',
+        job_type:        'Remote',
+        description:     j.description || j.title || '',
+        requirements:    '',
+        salary_min:      null, salary_max: null, salary_currency: null,
+        posted_at:       j.date ? new Date(j.date) : new Date(),
+        apply_url:       j.url       || '',
+        source_api:      'remoteOk',
+        raw_data:        j,
+      }));
   }
 
-  /**
-   * Cleanup: Mark old jobs as inactive (soft delete via TTL)
-   */
+  // ── Adzuna (new) ───────────────────────────────────────────
+  // Free official API: https://developer.adzuna.com/
+  // 250 req/day free. Returns higher quality job data than aggregators.
+  async fetchFromAdzuna(provider, query) {
+    const countries = provider.countries || ['gb', 'fr', 'de', 'nl'];
+    const all = [];
+
+    for (const country of countries) {
+      try {
+        const params = new URLSearchParams({
+          app_id:          provider.appId,
+          app_key:         provider.apiKey,
+          results_per_page: '20',
+          what:            query,
+          where:           'Remote',
+          sort_by:         'date',
+          max_days_old:    '7',
+        });
+
+        const data = await httpGet(
+          `${provider.baseUrl}/${country}/search/1?${params}`
+        );
+
+        const currency = country === 'us' ? 'USD' : country === 'gb' ? 'GBP' : 'EUR';
+
+        all.push(...(data.results || []).map(j => ({
+          external_id:     `adzuna_${j.id}`,
+          company_name:    j.company?.display_name || 'Unknown',
+          title:           j.title                 || '',
+          location:        j.location?.display_name || country.toUpperCase(),
+          job_type:        j.contract_time          || 'Full-time',
+          description:     j.description            || '',
+          requirements:    '',
+          salary_min:      j.salary_min             || null,
+          salary_max:      j.salary_max             || null,
+          salary_currency: currency,
+          posted_at:       j.created ? new Date(j.created) : new Date(),
+          apply_url:       j.redirect_url           || '',
+          source_api:      'adzuna',
+          raw_data:        j,
+        })));
+      } catch (err) {
+        console.error(`[Adzuna:${country}] "${query}" failed:`, err.message);
+      }
+
+      // Respect 1 req/sec rate limit
+      await new Promise(r => setTimeout(r, 1100));
+    }
+
+    return all;
+  }
+
+  // ── Store raw job ──────────────────────────────────────────
+  async storeRawJob(job, sourceApi) {
+    const hash = calculateDeduplicationHash(job.title, job.company_name, job.location);
+    await pool.query(
+      `INSERT INTO jobs_raw (
+         external_id, company_name, title, location, job_type,
+         description, requirements, salary_min, salary_max, salary_currency,
+         posted_at, apply_url, source_api, dedup_hash, raw_data
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+       ON CONFLICT (external_id) DO NOTHING`,
+      [
+        job.external_id, job.company_name, job.title, job.location, job.job_type,
+        job.description, job.requirements, job.salary_min, job.salary_max, job.salary_currency,
+        job.posted_at, job.apply_url, sourceApi, hash, JSON.stringify(job.raw_data || {}),
+      ]
+    );
+  }
+
+  // ── Expire old jobs ────────────────────────────────────────
   async markExpiredJobs() {
-    const maxAgeHours = config.jobFiltering.maxAgeHours;
-
-    const query = `
-      UPDATE jobs
-      SET is_active = FALSE,
-          expires_at = NOW()
-      WHERE is_active = TRUE
-        AND posted_at < NOW() - INTERVAL '1 hour' * $1
-    `;
-
-    const result = await pool.query(query, [maxAgeHours]);
-    console.log(`[JobIngestion] Marked ${result.rowCount} jobs as expired`);
+    const maxAge = config.jobFiltering.maxAgeHours;
+    const result = await pool.query(
+      `UPDATE jobs SET is_active = FALSE, expires_at = NOW()
+       WHERE is_active = TRUE AND posted_at < NOW() - INTERVAL '1 hour' * $1`,
+      [maxAge]
+    );
+    console.log(`[JobIngestion] Expired ${result.rowCount} old jobs`);
     return result.rowCount;
   }
 }
