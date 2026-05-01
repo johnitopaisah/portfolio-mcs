@@ -6,7 +6,7 @@ FROM node:20-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 
 # ── Stage 2: builder ────────────────────────────────────────────
 # Copies node_modules from deps (no second install) and compiles the app.
