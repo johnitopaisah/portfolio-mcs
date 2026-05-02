@@ -340,7 +340,7 @@ export default function AiManagementPage() {
                       onChange={e => setEngineForm(f => ({ ...f, engine: e.target.value }))}
                       className="w-full px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-700 text-sm text-zinc-200 outline-none focus:border-indigo-500">
                       <option value="pattern">Pattern only (free, no API key)</option>
-                      <option value="groq">Groq — Llama 3.1 70B (free tier)</option>
+                      <option value="groq">Groq — Llama 3.3 70B (free tier)</option>
                       <option value="claude">Claude Haiku (paid, ~$1.70/month)</option>
                       <option value="gemini">Gemini 2.0 Flash (free tier)</option>
                     </select>
