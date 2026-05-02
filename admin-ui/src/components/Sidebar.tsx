@@ -10,6 +10,7 @@ const nav = [
   { href: '/dashboard/certifications', label: 'Certifications', icon: '✦' },
   { href: '/dashboard/messages',       label: 'Messages',       icon: '✉' },
   { href: '/dashboard/profile',        label: 'Profile',        icon: '◉' },
+  { href: '/dashboard/ai',             label: 'AI Engine',      icon: '⬡' },
 ];
 
 interface SidebarProps {

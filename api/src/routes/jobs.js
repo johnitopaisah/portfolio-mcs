@@ -167,36 +167,34 @@ router.get('/:id', jobLimiter, async (req, res) => {
 });
 
 // ── POST /api/jobs/:id/feedback (admin — record apply/skip) ──
-// This is the feedback loop trigger: stores your decision on a job.
-// Used by the admin UI "✓ Applied" and "✗ Skip" buttons.
+// Accepts both { action } (from admin UI) and { decision } (legacy).
+// Valid values: 'applied' | 'saved' | 'skipped' | 'skip' | 'interested' | 'hidden'
 router.post('/:id/feedback', requireAuth, async (req, res) => {
   try {
-    const { decision, notes } = req.body; // decision: 'applied' | 'skip' | 'interested'
-    if (!['applied', 'skip', 'interested'].includes(decision)) {
-      return res.status(400).json({ error: 'Invalid decision. Use: applied | skip | interested' });
+    const raw = req.body.action || req.body.decision;
+    const VALID = ['applied', 'saved', 'skipped', 'skip', 'interested', 'hidden'];
+    if (!VALID.includes(raw)) {
+      return res.status(400).json({ error: `Invalid action. Use: ${VALID.join(' | ')}` });
     }
 
     await pool.query(
       `INSERT INTO job_feedback (job_id, decision, notes, created_at)
        VALUES ($1, $2, $3, NOW())
        ON CONFLICT (job_id) DO UPDATE SET decision = $2, notes = $3, created_at = NOW()`,
-      [req.params.id, decision, notes || null]
+      [req.params.id, raw, req.body.notes || null]
     );
 
-    // Also update the job's ai_decision so it surfaces correctly in lists
-    if (decision === 'skip') {
+    // Reflect feedback in the live job record
+    if (raw === 'applied') {
+      await pool.query(`UPDATE jobs SET ai_decision = 'KEEP' WHERE id = $1`, [req.params.id]);
+    } else if (['skip', 'skipped', 'hidden'].includes(raw)) {
       await pool.query(
         `UPDATE jobs SET ai_decision = 'DROP', is_active = FALSE WHERE id = $1`,
         [req.params.id]
       );
-    } else if (decision === 'applied') {
-      await pool.query(
-        `UPDATE jobs SET ai_decision = 'KEEP' WHERE id = $1`,
-        [req.params.id]
-      );
     }
 
-    res.json({ ok: true, decision });
+    res.json({ ok: true, action: raw });
   } catch (err) {
     console.error('[Jobs:Feedback]', err.message);
     res.status(500).json({ error: 'Failed to record feedback' });

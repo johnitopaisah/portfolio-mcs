@@ -113,6 +113,7 @@ app.use('/api/contact',        require('./routes/contact'));
 app.use('/api/visitors',       require('./routes/visitors'));
 app.use('/api/jobs',           require('./routes/jobs'));
 app.use('/api/admin/jobs',     require('./routes/admin/jobs'));
+app.use('/api/admin/ai',      require('./routes/admin/ai'));
 
 // ── 404 + Error handler ─────────────────────────────────────
 app.use((req, res) => res.status(404).json({ error: `${req.method} ${req.path} not found` }));

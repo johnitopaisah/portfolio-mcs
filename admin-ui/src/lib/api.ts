@@ -103,6 +103,17 @@ export const adminApi = {
   updateCertification: (id: string, fd: FormData) => upload(`/api/certifications/${id}`, fd, 'PUT'),
   deleteCertification: (id: string) => request(`/api/certifications/${id}`, { method: 'DELETE' }),
 
+  // AI management
+  getAiStatus:         () => request('/api/admin/ai/status'),
+  saveAiStatus:        (data: Record<string, unknown>) =>
+    request('/api/admin/ai/status', { method: 'PUT', body: JSON.stringify(data) }),
+  getAiPatternConfig:  () => request('/api/admin/ai/pattern-config'),
+  saveAiPatternConfig: (data: Record<string, unknown>) =>
+    request('/api/admin/ai/pattern-config', { method: 'PUT', body: JSON.stringify(data) }),
+  testAiScore:         (job: Record<string, string>) =>
+    request('/api/admin/ai/test-score', { method: 'POST', body: JSON.stringify(job) }),
+  getAiCalibration:    () => request('/api/admin/ai/calibration'),
+
   // Messages
   getMessages: () => request('/api/contact'),
   markRead: (id: string) => request(`/api/contact/${id}/read`, { method: 'PATCH' }),
