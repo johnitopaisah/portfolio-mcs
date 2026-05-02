@@ -273,8 +273,9 @@ function patternScoreDetailed(job, config = {}) {
 // ═══════════════════════════════════════════════════════════════
 
 function buildScoringPrompt(job, profile) {
-  const desc = (job.description || '').slice(0, 1200);
-  const reqs = (job.requirements || '').slice(0, 600);
+  // Truncated aggressively to stay under Groq free-tier 12k TPM limit
+  const desc = (job.description || '').slice(0, 400);
+  const reqs = (job.requirements || '').slice(0, 200);
   return `You are a job relevance scorer. Score this job for the candidate below.
 
 CANDIDATE PROFILE
@@ -319,13 +320,15 @@ function parseLLMResponse(text) {
   // Strip optional markdown code fences
   const clean = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
   const parsed = JSON.parse(clean);
+  // Coerce visa_sponsored strictly — LLMs sometimes return the string "null"
+  const vs = parsed.visa_sponsored;
   return {
     relevance_score: Math.min(100, Math.max(0, parseInt(parsed.relevance_score, 10) || 0)),
     ai_decision:     parsed.ai_decision    || 'REVIEW',
     ai_reasoning:    parsed.ai_reasoning   || '',
     tech_stack:      Array.isArray(parsed.tech_stack) ? parsed.tech_stack : [],
     seniority_level: parsed.seniority_level || 'Mid',
-    visa_sponsored:  parsed.visa_sponsored ?? null,
+    visa_sponsored:  vs === true ? true : vs === false ? false : null,
   };
 }
 
@@ -362,8 +365,8 @@ async function scoreWithGroq(job, profile) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
     body: JSON.stringify({
-      // llama-3.1-8b-instant: 131k TPM (vs 12k for 70b) — sufficient for scoring
-      model: 'llama-3.1-8b-instant',
+      // llama-3.3-70b-versatile: 12k TPM free tier (vs 6k for 8b-instant)
+      model: 'llama-3.3-70b-versatile',
       max_tokens: 300,
       response_format: { type: 'json_object' },
       messages: [
@@ -381,7 +384,7 @@ async function scoreWithGroq(job, profile) {
 
   const data = await response.json();
   const result = parseLLMResponse(data.choices?.[0]?.message?.content || '');
-  return { ...result, _engine: 'groq/llama-3.1-8b' };
+  return { ...result, _engine: 'groq/llama-3.3-70b' };
 }
 
 async function scoreWithGemini(job, profile) {
@@ -445,12 +448,13 @@ async function analyzeJob(rawJob) {
   if (!useLLM) {
     const decision = pattern.score >= 65 ? 'KEEP' : pattern.score >= 40 ? 'REVIEW' : 'DROP';
     return {
-      relevance_score: pattern.score,
-      ai_decision:     decision,
-      ai_reasoning:    `Pattern match: ${pattern.roleHits} role hits, ${pattern.techs.length} techs`,
-      tech_stack:      pattern.techs,
-      seniority_level: pattern.seniority,
-      visa_sponsored:  pattern.visaSponsored,
+      relevance_score:  pattern.score,
+      ai_decision:      decision,
+      ai_reasoning:     `Pattern match: ${pattern.roleHits} role hits, ${pattern.techs.length} techs`,
+      tech_stack:       pattern.techs,
+      seniority_level:  pattern.seniority,
+      visa_sponsored:   pattern.visaSponsored,
+      _llm_attempted:   false,
     };
   }
 
@@ -460,7 +464,8 @@ async function analyzeJob(rawJob) {
     return {
       ...llm,
       relevance_score: blendedScore,
-      ai_reasoning: `${llm._engine}: ${llm.ai_reasoning}`,
+      ai_reasoning:    `${llm._engine}: ${llm.ai_reasoning}`,
+      _llm_attempted:  true,
     };
   } catch (err) {
     console.warn(`[AIFilter] LLM failed for job ${rawJob.id}, using pattern:`, err.message);
@@ -472,6 +477,7 @@ async function analyzeJob(rawJob) {
       tech_stack:      pattern.techs,
       seniority_level: pattern.seniority,
       visa_sponsored:  pattern.visaSponsored,
+      _llm_attempted:  true, // was attempted even though it failed — still need to throttle
     };
   }
 }
@@ -604,11 +610,11 @@ async function filterUnprocessedJobs() {
 
       processed++;
 
-      // Groq free tier: 30 RPM. Sleep 2.1s after every job that actually used the
-      // LLM (reasoning won't start with "Pattern" in that case).
-      if (!analysis.ai_reasoning.startsWith('Pattern')
-          && (process.env.GROQ_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.GEMINI_API_KEY)) {
-        await new Promise(r => setTimeout(r, 2100));
+      // Groq free tier: 12k TPM. Each prompt ~600 tokens → max 20 calls/min.
+      // Sleep 3s after every job where LLM was attempted (success OR failure),
+      // so we stay under the rate limit regardless of outcome.
+      if (analysis._llm_attempted) {
+        await new Promise(r => setTimeout(r, 3000));
       }
     } catch (err) {
       console.error(`[AIFilter] Failed job ${rawJob.id}:`, err.message);
