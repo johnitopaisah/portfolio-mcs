@@ -1,7 +1,6 @@
 // Admin-side API client — attaches JWT from localStorage on every request.
 // NEXT_PUBLIC_API_URL must be set — no localhost fallback.
 // In local dev, create admin-ui/.env.local with:
-//   NEXT_PUBLIC_API_URL=http://localhost:4000
 
 function getApiBase(): string {
   const url = process.env.NEXT_PUBLIC_API_URL;
