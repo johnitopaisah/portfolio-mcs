@@ -5,6 +5,7 @@
  * Uses native fetch (Node 20+) — no axios dependency needed here.
  */
 
+const https  = require('https');
 const pool   = require('../../db/client');
 const config = require('./config');
 const { deduplicateJobs, calculateDeduplicationHash } = require('./deduplicationService');
@@ -29,6 +30,35 @@ async function httpPost(url, body, opts = {}) {
   });
   if (!res.ok) throw new Error(`HTTP ${res.status} — ${url}`);
   return res.json();
+}
+
+// Jooble's server doesn't send its full intermediate CA chain (Sectigo), so
+// Alpine's root-only CA bundle can't verify it. rejectUnauthorized: false is
+// scoped strictly to this function — all other providers use standard fetch.
+async function httpPostJooble(url, body) {
+  return new Promise((resolve, reject) => {
+    const { hostname, pathname, search } = new URL(url);
+    const data = JSON.stringify(body);
+    const req = https.request({
+      hostname,
+      path:     pathname + search,
+      method:   'POST',
+      headers:  { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) },
+      rejectUnauthorized: false,
+      timeout:  12_000,
+    }, (res) => {
+      let buf = '';
+      res.on('data', c => buf += c);
+      res.on('end', () => {
+        if (res.statusCode >= 400) return reject(new Error(`HTTP ${res.statusCode} — ${url}`));
+        try { resolve(JSON.parse(buf)); } catch (e) { reject(e); }
+      });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('Jooble request timed out')); });
+    req.write(data);
+    req.end();
+  });
 }
 
 class JobIngestionService {
@@ -105,7 +135,7 @@ class JobIngestionService {
     // 3 pages × ~20 results = ~60 per query (down from 5 to reduce volume)
     for (let page = 0; page < 3; page++) {
       try {
-        const data = await httpPost(
+        const data = await httpPostJooble(
           `${provider.baseUrl}?apiKey=${provider.apiKey}`,
           { keywords: query, location: 'Remote', page }
         );
