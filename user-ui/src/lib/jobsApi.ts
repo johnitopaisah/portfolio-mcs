@@ -4,7 +4,7 @@
  *
  * API_BASE is always read from the NEXT_PUBLIC_API_URL env var.
  * No localhost fallback — that was the cause of the CI check failure.
- * In dev, set NEXT_PUBLIC_API_URL=http://localhost:4000/api in .env.local
+ * In dev, set 
  */
 
 function apiBase(): string {
