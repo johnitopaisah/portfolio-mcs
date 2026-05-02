@@ -171,13 +171,14 @@ class JobIngestionService {
     for (const country of countries) {
       try {
         const params = new URLSearchParams({
-          app_id:          provider.appId,
-          app_key:         provider.apiKey,
+          app_id:           provider.appId,
+          app_key:          provider.apiKey,
           results_per_page: '20',
-          what:            query,
-          where:           'Remote',
-          sort_by:         'date',
-          max_days_old:    '7',
+          what:             query,
+          sort_by:          'date',
+          max_days_old:     '7',
+          // 'where' omitted — Adzuna uses city/region, not a "Remote" tag.
+          // Location filtering is handled by the AI scorer instead.
         });
 
         const data = await httpGet(

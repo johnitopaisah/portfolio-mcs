@@ -362,7 +362,8 @@ async function scoreWithGroq(job, profile) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
+      // llama-3.1-8b-instant: 131k TPM (vs 12k for 70b) — sufficient for scoring
+      model: 'llama-3.1-8b-instant',
       max_tokens: 300,
       response_format: { type: 'json_object' },
       messages: [
@@ -380,7 +381,7 @@ async function scoreWithGroq(job, profile) {
 
   const data = await response.json();
   const result = parseLLMResponse(data.choices?.[0]?.message?.content || '');
-  return { ...result, _engine: 'groq/llama-3.3-70b' };
+  return { ...result, _engine: 'groq/llama-3.1-8b' };
 }
 
 async function scoreWithGemini(job, profile) {
@@ -603,9 +604,11 @@ async function filterUnprocessedJobs() {
 
       processed++;
 
-      // Small pause every 5 jobs when LLM is active to avoid rate limiting
-      if (processed % 5 === 0 && (process.env.ANTHROPIC_API_KEY || process.env.GROQ_API_KEY)) {
-        await new Promise(r => setTimeout(r, 1000));
+      // Groq free tier: 30 RPM. Sleep 2.1s after every job that actually used the
+      // LLM (reasoning won't start with "Pattern" in that case).
+      if (!analysis.ai_reasoning.startsWith('Pattern')
+          && (process.env.GROQ_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.GEMINI_API_KEY)) {
+        await new Promise(r => setTimeout(r, 2100));
       }
     } catch (err) {
       console.error(`[AIFilter] Failed job ${rawJob.id}:`, err.message);
