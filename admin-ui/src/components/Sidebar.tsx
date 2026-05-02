@@ -11,6 +11,7 @@ const nav = [
   { href: '/dashboard/messages',       label: 'Messages',       icon: '✉' },
   { href: '/dashboard/profile',        label: 'Profile',        icon: '◉' },
   { href: '/dashboard/ai',             label: 'AI Engine',      icon: '⬡' },
+  { href: '/dashboard/jobs',           label: 'Job Pipeline',   icon: '◳' },
 ];
 
 interface SidebarProps {

@@ -114,6 +114,14 @@ export const adminApi = {
     request('/api/admin/ai/test-score', { method: 'POST', body: JSON.stringify(job) }),
   getAiCalibration:    () => request('/api/admin/ai/calibration'),
 
+  // Jobs pipeline (admin triage view)
+  getJobsPipeline: (params: Record<string, string>) =>
+    request(`/api/admin/jobs/pipeline?${new URLSearchParams(params)}`),
+  getJobsProgress: () =>
+    request('/api/admin/jobs/pipeline/progress'),
+  jobFeedback: (id: string, action: string) =>
+    request(`/api/jobs/${id}/feedback`, { method: 'POST', body: JSON.stringify({ action }) }),
+
   // Messages
   getMessages: () => request('/api/contact'),
   markRead: (id: string) => request(`/api/contact/${id}/read`, { method: 'PATCH' }),

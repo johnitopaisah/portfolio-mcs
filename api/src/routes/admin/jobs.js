@@ -134,6 +134,108 @@ router.get('/raw', async (req, res) => {
   }
 });
 
+// ── GET /api/admin/jobs/pipeline/progress ────────────────────
+// Must be registered before /:id routes
+router.get('/pipeline/progress', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE j.is_active = TRUE AND j.ai_decision IN ('KEEP','REVIEW'))
+          AS total_pipeline,
+        COUNT(*) FILTER (WHERE j.is_active = TRUE AND j.ai_decision IN ('KEEP','REVIEW')
+          AND (jf.decision IS NULL OR jf.decision NOT IN ('applied','saved','interested')))
+          AS new_count,
+        COUNT(*) FILTER (WHERE jf.decision IN ('saved','interested') AND j.is_active = TRUE)
+          AS saved_count,
+        COUNT(*) FILTER (WHERE jf.decision = 'applied')
+          AS applied_count,
+        COUNT(*) FILTER (WHERE j.is_active = TRUE AND j.ai_decision IN ('KEEP','REVIEW')
+          AND jf.decision IN ('saved','applied','interested'))
+          AS reviewed_count,
+        COUNT(*) FILTER (WHERE j.posted_at > NOW() - INTERVAL '24h'
+          AND j.is_active = TRUE AND j.ai_decision IN ('KEEP','REVIEW'))
+          AS added_today,
+        COUNT(*) FILTER (WHERE jf.decision = 'applied'
+          AND jf.created_at > NOW() - INTERVAL '7 days')
+          AS applied_this_week,
+        ROUND(AVG(j.relevance_score) FILTER (
+          WHERE j.is_active = TRUE AND j.ai_decision IN ('KEEP','REVIEW'))::numeric, 1)
+          AS avg_score
+      FROM jobs j
+      LEFT JOIN job_feedback jf ON jf.job_id = j.id
+    `);
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('[Admin:PipelineProgress]', err.message);
+    res.status(500).json({ error: 'Failed to fetch progress' });
+  }
+});
+
+// ── GET /api/admin/jobs/pipeline ─────────────────────────────
+router.get('/pipeline', async (req, res) => {
+  try {
+    const { tab = 'new', source, visa, sort = 'score', page = 1, limit = 20 } = req.query;
+    const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
+
+    const conditions = ['j.is_active = TRUE'];
+    const params = [];
+
+    if (tab === 'new') {
+      conditions.push("j.ai_decision IN ('KEEP','REVIEW')");
+      conditions.push("(jf.decision IS NULL OR jf.decision NOT IN ('applied','saved','interested'))");
+    } else if (tab === 'saved') {
+      conditions.push("jf.decision IN ('saved','interested')");
+    } else if (tab === 'applied') {
+      conditions.push("jf.decision = 'applied'");
+    }
+
+    if (source) { params.push(source); conditions.push(`j.source_api = $${params.length}`); }
+    if (visa === 'true') conditions.push('j.visa_sponsored = TRUE');
+
+    const where = conditions.join(' AND ');
+    const sortExpr = sort === 'date' ? 'j.posted_at DESC' : 'j.relevance_score DESC';
+
+    const dataQ = `
+      SELECT j.id, j.company_name, j.title, j.location, j.job_type,
+             j.description, j.requirements, j.apply_url, j.source_api,
+             j.relevance_score, j.ai_decision, j.ai_reasoning,
+             j.tech_stack, j.seniority_level, j.visa_sponsored,
+             j.salary_min, j.salary_max, j.salary_currency,
+             j.posted_at, j.created_at,
+             jf.decision AS user_decision, jf.created_at AS feedback_at
+      FROM jobs j
+      LEFT JOIN job_feedback jf ON jf.job_id = j.id
+      WHERE ${where}
+      ORDER BY ${sortExpr}
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+    `;
+    const countQ = `
+      SELECT COUNT(*) AS total
+      FROM jobs j
+      LEFT JOIN job_feedback jf ON jf.job_id = j.id
+      WHERE ${where}
+    `;
+
+    const [data, count] = await Promise.all([
+      pool.query(dataQ, [...params, parseInt(limit, 10), offset]),
+      pool.query(countQ, params),
+    ]);
+
+    res.json({
+      data: data.rows,
+      pagination: {
+        page:  parseInt(page, 10),
+        limit: parseInt(limit, 10),
+        total: parseInt(count.rows[0].total, 10),
+        pages: Math.ceil(count.rows[0].total / parseInt(limit, 10)),
+      },
+    });
+  } catch (err) {
+    console.error('[Admin:Pipeline]', err.message);
+    res.status(500).json({ error: 'Failed to fetch pipeline' });
+  }
+});
+
 // ── DELETE /api/admin/jobs/:id ───────────────────────────────
 router.delete('/:id', async (req, res) => {
   try {
