@@ -64,9 +64,9 @@ jobs:
       - name: Verify required GitHub Variables are set
         run: |
           MISSING=0
-          [ -z "${{ vars.NEXT_PUBLIC_API_URL }}" ]   && echo "❌ GitHub Variable NEXT_PUBLIC_API_URL is not set"  && MISSING=1
-          [ -z "${{ vars.INTERNAL_API_URL }}" ]       && echo "❌ GitHub Variable INTERNAL_API_URL is not set"    && MISSING=1
-          [ -z "${{ vars.IMAGE_REGISTRY_BASE }}" ]    && echo "❌ GitHub Variable IMAGE_REGISTRY_BASE is not set" && MISSING=1
+          [ -z "${{ vars.NEXT_PUBLIC_API_URL }}" ]   && echo "❌ NEXT_PUBLIC_API_URL not set"  && MISSING=1
+          [ -z "${{ vars.INTERNAL_API_URL }}" ]       && echo "❌ INTERNAL_API_URL not set"    && MISSING=1
+          [ -z "${{ vars.IMAGE_REGISTRY_BASE }}" ]    && echo "❌ IMAGE_REGISTRY_BASE not set" && MISSING=1
           [ $MISSING -eq 0 ] && echo "✅ All required GitHub Variables are set"
           exit $MISSING
 
@@ -77,8 +77,10 @@ jobs:
           cache: npm
           cache-dependency-path: admin-ui/package-lock.json
 
-      - name: Install dependencies
-        run: npm install
+      # npm ci: deterministic, fast, uses exact versions from package-lock.json.
+      # Never re-resolves peer deps — eliminates the eslint version conflict.
+      - name: Install dependencies (npm ci)
+        run: npm ci
 
       - name: ESLint
         run: npm run lint
@@ -104,6 +106,7 @@ jobs:
             src/app/dashboard/certifications/page.tsx \
             src/app/dashboard/messages/page.tsx \
             src/app/dashboard/profile/page.tsx \
+            src/app/jobs/page.tsx \
             src/components/Sidebar.tsx \
             src/lib/api.ts; do
             test -f "$f" && echo "✅ $f" || (echo "❌ Missing: $f" && exit 1)
@@ -111,7 +114,6 @@ jobs:
 
       - name: Check robots.txt blocks search engines
         run: |
-          echo "── Checking robots.txt ──"
           test -f public/robots.txt || (echo "❌ public/robots.txt missing" && exit 1)
           grep -q "Disallow: /" public/robots.txt \
             && echo "✅ robots.txt blocks crawlers" \
@@ -163,15 +165,10 @@ jobs:
           TAG="${{ needs.validate.outputs.tag }}"
           QUALITY="${{ needs.quality.result }}"
           BUILD="${{ needs.build-push.result }}"
-
-          overall() { [ "$1" = "success" ] && echo "✅" || echo "❌"; }
-
+          ok() { [ "$1" = "success" ] && echo "✅" || echo "❌"; }
           echo "## Admin UI pipeline" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Stage | Result |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Lint & typecheck | $(overall $QUALITY) $QUALITY |" >> $GITHUB_STEP_SUMMARY
-          echo "| Build & push     | $(overall $BUILD) $BUILD |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Lint & typecheck | $(ok $QUALITY) $QUALITY |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build & push     | $(ok $BUILD) $BUILD |" >> $GITHUB_STEP_SUMMARY
           echo "**Image:** \`${{ vars.IMAGE_REGISTRY_BASE }}/admin-ui:$TAG\`" >> $GITHUB_STEP_SUMMARY
-          echo "**API URL baked in:** \`${{ vars.NEXT_PUBLIC_API_URL }}\`" >> $GITHUB_STEP_SUMMARY
