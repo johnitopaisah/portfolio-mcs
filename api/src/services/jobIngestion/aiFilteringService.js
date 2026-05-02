@@ -362,7 +362,7 @@ async function scoreWithGroq(job, profile) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
     body: JSON.stringify({
-      model: 'llama-3.1-70b-versatile',
+      model: 'llama-3.3-70b-versatile',
       max_tokens: 300,
       response_format: { type: 'json_object' },
       messages: [
@@ -380,7 +380,7 @@ async function scoreWithGroq(job, profile) {
 
   const data = await response.json();
   const result = parseLLMResponse(data.choices?.[0]?.message?.content || '');
-  return { ...result, _engine: 'groq/llama-3.1-70b' };
+  return { ...result, _engine: 'groq/llama-3.3-70b' };
 }
 
 async function scoreWithGemini(job, profile) {
