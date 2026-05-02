@@ -1,5 +1,13 @@
-// Admin-side API client — attaches JWT from localStorage on every request
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// Admin-side API client — attaches JWT from localStorage on every request.
+// NEXT_PUBLIC_API_URL must be set — no localhost fallback.
+// In local dev, create admin-ui/.env.local with:
+//   NEXT_PUBLIC_API_URL=http://localhost:4000
+
+function getApiBase(): string {
+  const url = process.env.NEXT_PUBLIC_API_URL;
+  if (!url) throw new Error('NEXT_PUBLIC_API_URL is not configured');
+  return url.replace(/\/$/, '');
+}
 
 function getToken(): string | null {
   if (typeof window === 'undefined') return null;
@@ -8,7 +16,7 @@ function getToken(): string | null {
 
 async function request(path: string, options: RequestInit = {}) {
   const token = getToken();
-  const res = await fetch(`${API}${path}`, {
+  const res = await fetch(`${getApiBase()}${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -32,7 +40,7 @@ async function request(path: string, options: RequestInit = {}) {
 // Multipart request (for file uploads)
 async function upload(path: string, formData: FormData, method = 'POST') {
   const token = getToken();
-  const res = await fetch(`${API}${path}`, {
+  const res = await fetch(`${getApiBase()}${path}`, {
     method,
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: formData,
@@ -102,10 +110,10 @@ export const adminApi = {
   deleteMessage: (id: string) => request(`/api/contact/${id}`, { method: 'DELETE' }),
 
   // Binary asset URLs — RELATIVE paths, proxied through Next.js (same-origin).
-  avatarUrl:      '/api/profile/avatar',
-  projectImg:     (id: string) => `/api/projects/${id}/image`,
-  projectSlideImg:(projectId: string, imgId: string) => `/api/projects/${projectId}/images/${imgId}/file`,
-  skillIcon:      (id: string) => `/api/skills/${id}/icon`,
-  expLogo:        (id: string) => `/api/experiences/${id}/logo`,
-  certImg:        (id: string) => `/api/certifications/${id}/image`,
+  avatarUrl:       '/api/profile/avatar',
+  projectImg:      (id: string) => `/api/projects/${id}/image`,
+  projectSlideImg: (projectId: string, imgId: string) => `/api/projects/${projectId}/images/${imgId}/file`,
+  skillIcon:       (id: string) => `/api/skills/${id}/icon`,
+  expLogo:         (id: string) => `/api/experiences/${id}/logo`,
+  certImg:         (id: string) => `/api/certifications/${id}/image`,
 };

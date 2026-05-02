@@ -3,14 +3,10 @@
 #
 #  Stages:  validate → quality (lint + typecheck) → build → push → summary
 #
-#  Trigger:
-#    - Manual (workflow_dispatch) — run this pipeline alone
-#    - Called  (workflow_call)    — triggered by all-services.yml
-#
 #  Image: ghcr.io/johnitopaisah/portfolio-mcs/admin-ui:<tag>
-#  Runtime: node:20-alpine  |  Next.js 14.2.3 standalone
+#  Runtime: node:20-alpine  |  Next.js 14.2.29 standalone
 #
-#  Required GitHub Variables (Settings → Secrets and variables → Variables):
+#  Required GitHub Variables:
 #    NEXT_PUBLIC_API_URL   e.g. https://api.johnisah.com
 #    INTERNAL_API_URL      e.g. http://api-service:4000
 #    IMAGE_REGISTRY_BASE   e.g. ghcr.io/johnitopaisah/portfolio-mcs
@@ -25,7 +21,6 @@ on:
         description: "Tag  e.g. v1.0.0 | v1.0.0-rc | v1.0.0-rc1"
         required: true
         type: string
-
   workflow_call:
     inputs:
       tag:
@@ -77,8 +72,6 @@ jobs:
           cache: npm
           cache-dependency-path: admin-ui/package-lock.json
 
-      # npm ci: deterministic, fast, uses exact versions from package-lock.json.
-      # Never re-resolves peer deps — eliminates the eslint version conflict.
       - name: Install dependencies (npm ci)
         run: npm ci
 
@@ -111,6 +104,14 @@ jobs:
             src/lib/api.ts; do
             test -f "$f" && echo "✅ $f" || (echo "❌ Missing: $f" && exit 1)
           done
+
+      - name: Check no hardcoded localhost in source
+        run: |
+          if grep -r "localhost:4000" src/ --include="*.ts" --include="*.tsx" -l 2>/dev/null; then
+            echo "❌ Found hardcoded localhost:4000 — must use env var"
+            exit 1
+          fi
+          echo "✅ No hardcoded localhost found"
 
       - name: Check robots.txt blocks search engines
         run: |
