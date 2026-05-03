@@ -7,7 +7,7 @@ module.exports = {
   providers: {
     joobleApi: {
       name: 'Jooble',
-      baseUrl: 'https://api.jooble.org/api/v2/search',
+      baseUrl: 'https://jooble.org/api',
       apiKey: process.env.JOOBLE_API_KEY,
       rateLimit: { requestsPerSecond: 1, dailyLimit: 1000 },
       features: { pagination: true, dateFiltering: true, locationFiltering: true },

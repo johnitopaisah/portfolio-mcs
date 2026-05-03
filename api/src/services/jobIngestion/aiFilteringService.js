@@ -436,11 +436,12 @@ async function scoreWithLLM(job, engine) {
 // ═══════════════════════════════════════════════════════════════
 //  MAIN ANALYSIS (combines both tiers)
 // ═══════════════════════════════════════════════════════════════
-async function analyzeJob(rawJob) {
+async function analyzeJob(rawJob, forcePatternOnly = false) {
   const config  = await getPatternConfigFromDB();
   const pattern = patternScore(rawJob, config);
 
-  const useLLM = config.llm_enabled
+  const useLLM = !forcePatternOnly
+    && config.llm_enabled
     && pattern.score >= config.ambiguous_min
     && pattern.score <= config.ambiguous_max
     && (process.env.ANTHROPIC_API_KEY || process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY);
@@ -507,6 +508,7 @@ async function storeProcessedJob(rawJob, analysis) {
        relevance_score, ai_decision, ai_reasoning,
        tech_stack, seniority_level, visa_sponsored
      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+     ON CONFLICT (external_id) DO NOTHING
      RETURNING id`,
     [
       rawJob.id, rawJob.external_id, rawJob.company_name, rawJob.title,
@@ -589,6 +591,10 @@ async function recalibrateFromFeedback() {
 // ═══════════════════════════════════════════════════════════════
 //  MAIN ENTRY POINT
 // ═══════════════════════════════════════════════════════════════
+// Max LLM calls per ingestion run. Groq free tier: 100k TPD.
+// At 8 runs/day × 25 calls × ~600 tokens = ~120k tokens → stays within limit.
+const LLM_CALLS_PER_RUN = 25;
+
 async function filterUnprocessedJobs() {
   console.log('[AIFilter] Starting job filtering cycle...');
   clearProfileCache();
@@ -597,23 +603,24 @@ async function filterUnprocessedJobs() {
   const rawJobs = await getUnprocessedRawJobs();
   console.log(`[AIFilter] ${rawJobs.length} raw jobs to process`);
 
-  let processed = 0, kept = 0, dropped = 0, review = 0;
+  let processed = 0, kept = 0, dropped = 0, review = 0, llmCalls = 0;
 
   for (const rawJob of rawJobs) {
     try {
-      const analysis = await analyzeJob(rawJob);
+      const forcePatternOnly = llmCalls >= LLM_CALLS_PER_RUN;
+      const analysis = await analyzeJob(rawJob, forcePatternOnly);
       await storeProcessedJob(rawJob, analysis);
 
-      if (analysis.ai_decision === 'KEEP')       kept++;
+      if (analysis.ai_decision === 'KEEP')      kept++;
       else if (analysis.ai_decision === 'DROP') dropped++;
       else review++;
 
       processed++;
 
-      // Groq free tier: 12k TPM. Each prompt ~600 tokens → max 20 calls/min.
-      // Sleep 3s after every job where LLM was attempted (success OR failure),
-      // so we stay under the rate limit regardless of outcome.
       if (analysis._llm_attempted) {
+        llmCalls++;
+        // Groq free tier: 12k TPM. Each prompt ~600 tokens → max 20 calls/min.
+        // Sleep 3s so we stay under the rate limit.
         await new Promise(r => setTimeout(r, 3000));
       }
     } catch (err) {
@@ -621,7 +628,7 @@ async function filterUnprocessedJobs() {
     }
   }
 
-  console.log(`[AIFilter] Done: ${processed} processed — ${kept} KEEP, ${review} REVIEW, ${dropped} DROP`);
+  console.log(`[AIFilter] Done: ${processed} processed — ${kept} KEEP, ${review} REVIEW, ${dropped} DROP (${llmCalls} LLM calls)`);
   return { processed, kept, review, dropped };
 }
 

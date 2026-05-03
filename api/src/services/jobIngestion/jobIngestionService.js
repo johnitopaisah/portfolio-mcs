@@ -136,7 +136,7 @@ class JobIngestionService {
     for (let page = 0; page < 3; page++) {
       try {
         const data = await httpPostJooble(
-          `${provider.baseUrl}?apiKey=${provider.apiKey}`,
+          `${provider.baseUrl}/${provider.apiKey}`,
           { keywords: query, location: 'Remote', page }
         );
         const jobs = data.jobs || [];
