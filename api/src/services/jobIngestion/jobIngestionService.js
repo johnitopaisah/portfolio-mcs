@@ -61,6 +61,13 @@ async function httpPostJooble(url, body) {
   });
 }
 
+// Handles both Unix timestamp (number, old Jooble API) and ISO string (new Jooble API)
+function safeDate(val) {
+  if (!val) return new Date();
+  const d = typeof val === 'number' ? new Date(val * 1000) : new Date(val);
+  return isNaN(d.getTime()) ? new Date() : d;
+}
+
 class JobIngestionService {
 
   async ingestAllJobs() {
@@ -153,7 +160,7 @@ class JobIngestionService {
           salary_min:      j.salary_min         || null,
           salary_max:      j.salary_max         || null,
           salary_currency: j.salary_currency    || 'USD',
-          posted_at:       j.updated ? new Date(j.updated * 1000) : new Date(),
+          posted_at:       safeDate(j.updated),
           apply_url:       j.link               || '',
           source_api:      'joobleApi',
           raw_data:        j,
