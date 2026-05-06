@@ -2,6 +2,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { adminApi } from '@/lib/api';
 
+function getUrlParam(key: string, fallback = '') {
+  if (typeof window === 'undefined') return fallback;
+  return new URLSearchParams(window.location.search).get(key) ?? fallback;
+}
+
 // ── Types ────────────────────────────────────────────────────
 type Tab = 'new' | 'saved' | 'applied';
 
@@ -433,10 +438,14 @@ function EmptyList({ tab }: { tab: Tab }) {
 
 // ── Main page ────────────────────────────────────────────────
 export default function JobsPage() {
-  const [tab,          setTab]          = useState<Tab>('new');
-  const [source,       setSource]       = useState('');
-  const [visa,         setVisa]         = useState(false);
-  const [sort,         setSort]         = useState('score');
+  const [tab,          setTab]          = useState<Tab>(() => (getUrlParam('tab') as Tab) || 'new');
+  const [source,       setSource]       = useState(() => getUrlParam('source'));
+  const [visa,         setVisa]         = useState(() => getUrlParam('visa') === 'true');
+  const [sort,         setSort]         = useState(() => getUrlParam('sort') || 'score');
+  const [seniority,    setSeniority]    = useState(() => getUrlParam('seniority'));
+  const [minScore,     setMinScore]     = useState(() => getUrlParam('minScore'));
+  const [locInput,     setLocInput]     = useState(() => getUrlParam('location'));
+  const [loc,          setLoc]          = useState(() => getUrlParam('location'));
   const [jobs,         setJobs]         = useState<Job[]>([]);
   const [selected,     setSelected]     = useState<Job | null>(null);
   const [progress,     setProgress]     = useState<Progress | null>(null);
@@ -453,12 +462,35 @@ export default function JobsPage() {
     } catch { /* non-fatal */ }
   }, []);
 
-  const loadJobs = useCallback(async (resetPage = true) => {
+  // Debounce location text input — avoids firing an API call on every keystroke
+  useEffect(() => {
+    const t = setTimeout(() => setLoc(locInput), 450);
+    return () => clearTimeout(t);
+  }, [locInput]);
+
+  // Keep URL in sync with filter state so filters survive page refresh
+  useEffect(() => {
+    const p = new URLSearchParams();
+    if (tab !== 'new')    p.set('tab', tab);
+    if (sort !== 'score') p.set('sort', sort);
+    if (source)           p.set('source', source);
+    if (visa)             p.set('visa', 'true');
+    if (seniority)        p.set('seniority', seniority);
+    if (minScore)         p.set('minScore', minScore);
+    if (loc)              p.set('location', loc);
+    const qs = p.toString();
+    window.history.replaceState(null, '', qs ? `?${qs}` : window.location.pathname);
+  }, [tab, sort, source, visa, seniority, minScore, loc]);
+
+  const loadJobs = useCallback(async () => {
     setLoading(true);
     try {
       const params: Record<string, string> = { tab, sort, limit: '20', page: '1' };
-      if (source) params.source = source;
-      if (visa)   params.visa   = 'true';
+      if (source)   params.source    = source;
+      if (visa)     params.visa      = 'true';
+      if (seniority) params.seniority = seniority;
+      if (minScore) params.min_score  = minScore;
+      if (loc)      params.location   = loc;
       const res = await adminApi.getJobsPipeline(params);
       setJobs(res.data);
       setPagination(res.pagination);
@@ -469,7 +501,7 @@ export default function JobsPage() {
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, source, visa, sort]);
+  }, [tab, source, visa, sort, seniority, minScore, loc]);
 
   const loadMore = useCallback(async () => {
     if (!pagination || pagination.page >= pagination.pages) return;
@@ -478,15 +510,18 @@ export default function JobsPage() {
       const params: Record<string, string> = {
         tab, sort, limit: '20', page: String(pagination.page + 1),
       };
-      if (source) params.source = source;
-      if (visa)   params.visa   = 'true';
+      if (source)    params.source    = source;
+      if (visa)      params.visa      = 'true';
+      if (seniority) params.seniority = seniority;
+      if (minScore)  params.min_score = minScore;
+      if (loc)       params.location  = loc;
       const res = await adminApi.getJobsPipeline(params);
       setJobs(prev => [...prev, ...res.data]);
       setPagination(res.pagination);
     } finally {
       setLoadingMore(false);
     }
-  }, [pagination, tab, sort, source, visa]);
+  }, [pagination, tab, sort, source, visa, seniority, minScore, loc]);
 
   const handleAction = useCallback(async (jobId: string, action: string) => {
     setActionLoad(jobId + action);
@@ -525,7 +560,7 @@ export default function JobsPage() {
         }
       } else {
         // Refresh the whole list for other transitions
-        await loadJobs(true);
+        await loadJobs();
       }
       await loadProgress();
     } catch (e) {
@@ -541,7 +576,7 @@ export default function JobsPage() {
   }, [loadProgress]);
 
   useEffect(() => {
-    loadJobs(true);
+    loadJobs();
   }, [loadJobs]);
 
   const handleSelectJob = (job: Job) => {
@@ -564,7 +599,7 @@ export default function JobsPage() {
           <p className="text-gray-500 text-sm mt-0.5">Review AI-scored jobs and track applications</p>
         </div>
         <button
-          onClick={() => { loadJobs(true); loadProgress(); }}
+          onClick={() => { loadJobs(); loadProgress(); }}
           className="text-xs text-gray-400 hover:text-white px-3 py-1.5 rounded-lg
             bg-gray-800 hover:bg-gray-700 transition-colors"
         >
@@ -598,38 +633,75 @@ export default function JobsPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        <select
-          value={sort}
-          onChange={e => setSort(e.target.value)}
+        {/* Sort */}
+        <select value={sort} onChange={e => setSort(e.target.value)}
           className="text-xs bg-gray-800 border border-gray-700 text-gray-300
-            rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500"
-        >
+            rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500">
           <option value="score">Sort: Score</option>
           <option value="date">Sort: Newest</option>
         </select>
 
-        <select
-          value={source}
-          onChange={e => setSource(e.target.value)}
+        {/* Source */}
+        <select value={source} onChange={e => setSource(e.target.value)}
           className="text-xs bg-gray-800 border border-gray-700 text-gray-300
-            rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500"
-        >
+            rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500">
           <option value="">All sources</option>
           <option value="adzuna">Adzuna</option>
           <option value="joobleApi">Jooble</option>
           <option value="remoteOk">RemoteOK</option>
         </select>
 
-        <button
-          onClick={() => setVisa(v => !v)}
+        {/* Seniority */}
+        <select value={seniority} onChange={e => setSeniority(e.target.value)}
+          className="text-xs bg-gray-800 border border-gray-700 text-gray-300
+            rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500">
+          <option value="">All levels</option>
+          <option value="Junior">Junior</option>
+          <option value="Mid">Mid</option>
+          <option value="Senior">Senior</option>
+        </select>
+
+        {/* Min score */}
+        <select value={minScore} onChange={e => setMinScore(e.target.value)}
+          className="text-xs bg-gray-800 border border-gray-700 text-gray-300
+            rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500">
+          <option value="">Any score</option>
+          <option value="50">50+</option>
+          <option value="65">65+</option>
+          <option value="75">75+</option>
+          <option value="85">85+</option>
+        </select>
+
+        {/* Location */}
+        <input
+          type="text"
+          value={locInput}
+          onChange={e => setLocInput(e.target.value)}
+          placeholder="Location…"
+          className="text-xs bg-gray-800 border border-gray-700 text-gray-300
+            rounded-lg px-3 py-1.5 w-32 focus:outline-none focus:border-indigo-500
+            placeholder:text-gray-600"
+        />
+
+        {/* Visa toggle */}
+        <button onClick={() => setVisa(v => !v)}
           className={`text-xs px-3 py-1.5 rounded-lg border transition-colors
             ${visa
               ? 'bg-blue-900/40 border-blue-700/50 text-blue-300'
               : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white'
-            }`}
-        >
-          Visa sponsored {visa ? '✓' : ''}
+            }`}>
+          Visa {visa ? '✓' : ''}
         </button>
+
+        {/* Clear all filters */}
+        {(source || seniority || minScore || locInput || visa) && (
+          <button
+            onClick={() => { setSource(''); setSeniority(''); setMinScore(''); setLocInput(''); setLoc(''); setVisa(false); }}
+            className="text-xs px-3 py-1.5 rounded-lg text-red-400 hover:text-red-300
+              bg-red-900/20 border border-red-800/40 hover:bg-red-900/30 transition-colors">
+            Clear filters
+          </button>
+        )}
 
         {pagination && !loading && (
           <span className="text-xs text-gray-600 ml-auto">

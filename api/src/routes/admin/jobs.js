@@ -174,7 +174,10 @@ router.get('/pipeline/progress', async (req, res) => {
 // ── GET /api/admin/jobs/pipeline ─────────────────────────────
 router.get('/pipeline', async (req, res) => {
   try {
-    const { tab = 'new', source, visa, sort = 'score', page = 1, limit = 20 } = req.query;
+    const {
+      tab = 'new', source, visa, sort = 'score', page = 1, limit = 20,
+      seniority, min_score, location,
+    } = req.query;
     const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
 
     const conditions = ['j.is_active = TRUE'];
@@ -189,8 +192,11 @@ router.get('/pipeline', async (req, res) => {
       conditions.push("jf.decision = 'applied'");
     }
 
-    if (source) { params.push(source); conditions.push(`j.source_api = $${params.length}`); }
-    if (visa === 'true') conditions.push('j.visa_sponsored = TRUE');
+    if (source)    { params.push(source);                  conditions.push(`j.source_api = $${params.length}`); }
+    if (visa === 'true')                                    conditions.push('j.visa_sponsored = TRUE');
+    if (seniority) { params.push(seniority);               conditions.push(`j.seniority_level = $${params.length}`); }
+    if (min_score) { params.push(parseInt(min_score, 10)); conditions.push(`j.relevance_score >= $${params.length}`); }
+    if (location)  { params.push(`%${location}%`);         conditions.push(`j.location ILIKE $${params.length}`); }
 
     const where = conditions.join(' AND ');
     const sortExpr = sort === 'date' ? 'j.posted_at DESC' : 'j.relevance_score DESC';
