@@ -54,6 +54,11 @@ async function runJobWorker() {
     const expired = await jobIngestionService.markExpiredJobs();
     console.log(`[Worker:4] Done: ${expired} expired`);
 
+    // Step 5: Hard-delete jobs older than 14 days (applied/interested history kept)
+    console.log('\n[Worker:5] Purging jobs older than 14 days…');
+    const purged = await jobIngestionService.purgeOldJobs();
+    console.log(`[Worker:5] Done: ${purged.jobs} jobs, ${purged.raw} raw rows removed`);
+
     const secs = Math.round((Date.now() - t0) / 1000);
     console.log(`\n[Worker] ✅ Completed in ${secs}s`);
     console.log('[Worker] ======================================\n');

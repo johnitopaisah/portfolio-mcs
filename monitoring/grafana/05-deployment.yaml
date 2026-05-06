@@ -44,12 +44,12 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: grafana-admin-secret
-                  key: admin-user
+                  key: GRAFANA_ADMIN_USER
             - name: GF_SECURITY_ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: grafana-admin-secret
-                  key: admin-password
+                  key: GRAFANA_ADMIN_PASSWORD
             - name: GF_SECURITY_DISABLE_GRAVATAR
               value: "true"
             - name: GF_SECURITY_COOKIE_SECURE

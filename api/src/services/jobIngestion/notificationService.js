@@ -73,6 +73,37 @@ function startDailyJobDigest() {
   scheduleDaily(sendDailyJobDigest, 8, 15, 'Europe/Paris');
 }
 
+// ── Notification dedup ────────────────────────────────────────
+// Prevents the same digest being sent twice in one day (e.g. if the admin
+// manually triggers it while the scheduler has already fired).
+async function wasNotificationSent(channel, alertKey, withinHours = 20) {
+  try {
+    const result = await pool.query(
+      `SELECT 1 FROM notification_log
+       WHERE channel = $1 AND alert_key = $2
+         AND sent_at > NOW() - INTERVAL '1 hour' * $3
+       LIMIT 1`,
+      [channel, alertKey, withinHours]
+    );
+    return result.rows.length > 0;
+  } catch {
+    return false; // table might not exist yet — fail open
+  }
+}
+
+async function recordNotificationSent(channel, alertKey) {
+  try {
+    await pool.query(
+      `INSERT INTO notification_log (channel, alert_key)
+       VALUES ($1, $2)
+       ON CONFLICT (channel, alert_key) DO UPDATE SET sent_at = NOW()`,
+      [channel, alertKey]
+    );
+  } catch (err) {
+    console.warn('[NotifLog] Could not record notification:', err.message);
+  }
+}
+
 // ── DB queries ────────────────────────────────────────────────
 const MIN_SCORE = config.notifications?.minRelevanceScore ?? 65;
 
@@ -209,6 +240,13 @@ async function sendDailyJobDigest() {
     return { sent: false };
   }
 
+  // Dedup: skip if we already sent this digest today (within 20 hours)
+  const todayKey = `job_digest:${new Date().toISOString().slice(0, 10)}`;
+  if (await wasNotificationSent('email', todayKey, 20)) {
+    console.log('[JobDigest] Already sent today — skipping duplicate');
+    return { sent: false, reason: 'already_sent' };
+  }
+
   try {
     const jobs = await getNewJobsSince(24);
 
@@ -246,11 +284,20 @@ async function sendDailyJobDigest() {
       ].join('\n'),
     });
 
+    // Record email sent before attempting Telegram (so a Telegram failure
+    // doesn't cause a duplicate email on the next trigger)
+    await recordNotificationSent('email', todayKey);
+
     // Optionally send to Telegram
     if (jobs.length > 0) {
-      await sendTelegramDigest(jobs).catch(e =>
-        console.warn('[JobDigest] Telegram failed:', e.message)
-      );
+      const telegramKey = `job_digest_tg:${new Date().toISOString().slice(0, 10)}`;
+      const tgAlreadySent = await wasNotificationSent('telegram', telegramKey, 20);
+      if (!tgAlreadySent) {
+        await sendTelegramDigest(jobs).catch(e =>
+          console.warn('[JobDigest] Telegram failed:', e.message)
+        );
+        await recordNotificationSent('telegram', telegramKey);
+      }
     }
 
     console.log(`[JobDigest] Sent — ${jobs.length} jobs, top score ${jobs[0]?.relevance_score ?? 'N/A'}`);

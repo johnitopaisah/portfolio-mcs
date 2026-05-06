@@ -247,7 +247,7 @@ kubectl get pods -n monitoring -l app=node-exporter
 kubectl apply -f monitoring/exporters/kube-state-metrics/01-all.yaml
 
 # postgres-exporter (secret must exist from Step 5)
-kubectl apply -f monitoring/exporters/postgres-exporter/02-deployment.yaml
+kubectl apply -f monitoring/exporters/postgres-exporter/01-deployment.yaml
 ```
 
 Wait for all exporters to be ready:
@@ -331,7 +331,7 @@ kubectl apply -f monitoring/grafana/04-configmap-dashboard-provider.yaml
 
 Create dashboard ConfigMaps from JSON files:
 ```bash
-for i in 01 02 03 04 05 06; do
+for i in 01 02 03 04 05 06 07; do
   kubectl create configmap grafana-dashboard-$(printf '%s' "$i" | sed 's/01/01-overview/;s/02/02-api/;s/03/03-database/;s/04/04-infrastructure/;s/05/05-business/;s/06/06-alerts/') \
     --from-file=monitoring/grafana/dashboards/ \
     -n monitoring \
