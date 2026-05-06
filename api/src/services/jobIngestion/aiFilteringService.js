@@ -378,8 +378,12 @@ async function scoreWithGroq(job, profile) {
   });
 
   if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`Groq API ${response.status}: ${err.slice(0, 200)}`);
+    const errText = await response.text();
+    const error = new Error(`Groq API ${response.status}: ${errText.slice(0, 200)}`);
+    if (errText.includes('tokens per day') || errText.includes('TPD')) {
+      error.tpdExhausted = true;
+    }
+    throw error;
   }
 
   const data = await response.json();
@@ -478,7 +482,8 @@ async function analyzeJob(rawJob, forcePatternOnly = false) {
       tech_stack:      pattern.techs,
       seniority_level: pattern.seniority,
       visa_sponsored:  pattern.visaSponsored,
-      _llm_attempted:  true, // was attempted even though it failed — still need to throttle
+      _llm_attempted:  true,
+      _tpd_exhausted:  err.tpdExhausted === true,
     };
   }
 }
@@ -500,14 +505,18 @@ async function getUnprocessedRawJobs(limit = 100) {
 }
 
 async function storeProcessedJob(rawJob, analysis) {
+  // CTE guards against the race where jobs_raw row disappears between
+  // getUnprocessedRawJobs SELECT and this INSERT (concurrent worker / purge).
   const result = await pool.query(
-    `INSERT INTO jobs (
+    `WITH raw_guard AS (SELECT id FROM jobs_raw WHERE id = $1)
+     INSERT INTO jobs (
        job_raw_id, external_id, company_name, title, location, job_type,
        description, requirements, salary_min, salary_max, salary_currency,
        posted_at, apply_url, source_api,
        relevance_score, ai_decision, ai_reasoning,
        tech_stack, seniority_level, visa_sponsored
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+     ) SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20
+       FROM raw_guard
      ON CONFLICT (external_id) DO NOTHING
      RETURNING id`,
     [
@@ -619,9 +628,14 @@ async function filterUnprocessedJobs() {
 
       if (analysis._llm_attempted) {
         llmCalls++;
-        // Groq free tier: 12k TPM. Each prompt ~600 tokens → max 20 calls/min.
-        // Sleep 3s so we stay under the rate limit.
-        await new Promise(r => setTimeout(r, 3000));
+        if (analysis._tpd_exhausted) {
+          // Daily token limit hit — skip all remaining LLM attempts this run
+          console.warn('[AIFilter] Groq daily token limit exhausted — switching to pattern-only');
+          llmCalls = LLM_CALLS_PER_RUN;
+        } else {
+          // Groq free tier: 12k TPM. Each prompt ~600 tokens → max 20 calls/min.
+          await new Promise(r => setTimeout(r, 3000));
+        }
       }
     } catch (err) {
       console.error(`[AIFilter] Failed job ${rawJob.id}:`, err.message);
