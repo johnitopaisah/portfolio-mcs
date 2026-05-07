@@ -285,16 +285,29 @@ router.get('/config', async (req, res) => {
   try {
     res.json({
       pollIntervalMinutes: process.env.JOB_POLL_INTERVAL_MINUTES || '15',
-      aiEngine:            process.env.ANTHROPIC_API_KEY ? 'claude-haiku-4-5 (Claude Haiku)' : 'pattern-v2 (no API key)',
-      maxJobAgeDays:       30,
-      digestTime:          '08:15 Europe/Paris',
+      aiEngine: process.env.ANTHROPIC_API_KEY
+        ? 'claude-haiku-4-5 (Claude Haiku)'
+        : process.env.GROQ_API_KEY
+          ? 'groq/llama-3.3-70b (Groq)'
+          : process.env.GEMINI_API_KEY
+            ? 'gemini-2.0-flash (Gemini)'
+            : 'pattern-v2 (no LLM key)',
+      maxJobAgeDays:  14,
+      digestTime:     '08:15 Europe/Paris',
       providers: {
-        jooble:   !!process.env.JOOBLE_API_KEY,
-        remoteOk: true,
-        adzuna:   !!(process.env.ADZUNA_APP_ID && process.env.ADZUNA_API_KEY),
+        jooble:    !!process.env.JOOBLE_API_KEY,
+        remoteOk:  true,
+        adzuna:    !!(process.env.ADZUNA_APP_ID && process.env.ADZUNA_API_KEY),
+        arbeitnow: true,
+        remotive:  true,
+        indeed:    true,
+        apec:      true,
+        wttj:      !!(process.env.WTTJ_ALGOLIA_APP_ID && process.env.WTTJ_ALGOLIA_API_KEY),
       },
       integrations: {
         anthropic: !!process.env.ANTHROPIC_API_KEY,
+        groq:      !!process.env.GROQ_API_KEY,
+        gemini:    !!process.env.GEMINI_API_KEY,
         zohoSmtp:  !!process.env.NOTIFY_EMAIL_USER,
         telegram:  !!(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID),
       },
