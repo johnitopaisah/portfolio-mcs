@@ -31,10 +31,6 @@ on:
       tag:
         required: true
         type: string
-      skip_manifest_update:
-        required: false
-        type: string
-        default: 'false'
 
 permissions:
   contents: write  # write needed for manifest update commit
@@ -158,7 +154,7 @@ jobs:
     name: Update k8s manifest
     needs: [validate, build-push]
     runs-on: ubuntu-latest
-    if: needs.build-push.result == 'success' && inputs.skip_manifest_update != 'true'
+    if: needs.build-push.result == 'success'
     steps:
       - name: Checkout develop
         uses: actions/checkout@v4
@@ -181,6 +177,7 @@ jobs:
           git add k8s/user-ui/deployment.yaml
           git diff --cached --quiet && echo "No manifest change needed" && exit 0
           git commit -m "chore: bump user-ui image to ${TAG} [skip ci]"
+          git pull --rebase origin develop
           git push origin develop
           echo "✅ Manifest updated — ArgoCD will sync shortly"
 
