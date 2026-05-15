@@ -1,104 +1,104 @@
-# IMPORTANT — Minikube NetworkPolicy notice:
-# Minikube's default CNI (kindnet) does NOT enforce NetworkPolicy rules.
-# Policies are accepted by the API server but silently ignored.
-# To enable real enforcement, recreate the cluster with Calico CNI:
-#   minikube delete
-#   minikube start --cni=calico
-#
-# This manifest is correct for production — it will be enforced on any
-# cluster running a CNI that supports NetworkPolicy (Calico, Cilium, etc).
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: portfolio-network-policy
-  namespace: portfolio
-  labels:
-    app: portfolio-mcs
-spec:
-  podSelector:
-    matchLabels:
-      app: portfolio-mcs
-  policyTypes:
-    - Ingress
-    - Egress
+# # IMPORTANT — Minikube NetworkPolicy notice:
+# # Minikube's default CNI (kindnet) does NOT enforce NetworkPolicy rules.
+# # Policies are accepted by the API server but silently ignored.
+# # To enable real enforcement, recreate the cluster with Calico CNI:
+# #   minikube delete
+# #   minikube start --cni=calico
+# #
+# # This manifest is correct for production — it will be enforced on any
+# # cluster running a CNI that supports NetworkPolicy (Calico, Cilium, etc).
+# apiVersion: networking.k8s.io/v1
+# kind: NetworkPolicy
+# metadata:
+#   name: portfolio-network-policy
+#   namespace: portfolio
+#   labels:
+#     app: portfolio-mcs
+# spec:
+#   podSelector:
+#     matchLabels:
+#       app: portfolio-mcs
+#   policyTypes:
+#     - Ingress
+#     - Egress
 
-  ingress:
-    # Allow traffic from the Traefik ingress controller
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-      ports:
-        - protocol: TCP
-          port: 3000
-        - protocol: TCP
-          port: 3001
-        - protocol: TCP
-          port: 4000
+#   ingress:
+#     # Allow traffic from the Traefik ingress controller
+#     - from:
+#         - namespaceSelector:
+#             matchLabels:
+#               kubernetes.io/metadata.name: kube-system
+#       ports:
+#         - protocol: TCP
+#           port: 3000
+#         - protocol: TCP
+#           port: 3001
+#         - protocol: TCP
+#           port: 4000
 
-    # Allow inter-pod communication within the portfolio namespace
-    - from:
-        - podSelector:
-            matchLabels:
-              app: portfolio-mcs
-      ports:
-        - protocol: TCP
-          port: 4000
-        - protocol: TCP
-          port: 3000
-        - protocol: TCP
-          port: 3001
-        - protocol: TCP
-          port: 5432
+#     # Allow inter-pod communication within the portfolio namespace
+#     - from:
+#         - podSelector:
+#             matchLabels:
+#               app: portfolio-mcs
+#       ports:
+#         - protocol: TCP
+#           port: 4000
+#         - protocol: TCP
+#           port: 3000
+#         - protocol: TCP
+#           port: 3001
+#         - protocol: TCP
+#           port: 5432
 
-    # ── Allow Prometheus to scrape the API /metrics endpoint ──
-    # Prometheus runs in the monitoring namespace and needs to reach
-    # port 4000 on the API pods to collect metrics every 15 seconds.
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: monitoring
-      ports:
-        - protocol: TCP
-          port: 4000
+#     # ── Allow Prometheus to scrape the API /metrics endpoint ──
+#     # Prometheus runs in the monitoring namespace and needs to reach
+#     # port 4000 on the API pods to collect metrics every 15 seconds.
+#     - from:
+#         - namespaceSelector:
+#             matchLabels:
+#               kubernetes.io/metadata.name: monitoring
+#       ports:
+#         - protocol: TCP
+#           port: 4000
 
-  egress:
-    # Allow DNS resolution
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-      ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
+#   egress:
+#     # Allow DNS resolution
+#     - to:
+#         - namespaceSelector:
+#             matchLabels:
+#               kubernetes.io/metadata.name: kube-system
+#       ports:
+#         - protocol: UDP
+#           port: 53
+#         - protocol: TCP
+#           port: 53
 
-    # Allow inter-pod communication within the portfolio namespace
-    - to:
-        - podSelector:
-            matchLabels:
-              app: portfolio-mcs
-      ports:
-        - protocol: TCP
-          port: 4000
-        - protocol: TCP
-          port: 3000
-        - protocol: TCP
-          port: 3001
-        - protocol: TCP
-          port: 5432
+#     # Allow inter-pod communication within the portfolio namespace
+#     - to:
+#         - podSelector:
+#             matchLabels:
+#               app: portfolio-mcs
+#       ports:
+#         - protocol: TCP
+#           port: 4000
+#         - protocol: TCP
+#           port: 3000
+#         - protocol: TCP
+#           port: 3001
+#         - protocol: TCP
+#           port: 5432
 
-    # Allow outbound HTTPS, Zoho SMTP (465) for notifications
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-            except:
-              - 10.0.0.0/8
-              - 172.16.0.0/12
-              - 192.168.0.0/16
-      ports:
-        - protocol: TCP
-          port: 443
-        - protocol: TCP
-          port: 465   # Zoho SMTP SSL
+#     # Allow outbound HTTPS, Zoho SMTP (465) for notifications
+#     - to:
+#         - ipBlock:
+#             cidr: 0.0.0.0/0
+#             except:
+#               - 10.0.0.0/8
+#               - 172.16.0.0/12
+#               - 192.168.0.0/16
+#       ports:
+#         - protocol: TCP
+#           port: 443
+#         - protocol: TCP
+#           port: 465   # Zoho SMTP SSL

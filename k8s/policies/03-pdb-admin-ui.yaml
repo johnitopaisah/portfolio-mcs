@@ -1,15 +1,15 @@
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: portfolio-admin-ui-pdb
-  namespace: portfolio
-  labels:
-    app: portfolio-mcs
-    component: admin-ui
-spec:
-  # admin-ui runs 1 replica — minAvailable: 0 allows maintenance without blocking
-  minAvailable: 0
-  selector:
-    matchLabels:
-      app: portfolio-mcs
-      component: admin-ui
+# apiVersion: policy/v1
+# kind: PodDisruptionBudget
+# metadata:
+#   name: portfolio-admin-ui-pdb
+#   namespace: portfolio
+#   labels:
+#     app: portfolio-mcs
+#     component: admin-ui
+# spec:
+#   # admin-ui runs 1 replica — minAvailable: 0 allows maintenance without blocking
+#   minAvailable: 0
+#   selector:
+#     matchLabels:
+#       app: portfolio-mcs
+#       component: admin-ui
