@@ -17,6 +17,10 @@ dist/
 ./api/.env.production
 ./api/.env.*.local
 
+JOB_*
+DEPLOY_*
+
+
 cv/*
 
 # OS
