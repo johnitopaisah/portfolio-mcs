@@ -34,7 +34,7 @@ spec:
 
       containers:
         - name: postgres
-          image: ghcr.io/johnitopaisah/portfolio-mcs/db:v0.0.9-rc2
+          image: ghcr.io/johnitopaisah/portfolio-mcs/db:v0.0.9-rc3
           imagePullPolicy: IfNotPresent
 
           ports:
