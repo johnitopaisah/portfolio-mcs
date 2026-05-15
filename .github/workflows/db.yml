@@ -117,8 +117,13 @@ jobs:
           git add k8s/db/statefulset.yaml
           git diff --cached --quiet && echo "No manifest change needed" && exit 0
           git commit -m "chore: bump db image to ${TAG} [skip ci]"
-          git pull --rebase origin develop
-          git push origin develop
+          PUSHED=false
+          for i in 1 2 3 4 5; do
+            git pull --rebase origin develop && git push origin develop && { PUSHED=true; break; }
+            echo "Push attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          [ "$PUSHED" = "true" ] || { echo "❌ Failed to push after 5 attempts"; exit 1; }
           echo "✅ Manifest updated — ArgoCD will show OutOfSync for manual approval"
 
   # ── 4. Summary ───────────────────────────────────────────
