@@ -45,12 +45,14 @@ jobs:
       tag: ${{ inputs.tag }}
 
   # ── 1–4. Run all service pipelines in parallel ───────────
+  # skip_manifest_update=true: the orchestrator owns the single combined commit below
   db:
     name: DB
     needs: validate
     uses: ./.github/workflows/db.yml
     with:
       tag: ${{ inputs.tag }}
+      skip_manifest_update: 'true'
     secrets: inherit
 
   api:
@@ -59,6 +61,7 @@ jobs:
     uses: ./.github/workflows/api.yml
     with:
       tag: ${{ inputs.tag }}
+      skip_manifest_update: 'true'
     secrets: inherit
 
   user-ui:
@@ -67,6 +70,7 @@ jobs:
     uses: ./.github/workflows/user-ui.yml
     with:
       tag: ${{ inputs.tag }}
+      skip_manifest_update: 'true'
     secrets: inherit
 
   admin-ui:
@@ -75,7 +79,48 @@ jobs:
     uses: ./.github/workflows/admin-ui.yml
     with:
       tag: ${{ inputs.tag }}
+      skip_manifest_update: 'true'
     secrets: inherit
+
+  # ── 5. Update all k8s manifests in one commit ────────────
+  update-manifests:
+    name: Update all k8s manifests
+    needs: [validate, db, api, user-ui, admin-ui]
+    runs-on: ubuntu-latest
+    if: |
+      needs.db.result == 'success' &&
+      needs.api.result == 'success' &&
+      needs.user-ui.result == 'success' &&
+      needs.admin-ui.result == 'success'
+    steps:
+      - name: Checkout develop
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update all image tags
+        run: |
+          TAG="${{ needs.validate.outputs.tag }}"
+          BASE="ghcr.io/johnitopaisah/portfolio-mcs"
+          sed -i "s|${BASE}/api:.*|${BASE}/api:${TAG}|g"           k8s/api/deployment.yaml
+          sed -i "s|${BASE}/admin-ui:.*|${BASE}/admin-ui:${TAG}|g" k8s/admin-ui/deployment.yaml
+          sed -i "s|${BASE}/user-ui:.*|${BASE}/user-ui:${TAG}|g"   k8s/user-ui/deployment.yaml
+          sed -i "s|${BASE}/db:.*|${BASE}/db:${TAG}|g"             k8s/db/statefulset.yaml
+          echo "✅ All manifests updated to ${TAG}"
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          TAG="${{ needs.validate.outputs.tag }}"
+          git add k8s/api/deployment.yaml k8s/admin-ui/deployment.yaml \
+                  k8s/user-ui/deployment.yaml k8s/db/statefulset.yaml
+          git diff --cached --quiet && echo "No manifest changes needed" && exit 0
+          git commit -m "chore: bump all images to ${TAG} [skip ci]"
+          git push origin develop
+          echo "✅ All manifests committed — ArgoCD will sync api/admin-ui/user-ui automatically"
+          echo "   DB requires manual sync in the ArgoCD UI (portfolio-db app)"
 
   # ── 5. GitHub Release (stable tags only) ─────────────────
   release:
@@ -133,10 +178,10 @@ jobs:
           draft:      false
           prerelease: false
 
-  # ── 6. Summary ───────────────────────────────────────────
+  # ── 7. Summary ───────────────────────────────────────────
   summary:
     name: Summary
-    needs: [validate, db, api, user-ui, admin-ui]
+    needs: [validate, db, api, user-ui, admin-ui, update-manifests]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -147,12 +192,13 @@ jobs:
           API="${{ needs.api.result }}"
           UI="${{ needs.user-ui.result }}"
           ADMIN="${{ needs.admin-ui.result }}"
+          MANIFESTS="${{ needs.update-manifests.result }}"
 
-          ok() { [ "$1" = "success" ] && echo "✅" || echo "❌"; }
+          ok() { [ "$1" = "success" ] && echo "✅" || ( [ "$1" = "skipped" ] && echo "⏭️" || echo "❌" ); }
 
           ALL_OK="true"
-          for r in "$DB" "$API" "$UI" "$ADMIN"; do
-            [ "$r" != "success" ] && ALL_OK="false"
+          for r in "$DB" "$API" "$UI" "$ADMIN" "$MANIFESTS"; do
+            [ "$r" != "success" ] && [ "$r" != "skipped" ] && ALL_OK="false"
           done
 
           HEADER=$([ "$ALL_OK" = "true" ] \
@@ -161,11 +207,13 @@ jobs:
 
           echo "## All-services pipeline — $HEADER" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Service   | Result |" >> $GITHUB_STEP_SUMMARY
-          echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| db        | $(ok $DB) $DB |" >> $GITHUB_STEP_SUMMARY
-          echo "| api       | $(ok $API) $API |" >> $GITHUB_STEP_SUMMARY
-          echo "| user-ui   | $(ok $UI) $UI |" >> $GITHUB_STEP_SUMMARY
-          echo "| admin-ui  | $(ok $ADMIN) $ADMIN |" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage             | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------------------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| db                | $(ok $DB) $DB |" >> $GITHUB_STEP_SUMMARY
+          echo "| api               | $(ok $API) $API |" >> $GITHUB_STEP_SUMMARY
+          echo "| user-ui           | $(ok $UI) $UI |" >> $GITHUB_STEP_SUMMARY
+          echo "| admin-ui          | $(ok $ADMIN) $ADMIN |" >> $GITHUB_STEP_SUMMARY
+          echo "| update manifests  | $(ok $MANIFESTS) $MANIFESTS |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Images tagged: \`$TAG\` + \`latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "> ArgoCD will auto-sync api/admin-ui/user-ui. DB requires manual sync." >> $GITHUB_STEP_SUMMARY

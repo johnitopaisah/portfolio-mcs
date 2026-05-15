@@ -31,9 +31,13 @@ on:
       tag:
         required: true
         type: string
+      skip_manifest_update:
+        required: false
+        type: string
+        default: 'false'
 
 permissions:
-  contents: read
+  contents: write  # write needed for manifest update commit
   packages: write
 
 env:
@@ -149,10 +153,41 @@ jobs:
           cache-from: type=gha,scope=user-ui
           cache-to:   type=gha,scope=user-ui,mode=max
 
-  # ── 4. Summary ───────────────────────────────────────────
+  # ── 4. Update manifest ───────────────────────────────────
+  update-manifest:
+    name: Update k8s manifest
+    needs: [validate, build-push]
+    runs-on: ubuntu-latest
+    if: needs.build-push.result == 'success' && inputs.skip_manifest_update != 'true'
+    steps:
+      - name: Checkout develop
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update image tag in manifest
+        run: |
+          TAG="${{ needs.validate.outputs.tag }}"
+          BASE="ghcr.io/johnitopaisah/portfolio-mcs"
+          sed -i "s|${BASE}/user-ui:.*|${BASE}/user-ui:${TAG}|g" k8s/user-ui/deployment.yaml
+          echo "✅ k8s/user-ui/deployment.yaml → ${BASE}/user-ui:${TAG}"
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          TAG="${{ needs.validate.outputs.tag }}"
+          git add k8s/user-ui/deployment.yaml
+          git diff --cached --quiet && echo "No manifest change needed" && exit 0
+          git commit -m "chore: bump user-ui image to ${TAG} [skip ci]"
+          git push origin develop
+          echo "✅ Manifest updated — ArgoCD will sync shortly"
+
+  # ── 5. Summary ───────────────────────────────────────────
   summary:
     name: Summary
-    needs: [validate, quality, build-push]
+    needs: [validate, quality, build-push, update-manifest]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -161,10 +196,12 @@ jobs:
           TAG="${{ needs.validate.outputs.tag }}"
           QUALITY="${{ needs.quality.result }}"
           BUILD="${{ needs.build-push.result }}"
-          ok() { [ "$1" = "success" ] && echo "✅" || echo "❌"; }
+          MANIFEST="${{ needs.update-manifest.result }}"
+          ok() { [ "$1" = "success" ] && echo "✅" || ( [ "$1" = "skipped" ] && echo "⏭️" || echo "❌" ); }
           echo "## User UI pipeline" >> $GITHUB_STEP_SUMMARY
           echo "| Stage | Result |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| Lint & typecheck | $(ok $QUALITY) $QUALITY |" >> $GITHUB_STEP_SUMMARY
           echo "| Build & push     | $(ok $BUILD) $BUILD |" >> $GITHUB_STEP_SUMMARY
+          echo "| Update manifest  | $(ok $MANIFEST) $MANIFEST |" >> $GITHUB_STEP_SUMMARY
           echo "**Image:** \`${{ vars.IMAGE_REGISTRY_BASE }}/user-ui:$TAG\`" >> $GITHUB_STEP_SUMMARY
