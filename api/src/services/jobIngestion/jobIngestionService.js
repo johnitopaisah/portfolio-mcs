@@ -80,7 +80,8 @@ const WTTJ_TTL     = 6 * 60 * 60 * 1000;
 
 async function discoverWttjAlgoliaConfig() {
   const now = Date.now();
-  if (_wttjCache && now - _wttjCacheTs < WTTJ_TTL) return _wttjCache;
+  // Return cached result (including null = cached failure) within TTL
+  if (_wttjCacheTs && now - _wttjCacheTs < WTTJ_TTL) return _wttjCache;
 
   console.log('[WTTJ] Discovering Algolia credentials from JS bundle…');
   const UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36';
@@ -142,6 +143,8 @@ async function discoverWttjAlgoliaConfig() {
     console.warn('[WTTJ] Auto-discovery failed:', err.message);
   }
 
+  // Cache the failure for 30 min to avoid re-hammering on every query in the same run
+  _wttjCacheTs = now;
   console.warn('[WTTJ] Could not extract Algolia credentials — skipping this run');
   return null;
 }
@@ -235,7 +238,6 @@ class JobIngestionService {
         else if (key === 'adzuna')     jobs = await this.fetchFromAdzuna(provider, query);
         else if (key === 'arbeitnow')  jobs = await this.fetchFromArbeitnow(provider, query);
         else if (key === 'remotive')   jobs = await this.fetchFromRemotive(provider, query);
-        else if (key === 'indeed')     jobs = await this.fetchFromIndeed(provider, query);
         else if (key === 'apec')       jobs = await this.fetchFromApec(provider, query);
         else if (key === 'wttj')       jobs = await this.fetchFromWttj(provider, query);
         allJobs.push(...jobs);
@@ -482,10 +484,17 @@ class JobIngestionService {
         {
           headers: {
             'Referer':    'https://www.apec.fr/candidat/recherche-emploi.html/emploi',
-            'User-Agent': 'Mozilla/5.0 (compatible; JobBot/1.0)',
+            'Origin':     'https://www.apec.fr',
+            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36',
+            'Accept':     'application/json, text/plain, */*',
           },
         }
       );
+
+      if (page === 0 && !data.resultats) {
+        console.warn('[APEC] Unexpected response shape:', JSON.stringify(data).slice(0, 300));
+        break;
+      }
 
       const resultats = data.resultats || [];
       if (!resultats.length) break;

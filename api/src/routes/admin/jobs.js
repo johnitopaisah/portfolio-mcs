@@ -300,7 +300,6 @@ router.get('/config', async (req, res) => {
         adzuna:    !!(process.env.ADZUNA_APP_ID && process.env.ADZUNA_API_KEY),
         arbeitnow: true,
         remotive:  true,
-        indeed:    true,
         apec:      true,
         wttj:      !!(process.env.WTTJ_ALGOLIA_APP_ID && process.env.WTTJ_ALGOLIA_API_KEY),
       },

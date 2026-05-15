@@ -651,7 +651,6 @@ export default function JobsPage() {
           <option value="remoteOk">RemoteOK</option>
           <option value="arbeitnow">Arbeitnow</option>
           <option value="remotive">Remotive</option>
-          <option value="indeed">Indeed</option>
           <option value="apec">APEC</option>
           <option value="wttj">Welcome to the Jungle</option>
         </select>

@@ -41,12 +41,6 @@ module.exports = {
       rateLimit: { requestsPerSecond: 0.03, dailyLimit: 20 },
       features: { pagination: false, dateFiltering: false, locationFiltering: false },
     },
-    indeed: {
-      name: 'Indeed',
-      baseUrl: 'https://www.indeed.com/rss',
-      rateLimit: { requestsPerSecond: 0.5, dailyLimit: 200 },
-      features: { pagination: false, dateFiltering: true, locationFiltering: true },
-    },
     // APEC — French executive job board, no auth required
     apec: {
       name: 'APEC',
@@ -123,14 +117,6 @@ module.exports = {
     arbeitnow: ['1', '2', '3', '4', '5'],
     // Remotive: category slugs
     remotive: ['software-dev', 'devops-sysadmin'],
-    // Indeed: full search strings passed as the `q` param
-    indeed: [
-      'devops engineer remote',
-      'cloud infrastructure engineer',
-      'site reliability engineer',
-      'kubernetes engineer remote',
-      'embedded firmware engineer',
-    ],
     // APEC: French keywords work best (also accepts English tech terms)
     apec: [
       'DevOps',
