@@ -18,7 +18,7 @@ spec:
   schedule: "0 */8 * * *"
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 1
-  suspend: true
+  suspend: false
   concurrencyPolicy: Forbid   # prevent overlap if a run takes longer than 15min
 
   jobTemplate:
