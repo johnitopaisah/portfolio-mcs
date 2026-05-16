@@ -31,6 +31,18 @@ function MoonIcon() {
   );
 }
 
+function AdminIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1"/>
+      <rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="3" y="14" width="7" height="7" rx="1"/>
+      <rect x="14" y="14" width="7" height="7" rx="1"/>
+    </svg>
+  );
+}
+
 export default function Navbar() {
   const [open, setOpen] = useState(false);
   const { theme, toggle } = useTheme();
@@ -71,6 +83,27 @@ export default function Navbar() {
 
         {/* Right controls */}
         <div className="hidden md:flex items-center gap-2">
+          {/* Admin shortcut */}
+          <a
+            href="https://admin.johnisah.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Admin dashboard"
+            className="w-9 h-9 flex items-center justify-center rounded-lg transition-all duration-200"
+            style={{ color: 'var(--text-2)', border: '1px solid var(--border)', background: 'transparent' }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLElement).style.color = 'var(--text-1)';
+              (e.currentTarget as HTMLElement).style.borderColor = 'rgba(124,58,237,0.5)';
+              (e.currentTarget as HTMLElement).style.background = 'rgba(124,58,237,0.06)';
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLElement).style.color = 'var(--text-2)';
+              (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)';
+              (e.currentTarget as HTMLElement).style.background = 'transparent';
+            }}>
+            <AdminIcon />
+          </a>
+
           {/* Theme toggle */}
           <button
             onClick={toggle}
@@ -130,8 +163,16 @@ export default function Navbar() {
               {l.label}
             </Link>
           ))}
-          <div className="pt-2">
+          <div className="pt-2 flex items-center gap-2">
             <a href="/api/profile/resume" className="btn-primary inline-flex text-sm">Resume ↓</a>
+            <a
+              href="https://admin.johnisah.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-9 h-9 flex items-center justify-center rounded-lg transition-colors"
+              style={{ color: 'var(--text-2)', border: '1px solid var(--border)' }}>
+              <AdminIcon />
+            </a>
           </div>
         </div>
       )}
