@@ -337,6 +337,83 @@ async function sendTelegramDigest(jobs) {
   });
 }
 
+// ── Per-run digest (called from jobWorker after every successful run) ────────
+// Sends a digest of jobs ingested in the last `hoursBack` hours.
+// Dedup window is 2 hours (prevents double-send on CronJob retries without
+// blocking the next scheduled run 8 hours later).
+async function sendWorkerRunDigest(hoursBack = 8) {
+  if (!process.env.NOTIFY_EMAIL_USER || !process.env.NOTIFY_EMAIL_PASS) {
+    console.warn('[JobDigest] Email env vars not set — skipping');
+    return { sent: false };
+  }
+
+  // Key scoped to the current hour — allows one send per run, blocks retries
+  const runHour = new Date().toISOString().slice(0, 13); // "2026-05-18T10"
+  const runKey  = `job_run_digest:${runHour}`;
+  if (await wasNotificationSent('email', runKey, 2)) {
+    console.log('[JobDigest] Already sent this run hour — skipping duplicate');
+    return { sent: false, reason: 'already_sent' };
+  }
+
+  try {
+    const jobs = await getNewJobsSince(hoursBack);
+
+    if (jobs.length === 0) {
+      console.log('[JobDigest] No new relevant jobs this run — skipping');
+      return { sent: false, reason: 'no_new_jobs' };
+    }
+
+    const statsRes = await pool.query(
+      `SELECT COUNT(*) AS total_processed FROM jobs
+       WHERE created_at > NOW() - INTERVAL '1 hour' * $1`,
+      [hoursBack]
+    );
+    const stats = { total_processed: parseInt(statsRes.rows[0].total_processed, 10) };
+
+    const now     = new Date();
+    const dateStr = now.toLocaleString('en-GB', {
+      weekday: 'short', day: 'numeric', month: 'short',
+      hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris',
+    }) + ' (Paris)';
+
+    const subject = `[Jobs] ${jobs.length} new match${jobs.length !== 1 ? 'es' : ''} · top score ${jobs[0]?.relevance_score}/100 · ${now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/Paris' })}`;
+
+    await getTransport().sendMail({
+      from:    `"Portfolio Jobs" <${process.env.NOTIFY_EMAIL_USER}>`,
+      to:      process.env.NOTIFY_EMAIL_TO || process.env.NOTIFY_EMAIL_USER,
+      subject,
+      html:    buildHtml(jobs, dateStr, stats),
+      text:    [
+        `Job Digest — ${dateStr}`,
+        `${jobs.length} new relevant jobs (min score ${MIN_SCORE}, last ${hoursBack}h):`,
+        ``,
+        ...jobs.map(j =>
+          `[${j.relevance_score}/100] ${j.title} @ ${j.company_name} (${j.location})\n  ${j.apply_url}`
+        ),
+        ``,
+        `Total processed this run: ${stats.total_processed}`,
+      ].join('\n'),
+    });
+
+    await recordNotificationSent('email', runKey);
+
+    // Telegram (optional)
+    const tgKey = `job_run_digest_tg:${runHour}`;
+    if (!await wasNotificationSent('telegram', tgKey, 2)) {
+      await sendTelegramDigest(jobs).catch(e =>
+        console.warn('[JobDigest] Telegram failed:', e.message)
+      );
+      await recordNotificationSent('telegram', tgKey);
+    }
+
+    console.log(`[JobDigest] Run digest sent — ${jobs.length} jobs, top score ${jobs[0]?.relevance_score ?? 'N/A'}`);
+    return { sent: true, jobs: jobs.length };
+  } catch (err) {
+    console.error('[JobDigest] Run digest failed:', err.message);
+    return { sent: false, error: err.message };
+  }
+}
+
 // ── Manual trigger (called from admin API route) ──────────────
 async function sendNewJobAlerts() {
   return sendDailyJobDigest();
@@ -345,6 +422,7 @@ async function sendNewJobAlerts() {
 module.exports = {
   startDailyJobDigest,
   sendDailyJobDigest,
-  sendNewJobAlerts,   // keep same name so jobWorker.js doesn't break
+  sendWorkerRunDigest,
+  sendNewJobAlerts,
   getAlertStats,
 };

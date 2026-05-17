@@ -9,7 +9,13 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
-RUN addgroup -g 1001 -S nodejs && adduser -S nodeapp -u 1001
+# pg_dump is needed by the job worker's backup step
+RUN apk add --no-cache postgresql-client
+
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S -u 1001 -G nodejs -h /home/nodeapp nodeapp && \
+    mkdir -p /home/nodeapp/db-backups && \
+    chown -R nodeapp:nodejs /home/nodeapp
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY src ./src
