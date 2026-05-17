@@ -61,6 +61,72 @@ router.get('/logs', async (req, res) => {
   }
 });
 
+// ── GET /api/admin/jobs/sources-status ───────────────────────
+const JOB_SOURCES = [
+  { key: 'joobleApi',  label: 'Jooble',               envs: ['JOOBLE_API_KEY'] },
+  { key: 'adzuna',     label: 'Adzuna',                envs: ['ADZUNA_APP_ID', 'ADZUNA_API_KEY'] },
+  { key: 'arbeitnow',  label: 'Arbeitnow',             envs: [] },
+  { key: 'remoteOk',   label: 'RemoteOK',              envs: [] },
+  { key: 'remotive',   label: 'Remotive',              envs: [] },
+  { key: 'apec',       label: 'APEC',                  envs: [] },
+  { key: 'wttj',       label: 'Welcome to the Jungle', envs: [] },
+];
+
+router.get('/sources-status', async (req, res) => {
+  try {
+    const logsRes = await pool.query(`
+      SELECT DISTINCT ON (source_api)
+        source_api, status, jobs_fetched, jobs_new, error_message, created_at
+      FROM job_ingestion_logs
+      ORDER BY source_api, created_at DESC
+    `);
+
+    const lastRun = {};
+    logsRes.rows.forEach(r => { lastRun[r.source_api] = r; });
+
+    const data = JOB_SOURCES.map(s => {
+      const keyRequired = s.envs.length > 0;
+      const missingKeys = s.envs.filter(k => !process.env[k]);
+      const keySet      = missingKeys.length === 0;
+      const last        = lastRun[s.key] || null;
+
+      let status;
+      if (keyRequired && !keySet) {
+        status = 'not_set';
+      } else if (!last) {
+        status = 'pending';
+      } else if (last.status === 'FAILED') {
+        status = 'error';
+      } else if (last.jobs_fetched === 0) {
+        status = 'issue';
+      } else {
+        status = 'active';
+      }
+
+      return {
+        source:      s.key,
+        label:       s.label,
+        keyRequired,
+        keySet:      keyRequired ? keySet : null,
+        missingKeys: missingKeys.length ? missingKeys : null,
+        status,
+        lastRun: last ? {
+          status:       last.status,
+          jobsFetched:  last.jobs_fetched,
+          jobsNew:      last.jobs_new,
+          errorMessage: last.error_message,
+          runAt:        last.created_at,
+        } : null,
+      };
+    });
+
+    res.json(data);
+  } catch (err) {
+    console.error('[Admin:SourcesStatus]', err.message);
+    res.status(500).json({ error: 'Failed to fetch sources status' });
+  }
+});
+
 // ── GET /api/admin/jobs/ingestion-stats ──────────────────────
 router.get('/ingestion-stats', async (req, res) => {
   try {
@@ -176,7 +242,7 @@ router.get('/pipeline', async (req, res) => {
   try {
     const {
       tab = 'new', source, visa, sort = 'score', page = 1, limit = 20,
-      seniority, min_score, location,
+      seniority, min_score, location, ai_decision,
     } = req.query;
     const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
 
@@ -184,7 +250,9 @@ router.get('/pipeline', async (req, res) => {
     const params = [];
 
     if (tab === 'new') {
-      conditions.push("j.ai_decision IN ('KEEP','REVIEW')");
+      // Skip the KEEP/REVIEW guard when an explicit ai_decision filter is provided
+      // so that ai_decision=DROP can show dropped jobs without conflicting conditions
+      if (!ai_decision) conditions.push("j.ai_decision IN ('KEEP','REVIEW')");
       conditions.push("(jf.decision IS NULL OR jf.decision NOT IN ('applied','saved','interested'))");
     } else if (tab === 'saved') {
       conditions.push("jf.decision IN ('saved','interested')");
@@ -192,11 +260,12 @@ router.get('/pipeline', async (req, res) => {
       conditions.push("jf.decision = 'applied'");
     }
 
-    if (source)    { params.push(source);                  conditions.push(`j.source_api = $${params.length}`); }
-    if (visa === 'true')                                    conditions.push('j.visa_sponsored = TRUE');
-    if (seniority) { params.push(seniority);               conditions.push(`j.seniority_level = $${params.length}`); }
-    if (min_score) { params.push(parseInt(min_score, 10)); conditions.push(`j.relevance_score >= $${params.length}`); }
-    if (location)  { params.push(`%${location}%`);         conditions.push(`j.location ILIKE $${params.length}`); }
+    if (source)      { params.push(source);                  conditions.push(`j.source_api = $${params.length}`); }
+    if (visa === 'true')                                      conditions.push('j.visa_sponsored = TRUE');
+    if (seniority)   { params.push(seniority);               conditions.push(`j.seniority_level = $${params.length}`); }
+    if (min_score)   { params.push(parseInt(min_score, 10)); conditions.push(`j.relevance_score >= $${params.length}`); }
+    if (location)    { params.push(`%${location}%`);         conditions.push(`j.location ILIKE $${params.length}`); }
+    if (ai_decision) { params.push(ai_decision.toUpperCase()); conditions.push(`j.ai_decision = $${params.length}`); }
 
     const where = conditions.join(' AND ');
     const sortExpr = sort === 'date' ? 'j.posted_at DESC' : 'j.relevance_score DESC';

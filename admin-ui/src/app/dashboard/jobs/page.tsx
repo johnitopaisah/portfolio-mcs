@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { adminApi } from '@/lib/api';
 
 function getUrlParam(key: string, fallback = '') {
@@ -49,6 +50,22 @@ interface Pagination {
   limit: number;
   total: number;
   pages: number;
+}
+
+interface SourceStatus {
+  source: string;
+  label: string;
+  keyRequired: boolean;
+  keySet: boolean | null;
+  missingKeys: string[] | null;
+  status: 'active' | 'issue' | 'error' | 'not_set' | 'pending';
+  lastRun: {
+    status: string;
+    jobsFetched: number;
+    jobsNew: number;
+    errorMessage: string | null;
+    runAt: string;
+  } | null;
 }
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -118,11 +135,11 @@ function ProgressStats({ p }: { p: Progress }) {
 
       {/* Stats grid */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <Stat label="New" value={newC} color="text-white" />
-        <Stat label="Saved" value={savedC} color="text-yellow-400" />
-        <Stat label="Applied" value={appliedC} color="text-green-400" />
-        <Stat label="Added today" value={`+${today}`} color="text-indigo-400" />
-        <Stat label="Applied this week" value={week} color="text-purple-400" />
+        <Stat label="New"              value={newC}          color="text-white"       href="?tab=new" />
+        <Stat label="Saved"            value={savedC}        color="text-yellow-400"  href="?tab=saved" />
+        <Stat label="Applied"          value={appliedC}      color="text-green-400"   href="?tab=applied" />
+        <Stat label="Added today"      value={`+${today}`}   color="text-indigo-400"  href="?tab=new&sort=date" />
+        <Stat label="Applied this week" value={week}         color="text-purple-400"  href="?tab=applied" />
       </div>
 
       {avg !== null && (
@@ -135,11 +152,88 @@ function ProgressStats({ p }: { p: Progress }) {
   );
 }
 
-function Stat({ label, value, color }: { label: string; value: string | number; color: string }) {
-  return (
-    <div className="bg-gray-800/60 rounded-lg px-3 py-2">
+function Stat({ label, value, color, href }: { label: string; value: string | number; color: string; href?: string }) {
+  const inner = (
+    <div className={`bg-gray-800/60 rounded-lg px-3 py-2 ${href ? 'cursor-pointer hover:bg-gray-700/80 transition-colors' : ''}`}>
       <p className={`text-lg font-bold ${color}`}>{value}</p>
       <p className="text-xs text-gray-500 mt-0.5">{label}</p>
+    </div>
+  );
+  return href ? <Link href={href}>{inner}</Link> : inner;
+}
+
+// ── Source status row ─────────────────────────────────────────
+const SRC_CFG = {
+  active:  { dot: 'bg-green-500',  text: 'text-green-400',  bg: 'bg-green-900/20 border-green-700/30',  label: 'Active'   },
+  issue:   { dot: 'bg-yellow-500', text: 'text-yellow-400', bg: 'bg-yellow-900/20 border-yellow-700/30', label: 'No data'  },
+  error:   { dot: 'bg-red-500',    text: 'text-red-400',    bg: 'bg-red-900/20 border-red-800/30',       label: 'Error'    },
+  not_set: { dot: 'bg-gray-600',   text: 'text-gray-500',   bg: 'bg-gray-800/50 border-gray-700/40',    label: 'Not set'  },
+  pending: { dot: 'bg-gray-600',   text: 'text-gray-500',   bg: 'bg-gray-800/50 border-gray-700/40',    label: 'Pending'  },
+};
+
+function srcTimeAgo(iso: string) {
+  const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3_600_000);
+  if (h < 1) return 'just now';
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+function SourceRow({ s }: { s: SourceStatus }) {
+  const cfg = SRC_CFG[s.status];
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-3 py-2.5 rounded-lg
+      border border-gray-800/60 bg-gray-900/40 hover:bg-gray-800/40 transition-colors">
+
+      {/* Name + status badge */}
+      <div className="flex items-center gap-2 w-44 shrink-0">
+        <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot} ${s.status === 'active' ? 'animate-pulse' : ''}`} />
+        <span className="text-sm font-medium text-white">{s.label}</span>
+        <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${cfg.text} ${cfg.bg}`}>
+          {cfg.label}
+        </span>
+      </div>
+
+      {/* Stats */}
+      <div className="flex items-center gap-3 text-xs flex-1 min-w-0">
+        {s.lastRun ? (
+          <>
+            <span className="text-gray-400">
+              <span className="text-white font-medium">{s.lastRun.jobsFetched.toLocaleString()}</span> fetched
+            </span>
+            <span className="text-gray-600">·</span>
+            <span className="text-green-400 font-medium">+{s.lastRun.jobsNew} new</span>
+            <span className="text-gray-600">·</span>
+            <span className="text-gray-500">{srcTimeAgo(s.lastRun.runAt)}</span>
+            {s.lastRun.errorMessage && (
+              <>
+                <span className="text-gray-700">·</span>
+                <span className="text-red-400/70 truncate max-w-xs" title={s.lastRun.errorMessage}>
+                  {s.lastRun.errorMessage.slice(0, 60)}{s.lastRun.errorMessage.length > 60 ? '…' : ''}
+                </span>
+              </>
+            )}
+          </>
+        ) : (
+          <span className="text-gray-600 italic">No ingestion runs recorded yet</span>
+        )}
+      </div>
+
+      {/* Missing keys (right-aligned) */}
+      {s.missingKeys && s.missingKeys.length > 0 && (
+        <div className="flex items-center gap-1.5 ml-auto shrink-0">
+          {s.missingKeys.map(k => (
+            <span key={k} className="text-xs font-mono px-2 py-0.5 rounded-md
+              bg-red-900/20 border border-red-800/30 text-red-400/80">
+              {k}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Public label */}
+      {!s.keyRequired && (
+        <span className="text-xs text-gray-700 ml-auto shrink-0">Public API</span>
+      )}
     </div>
   );
 }
@@ -446,6 +540,9 @@ export default function JobsPage() {
   const [minScore,     setMinScore]     = useState(() => getUrlParam('minScore'));
   const [locInput,     setLocInput]     = useState(() => getUrlParam('location'));
   const [loc,          setLoc]          = useState(() => getUrlParam('location'));
+  const [aiDecision,   setAiDecision]   = useState(() => getUrlParam('ai_decision'));
+  const [sources,      setSources]      = useState<SourceStatus[]>([]);
+  const [sourcesLoad,  setSourcesLoad]  = useState(true);
   const [jobs,         setJobs]         = useState<Job[]>([]);
   const [selected,     setSelected]     = useState<Job | null>(null);
   const [progress,     setProgress]     = useState<Progress | null>(null);
@@ -478,19 +575,21 @@ export default function JobsPage() {
     if (seniority)        p.set('seniority', seniority);
     if (minScore)         p.set('minScore', minScore);
     if (loc)              p.set('location', loc);
+    if (aiDecision)       p.set('ai_decision', aiDecision);
     const qs = p.toString();
     window.history.replaceState(null, '', qs ? `?${qs}` : window.location.pathname);
-  }, [tab, sort, source, visa, seniority, minScore, loc]);
+  }, [tab, sort, source, visa, seniority, minScore, loc, aiDecision]);
 
   const loadJobs = useCallback(async () => {
     setLoading(true);
     try {
       const params: Record<string, string> = { tab, sort, limit: '20', page: '1' };
-      if (source)   params.source    = source;
-      if (visa)     params.visa      = 'true';
-      if (seniority) params.seniority = seniority;
-      if (minScore) params.min_score  = minScore;
-      if (loc)      params.location   = loc;
+      if (source)      params.source      = source;
+      if (visa)        params.visa        = 'true';
+      if (seniority)   params.seniority   = seniority;
+      if (minScore)    params.min_score   = minScore;
+      if (loc)         params.location    = loc;
+      if (aiDecision)  params.ai_decision = aiDecision;
       const res = await adminApi.getJobsPipeline(params);
       setJobs(res.data);
       setPagination(res.pagination);
@@ -501,7 +600,7 @@ export default function JobsPage() {
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, source, visa, sort, seniority, minScore, loc]);
+  }, [tab, source, visa, sort, seniority, minScore, loc, aiDecision]);
 
   const loadMore = useCallback(async () => {
     if (!pagination || pagination.page >= pagination.pages) return;
@@ -510,18 +609,19 @@ export default function JobsPage() {
       const params: Record<string, string> = {
         tab, sort, limit: '20', page: String(pagination.page + 1),
       };
-      if (source)    params.source    = source;
-      if (visa)      params.visa      = 'true';
-      if (seniority) params.seniority = seniority;
-      if (minScore)  params.min_score = minScore;
-      if (loc)       params.location  = loc;
+      if (source)      params.source      = source;
+      if (visa)        params.visa        = 'true';
+      if (seniority)   params.seniority   = seniority;
+      if (minScore)    params.min_score   = minScore;
+      if (loc)         params.location    = loc;
+      if (aiDecision)  params.ai_decision = aiDecision;
       const res = await adminApi.getJobsPipeline(params);
       setJobs(prev => [...prev, ...res.data]);
       setPagination(res.pagination);
     } finally {
       setLoadingMore(false);
     }
-  }, [pagination, tab, sort, source, visa, seniority, minScore, loc]);
+  }, [pagination, tab, sort, source, visa, seniority, minScore, loc, aiDecision]);
 
   const handleAction = useCallback(async (jobId: string, action: string) => {
     setActionLoad(jobId + action);
@@ -573,6 +673,10 @@ export default function JobsPage() {
   // Initial load
   useEffect(() => {
     loadProgress();
+    adminApi.getSourcesStatus()
+      .then((data: SourceStatus[]) => setSources(data))
+      .catch(() => {})
+      .finally(() => setSourcesLoad(false));
   }, [loadProgress]);
 
   useEffect(() => {
@@ -609,6 +713,27 @@ export default function JobsPage() {
 
       {/* Progress stats */}
       {progress && <ProgressStats p={progress} />}
+
+      {/* Job Source Status */}
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-4">
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-sm text-gray-400 font-medium">Job Source Status</span>
+          <span className="text-xs text-gray-600">{sources.length > 0 ? `${sources.filter(s => s.status === 'active').length} of ${sources.length} active` : ''}</span>
+        </div>
+        {sourcesLoad ? (
+          <div className="space-y-1.5">
+            {Array.from({ length: 7 }).map((_, i) => (
+              <div key={i} className="h-10 rounded-lg bg-gray-800/60 animate-pulse" />
+            ))}
+          </div>
+        ) : sources.length > 0 ? (
+          <div className="space-y-1.5">
+            {sources.map(s => <SourceRow key={s.source} s={s} />)}
+          </div>
+        ) : (
+          <p className="text-xs text-gray-600">No source data available — run an ingestion cycle first.</p>
+        )}
+      </div>
 
       {/* Tabs */}
       <div className="flex gap-1 mb-3">
@@ -697,10 +822,20 @@ export default function JobsPage() {
           Visa {visa ? '✓' : ''}
         </button>
 
-        {/* Clear all filters */}
-        {(source || seniority || minScore || locInput || visa) && (
+        {/* AI decision filter chip (set by clicking stat boxes) */}
+        {aiDecision && (
           <button
-            onClick={() => { setSource(''); setSeniority(''); setMinScore(''); setLocInput(''); setLoc(''); setVisa(false); }}
+            onClick={() => setAiDecision('')}
+            className="text-xs px-3 py-1.5 rounded-lg border transition-colors
+              bg-indigo-900/40 border-indigo-700/50 text-indigo-300 hover:bg-indigo-900/60">
+            AI: {aiDecision} ✕
+          </button>
+        )}
+
+        {/* Clear all filters */}
+        {(source || seniority || minScore || locInput || visa || aiDecision) && (
+          <button
+            onClick={() => { setSource(''); setSeniority(''); setMinScore(''); setLocInput(''); setLoc(''); setVisa(false); setAiDecision(''); }}
             className="text-xs px-3 py-1.5 rounded-lg text-red-400 hover:text-red-300
               bg-red-900/20 border border-red-800/40 hover:bg-red-900/30 transition-colors">
             Clear filters

@@ -45,7 +45,7 @@ jobs:
       tag: ${{ inputs.tag }}
 
   # ── 1–4. Run all service pipelines in parallel ───────────
-  # Each child workflow builds its image AND updates its own manifest.
+  # Each child workflow builds its image AND updates its own manifest (except DB — see db.yml).
   # Parallel pushes are safe because each touches a different file.
   db:
     name: DB
@@ -171,4 +171,5 @@ jobs:
           echo "| admin-ui | $(ok $ADMIN) $ADMIN |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Images tagged: \`$TAG\` + \`latest\`" >> $GITHUB_STEP_SUMMARY
-          echo "> Each service updated its own manifest. ArgoCD will auto-sync api/admin-ui/user-ui. DB requires manual sync." >> $GITHUB_STEP_SUMMARY
+          echo "> api/admin-ui/user-ui manifests updated automatically — ArgoCD will auto-sync." >> $GITHUB_STEP_SUMMARY
+          echo "> ⚠️ DB manifest (\`k8s/db/statefulset.yaml\`) is **not** updated automatically. Edit it manually to apply the new DB image." >> $GITHUB_STEP_SUMMARY

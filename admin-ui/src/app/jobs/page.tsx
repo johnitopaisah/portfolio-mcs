@@ -11,6 +11,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 
 const API = '/api';
 
@@ -35,6 +36,23 @@ interface IngestionLog {
   id: string; source_api: string; status: string;
   jobs_fetched: number; jobs_new: number; jobs_duplicates: number;
   duration_ms: number; created_at: string;
+}
+
+// GET /api/admin/jobs/sources-status
+interface SourceStatus {
+  source: string;
+  label: string;
+  keyRequired: boolean;
+  keySet: boolean | null;
+  missingKeys: string[] | null;
+  status: 'active' | 'issue' | 'error' | 'not_set' | 'pending';
+  lastRun: {
+    status: string;
+    jobsFetched: number;
+    jobsNew: number;
+    errorMessage: string | null;
+    runAt: string;
+  } | null;
 }
 
 // GET /api/jobs/admin/feedback  and  GET /api/admin/jobs/calibration
@@ -140,6 +158,67 @@ function FeedbackButtons({ jobId, onDone }: { jobId: string; onDone: () => void 
   );
 }
 
+// ── Source status card ────────────────────────────────────────
+const STATUS_CONFIG = {
+  active:  { dot: 'bg-green-500',  badge: 'bg-green-900/40 text-green-400 border-green-700/40',  label: 'Active'   },
+  issue:   { dot: 'bg-yellow-500', badge: 'bg-yellow-900/40 text-yellow-400 border-yellow-700/40', label: 'No data' },
+  error:   { dot: 'bg-red-500',    badge: 'bg-red-900/40 text-red-400 border-red-800/40',         label: 'Error'    },
+  not_set: { dot: 'bg-zinc-600',   badge: 'bg-zinc-800 text-zinc-500 border-zinc-700',            label: 'Not set'  },
+  pending: { dot: 'bg-zinc-600',   badge: 'bg-zinc-800 text-zinc-500 border-zinc-700',            label: 'Pending'  },
+};
+
+function timeAgoShort(iso: string) {
+  const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3_600_000);
+  if (h < 1) return 'just now';
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+function SourceCard({ s }: { s: SourceStatus }) {
+  const cfg = STATUS_CONFIG[s.status];
+  return (
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3.5 flex flex-col gap-2">
+      {/* Header row */}
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-semibold text-zinc-200 truncate">{s.label}</span>
+        <span className={`shrink-0 flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-medium ${cfg.badge}`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot} ${s.status === 'active' ? 'animate-pulse' : ''}`} />
+          {cfg.label}
+        </span>
+      </div>
+
+      {/* Last run info */}
+      {s.lastRun ? (
+        <div className="text-xs text-zinc-500 space-y-0.5">
+          <p><span className="text-zinc-300 font-medium">{s.lastRun.jobsFetched}</span> fetched · <span className="text-green-400">+{s.lastRun.jobsNew}</span> new</p>
+          <p>{timeAgoShort(s.lastRun.runAt)}</p>
+          {s.lastRun.errorMessage && (
+            <p className="text-red-400/80 truncate text-xs mt-1" title={s.lastRun.errorMessage}>
+              {s.lastRun.errorMessage.slice(0, 50)}{s.lastRun.errorMessage.length > 50 ? '…' : ''}
+            </p>
+          )}
+        </div>
+      ) : (
+        <p className="text-xs text-zinc-600">No runs recorded</p>
+      )}
+
+      {/* Missing keys */}
+      {s.missingKeys && s.missingKeys.length > 0 && (
+        <div className="mt-auto">
+          {s.missingKeys.map(k => (
+            <p key={k} className="text-xs font-mono text-red-400/70 truncate">{k}</p>
+          ))}
+        </div>
+      )}
+
+      {/* Public source label */}
+      {!s.keyRequired && (
+        <p className="text-xs text-zinc-600 mt-auto">Public API</p>
+      )}
+    </div>
+  );
+}
+
 // ══════════════════════════════════════════════════════════════
 //  MAIN COMPONENT
 // ══════════════════════════════════════════════════════════════
@@ -150,6 +229,7 @@ export default function JobAdminDashboard() {
   const [stats,    setStats]    = useState<JobStats | null>(null);
   const [logs,     setLogs]     = useState<IngestionLog[]>([]);
   const [feedback, setFeedback] = useState<FeedbackRow[]>([]);
+  const [sources,  setSources]  = useState<SourceStatus[]>([]);
   const [loadingD, setLoadingD] = useState(true);
 
   // Jobs tab
@@ -177,7 +257,6 @@ export default function JobAdminDashboard() {
       const [s, logsRes, fb] = await Promise.all([
         apiFetch<JobStats>('/jobs/stats'),
         apiFetch<{ data: IngestionLog[] }>('/admin/jobs/logs?limit=10'),
-        // Correct endpoint: GET /api/jobs/admin/feedback
         apiFetch<FeedbackRow[]>('/jobs/admin/feedback'),
       ]);
       setStats(s);
@@ -186,6 +265,14 @@ export default function JobAdminDashboard() {
     } catch (e) {
       console.error('Dashboard load failed:', (e as Error).message);
     } finally { setLoadingD(false); }
+
+    // Sources status is fetched independently so a failure doesn't blank the whole dashboard
+    try {
+      const src = await apiFetch<SourceStatus[]>('/admin/jobs/sources-status');
+      setSources(src);
+    } catch (e) {
+      console.error('Sources status load failed:', (e as Error).message);
+    }
   }, []);
 
   // ── Load jobs tab ───────────────────────────────────────────
@@ -304,17 +391,22 @@ export default function JobAdminDashboard() {
             {/* Stats strip — field names match GET /api/jobs/stats response */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
               {[
-                { label: '✓ Keep',   value: stats?.keep     ?? '—', colour: '#22c55e' },
-                { label: '◎ Review', value: stats?.review   ?? '—', colour: '#eab308' },
-                { label: '✗ Drop',   value: stats?.drop     ?? '—', colour: '#f87171' },
-                { label: 'Last 24h', value: stats?.last_24h ?? '—', colour: '#06b6d4' },
-                { label: 'Avg score',value: stats?.avg_score ?? '—', colour: '#a78bfa' },
-              ].map(s => (
-                <div key={s.label} className={`${cardD} text-center`}>
-                  <div className="text-2xl font-bold mb-1" style={{ color: s.colour }}>{s.value}</div>
-                  <div className="text-xs text-zinc-500">{s.label}</div>
-                </div>
-              ))}
+                { label: '✓ Keep',    value: stats?.keep      ?? '—', colour: '#22c55e', href: '/dashboard/jobs?ai_decision=KEEP' },
+                { label: '◎ Review',  value: stats?.review    ?? '—', colour: '#eab308', href: '/dashboard/jobs?ai_decision=REVIEW' },
+                { label: '✗ Drop',    value: stats?.drop      ?? '—', colour: '#f87171', href: null },
+                { label: 'Last 24h',  value: stats?.last_24h  ?? '—', colour: '#06b6d4', href: '/dashboard/jobs?sort=date' },
+                { label: 'Avg score', value: stats?.avg_score ?? '—', colour: '#a78bfa', href: null },
+              ].map(s => {
+                const inner = (
+                  <div className={`${cardD} text-center ${s.href ? 'hover:ring-1 hover:ring-zinc-600 transition-all cursor-pointer' : ''}`}>
+                    <div className="text-2xl font-bold mb-1" style={{ color: s.colour }}>{s.value}</div>
+                    <div className="text-xs text-zinc-500">{s.label}</div>
+                  </div>
+                );
+                return s.href
+                  ? <Link key={s.label} href={s.href}>{inner}</Link>
+                  : <div key={s.label}>{inner}</div>;
+              })}
             </div>
 
             <div className="grid lg:grid-cols-3 gap-6">
@@ -378,6 +470,22 @@ export default function JobAdminDashboard() {
                   {logs.length === 0 && <p className="text-sm text-zinc-600">No logs yet.</p>}
                 </div>
               </div>
+            </div>
+
+            {/* Job Source Status */}
+            <div>
+              <h2 className="font-semibold text-sm mb-3 text-zinc-300">Job Source Status</h2>
+              {loadingD ? (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {Array.from({ length: 7 }).map((_, i) => (
+                    <div key={i} className={`${cardD} animate-pulse h-20`} />
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {sources.map(s => <SourceCard key={s.source} s={s} />)}
+                </div>
+              )}
             </div>
           </div>
         )}

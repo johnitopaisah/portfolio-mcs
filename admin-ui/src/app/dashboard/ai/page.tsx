@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { adminApi } from '@/lib/api';
 
 // ── Types ────────────────────────────────────────────────────
@@ -310,22 +311,28 @@ export default function AiManagementPage() {
                 </div>
               </div>
 
-              {/* 24h stats */}
+              {/* 24h stats — clickable panels navigate to Job Pipeline with filter */}
               {status.last_24h && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                   {[
-                    { label: 'Total (24h)',  value: status.last_24h.total_jobs ?? '—', colour: '#a78bfa' },
-                    { label: 'Kept',         value: status.last_24h.kept       ?? '—', colour: '#22c55e' },
-                    { label: 'Review',       value: status.last_24h.review     ?? '—', colour: '#eab308' },
-                    { label: 'Dropped',      value: status.last_24h.dropped    ?? '—', colour: '#ef4444' },
-                    { label: 'Avg score',    value: status.last_24h.avg_score  ?? '—', colour: '#06b6d4' },
-                    { label: 'Top score',    value: status.last_24h.max_score  ?? '—', colour: '#f59e0b' },
-                  ].map(s => (
-                    <div key={s.label} className={`${card} text-center`}>
-                      <div className="text-xl font-bold mb-0.5" style={{ color: s.colour }}>{s.value}</div>
-                      <div className="text-xs text-zinc-500">{s.label}</div>
-                    </div>
-                  ))}
+                    { label: 'Total (24h)', value: status.last_24h.total_jobs ?? '—', colour: '#a78bfa', href: '/dashboard/jobs?sort=date' },
+                    { label: 'Kept',        value: status.last_24h.kept       ?? '—', colour: '#22c55e', href: '/dashboard/jobs?ai_decision=KEEP' },
+                    { label: 'Review',      value: status.last_24h.review     ?? '—', colour: '#eab308', href: '/dashboard/jobs?ai_decision=REVIEW' },
+                    { label: 'Dropped',     value: status.last_24h.dropped    ?? '—', colour: '#ef4444', href: '/dashboard/jobs?ai_decision=DROP' },
+                    { label: 'Avg score',   value: status.last_24h.avg_score  ?? '—', colour: '#06b6d4', href: null },
+                    { label: 'Top score',   value: status.last_24h.max_score  ?? '—', colour: '#f59e0b', href: null },
+                  ].map(s => {
+                    const inner = (
+                      <div className={`${card} text-center transition-all duration-150 ${s.href ? 'hover:border-white/10 cursor-pointer' : ''}`}>
+                        <div className="text-xl font-bold mb-0.5" style={{ color: s.colour }}>{s.value}</div>
+                        <div className="text-xs text-zinc-500">{s.label}</div>
+                        {s.href && <div className="text-xs text-zinc-700 mt-1">↗</div>}
+                      </div>
+                    );
+                    return s.href
+                      ? <Link key={s.label} href={s.href}>{inner}</Link>
+                      : <div key={s.label}>{inner}</div>;
+                  })}
                 </div>
               )}
 
@@ -605,7 +612,7 @@ export default function AiManagementPage() {
                     value={testJob[field]}
                     onChange={e => setTestJob(j => ({ ...j, [field]: e.target.value }))}
                     placeholder={`Paste ${field} text here…`}
-                    className="w-full px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-700 text-sm text-zinc-200 outline-none focus:border-indigo-500 resize-y font-mono text-xs"
+                    className="w-full px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-700 text-xs text-zinc-200 outline-none focus:border-indigo-500 resize-y font-mono"
                   />
                 </div>
               ))}

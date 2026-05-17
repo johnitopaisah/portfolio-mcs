@@ -119,6 +119,8 @@ export const adminApi = {
     request(`/api/admin/jobs/pipeline?${new URLSearchParams(params)}`),
   getJobsProgress: () =>
     request('/api/admin/jobs/pipeline/progress'),
+  getSourcesStatus: () =>
+    request('/api/admin/jobs/sources-status'),
   jobFeedback: (id: string, action: string) =>
     request(`/api/jobs/${id}/feedback`, { method: 'POST', body: JSON.stringify({ action }) }),
 

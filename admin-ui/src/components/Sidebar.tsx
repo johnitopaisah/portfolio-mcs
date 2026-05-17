@@ -1,23 +1,24 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import {
+  IconGrid, IconFolder, IconZap, IconBriefcase, IconAward,
+  IconMessage, IconUser, IconCpu, IconLayers, IconLogOut,
+} from './Icons';
 
 const nav = [
-  { href: '/dashboard',                label: 'Dashboard',      icon: '▦' },
-  { href: '/dashboard/projects',       label: 'Projects',       icon: '◈' },
-  { href: '/dashboard/skills',         label: 'Skills',         icon: '◎' },
-  { href: '/dashboard/experience',     label: 'Experience',     icon: '◷' },
-  { href: '/dashboard/certifications', label: 'Certifications', icon: '✦' },
-  { href: '/dashboard/messages',       label: 'Messages',       icon: '✉' },
-  { href: '/dashboard/profile',        label: 'Profile',        icon: '◉' },
-  { href: '/dashboard/ai',             label: 'AI Engine',      icon: '⬡' },
-  { href: '/dashboard/jobs',           label: 'Job Pipeline',   icon: '◳' },
+  { href: '/dashboard',                label: 'Dashboard',      Icon: IconGrid      },
+  { href: '/dashboard/projects',       label: 'Projects',       Icon: IconFolder    },
+  { href: '/dashboard/skills',         label: 'Skills',         Icon: IconZap       },
+  { href: '/dashboard/experience',     label: 'Experience',     Icon: IconBriefcase },
+  { href: '/dashboard/certifications', label: 'Certifications', Icon: IconAward     },
+  { href: '/dashboard/messages',       label: 'Messages',       Icon: IconMessage   },
+  { href: '/dashboard/profile',        label: 'Profile',        Icon: IconUser      },
+  { href: '/dashboard/ai',             label: 'AI Engine',      Icon: IconCpu       },
+  { href: '/dashboard/jobs',           label: 'Job Pipeline',   Icon: IconLayers    },
 ];
 
-interface SidebarProps {
-  open: boolean;
-  onClose: () => void;
-}
+interface SidebarProps { open: boolean; onClose: () => void; }
 
 export default function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
@@ -28,39 +29,67 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     router.push('/login');
   }
 
-  function handleNavClick() {
-    // Close drawer on mobile after navigating
-    onClose();
-  }
-
-  const sidebarContent = (
-    <aside className="w-60 min-h-screen bg-gray-900 border-r border-gray-800 flex flex-col">
-      <div className="px-6 py-5 border-b border-gray-800">
-        <p className="text-white font-bold text-sm">Portfolio Admin</p>
-        <p className="text-gray-500 text-xs mt-0.5">johnisah.com</p>
+  const content = (
+    <aside
+      className="w-64 min-h-screen flex flex-col"
+      style={{
+        background: 'linear-gradient(180deg, #0c1526 0%, #080d18 100%)',
+        borderRight: '1px solid rgba(255,255,255,0.05)',
+      }}
+    >
+      {/* Header */}
+      <div className="px-5 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        <div className="flex items-center gap-3">
+          <div
+            className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-xs font-bold shrink-0 select-none"
+            style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', boxShadow: '0 4px 12px rgba(79,70,229,0.4)' }}
+          >
+            PA
+          </div>
+          <div className="min-w-0">
+            <p className="text-white font-bold text-sm tracking-tight truncate">Portfolio Admin</p>
+            <p className="text-xs truncate" style={{ color: '#475569' }}>johnisah.com</p>
+          </div>
+        </div>
       </div>
-      <nav className="flex-1 py-4 px-3 space-y-0.5">
-        {nav.map(item => {
-          const active = pathname === item.href ||
-            (item.href !== '/dashboard' && pathname.startsWith(item.href));
+
+      {/* Nav */}
+      <nav className="flex-1 py-3 px-3 space-y-0.5 overflow-y-auto">
+        {nav.map(({ href, label, Icon }) => {
+          const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href));
           return (
-            <Link key={item.href} href={item.href} onClick={handleNavClick}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                active
-                  ? 'bg-indigo-600 text-white'
-                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
-              }`}>
-              <span className="text-base w-5 text-center">{item.icon}</span>
-              {item.label}
+            <Link
+              key={href}
+              href={href}
+              onClick={onClose}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 group"
+              style={active ? {
+                background: 'linear-gradient(135deg, rgba(124,58,237,0.75), rgba(79,70,229,0.75))',
+                color: '#fff',
+                boxShadow: '0 3px 10px rgba(79,70,229,0.3)',
+              } : {
+                color: '#475569',
+              }}
+              onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)'; (e.currentTarget as HTMLElement).style.color = '#94a3b8'; } }}
+              onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#475569'; } }}
+            >
+              <Icon width={17} height={17} className="shrink-0" />
+              <span className="truncate">{label}</span>
             </Link>
           );
         })}
       </nav>
-      <div className="p-3 border-t border-gray-800">
-        <button onClick={logout}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm
-                     text-gray-400 hover:text-red-400 hover:bg-gray-800 transition-colors">
-          <span className="w-5 text-center">⏻</span>
+
+      {/* Sign out */}
+      <div className="p-3" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+        <button
+          onClick={logout}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150"
+          style={{ color: '#475569' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#f87171'; (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.08)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#475569'; (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+        >
+          <IconLogOut width={17} height={17} className="shrink-0" />
           Sign out
         </button>
       </div>
@@ -69,25 +98,17 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
 
   return (
     <>
-      {/* ── Desktop: always visible sidebar ─────────────── */}
-      <div className="hidden md:flex flex-shrink-0">
-        {sidebarContent}
-      </div>
+      {/* Desktop */}
+      <div className="hidden md:flex flex-shrink-0">{content}</div>
 
-      {/* ── Mobile: slide-in drawer ──────────────────────── */}
-      {/* Backdrop */}
+      {/* Mobile backdrop */}
       {open && (
-        <div
-          className="fixed inset-0 z-40 bg-black/60 md:hidden"
-          onClick={onClose}
-          aria-hidden
-        />
+        <div className="fixed inset-0 z-40 md:hidden" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose} aria-hidden />
       )}
-      {/* Drawer */}
-      <div className={`fixed inset-y-0 left-0 z-50 md:hidden transform transition-transform duration-300 ease-in-out ${
-        open ? 'translate-x-0' : '-translate-x-full'
-      }`}>
-        {sidebarContent}
+
+      {/* Mobile drawer */}
+      <div className={`fixed inset-y-0 left-0 z-50 md:hidden transform transition-transform duration-300 ease-in-out ${open ? 'translate-x-0' : '-translate-x-full'}`}>
+        {content}
       </div>
     </>
   );

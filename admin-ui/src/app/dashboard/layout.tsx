@@ -12,25 +12,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [router]);
 
   return (
-    <div className="flex min-h-screen bg-gray-950">
+    <div className="flex min-h-screen" style={{ background: 'var(--bg)' }}>
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <div className="flex-1 flex flex-col min-w-0">
-        {/* ── Mobile top bar — hidden on desktop ─────────── */}
-        <div className="md:hidden flex items-center gap-3 px-4 py-3
-                        bg-gray-900 border-b border-gray-800 sticky top-0 z-30">
+        {/* Mobile top bar */}
+        <div
+          className="md:hidden flex items-center gap-3 px-4 py-3 sticky top-0 z-30"
+          style={{ background: 'rgba(12,21,38,0.9)', borderBottom: '1px solid rgba(255,255,255,0.05)', backdropFilter: 'blur(10px)' }}
+        >
           <button
             onClick={() => setSidebarOpen(true)}
-            className="w-9 h-9 flex items-center justify-center rounded-lg
-                       text-gray-400 hover:text-white hover:bg-gray-800 transition-colors
-                       text-lg font-light"
-            aria-label="Open menu">
-            ☰
+            className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors"
+            style={{ color: '#64748b', border: '1px solid rgba(255,255,255,0.08)' }}
+            aria-label="Open menu"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <line x1="3" y1="6"  x2="21" y2="6"/>
+              <line x1="3" y1="12" x2="21" y2="12"/>
+              <line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
           </button>
           <p className="text-white font-semibold text-sm">Portfolio Admin</p>
         </div>
 
-        {/* ── Page content ────────────────────────────────── */}
         <main className="flex-1 overflow-auto">
           <div className="max-w-5xl mx-auto p-4 md:p-8">
             {children}
