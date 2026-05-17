@@ -178,9 +178,9 @@ router.post('/:id/feedback', requireAuth, async (req, res) => {
     }
 
     await pool.query(
-      `INSERT INTO job_feedback (job_id, decision, notes, created_at)
+      `INSERT INTO job_feedback (job_id, decision, note, created_at)
        VALUES ($1, $2, $3, NOW())
-       ON CONFLICT (job_id) DO UPDATE SET decision = $2, notes = $3, created_at = NOW()`,
+       ON CONFLICT (job_id) DO UPDATE SET decision = $2, note = $3, created_at = NOW()`,
       [req.params.id, raw, req.body.notes || null]
     );
 
