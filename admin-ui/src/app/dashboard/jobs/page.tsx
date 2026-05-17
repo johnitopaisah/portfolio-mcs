@@ -1,12 +1,8 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { adminApi } from '@/lib/api';
-
-function getUrlParam(key: string, fallback = '') {
-  if (typeof window === 'undefined') return fallback;
-  return new URLSearchParams(window.location.search).get(key) ?? fallback;
-}
 
 // ── Types ────────────────────────────────────────────────────
 type Tab = 'new' | 'saved' | 'applied';
@@ -532,15 +528,25 @@ function EmptyList({ tab }: { tab: Tab }) {
 
 // ── Main page ────────────────────────────────────────────────
 export default function JobsPage() {
-  const [tab,          setTab]          = useState<Tab>(() => (getUrlParam('tab') as Tab) || 'new');
-  const [source,       setSource]       = useState(() => getUrlParam('source'));
-  const [visa,         setVisa]         = useState(() => getUrlParam('visa') === 'true');
-  const [sort,         setSort]         = useState(() => getUrlParam('sort') || 'score');
-  const [seniority,    setSeniority]    = useState(() => getUrlParam('seniority'));
-  const [minScore,     setMinScore]     = useState(() => getUrlParam('minScore'));
-  const [locInput,     setLocInput]     = useState(() => getUrlParam('location'));
-  const [loc,          setLoc]          = useState(() => getUrlParam('location'));
-  const [aiDecision,   setAiDecision]   = useState(() => getUrlParam('ai_decision'));
+  return (
+    <Suspense>
+      <JobsPageInner />
+    </Suspense>
+  );
+}
+
+function JobsPageInner() {
+  const searchParams = useSearchParams();
+
+  const [tab,          setTab]          = useState<Tab>(() => (searchParams.get('tab') as Tab) || 'new');
+  const [source,       setSource]       = useState(() => searchParams.get('source')      ?? '');
+  const [visa,         setVisa]         = useState(() => searchParams.get('visa')        === 'true');
+  const [sort,         setSort]         = useState(() => searchParams.get('sort')        || 'score');
+  const [seniority,    setSeniority]    = useState(() => searchParams.get('seniority')   ?? '');
+  const [minScore,     setMinScore]     = useState(() => searchParams.get('minScore')    ?? '');
+  const [locInput,     setLocInput]     = useState(() => searchParams.get('location')    ?? '');
+  const [loc,          setLoc]          = useState(() => searchParams.get('location')    ?? '');
+  const [aiDecision,   setAiDecision]   = useState(() => searchParams.get('ai_decision') ?? '');
   const [sources,      setSources]      = useState<SourceStatus[]>([]);
   const [sourcesLoad,  setSourcesLoad]  = useState(true);
   const [jobs,         setJobs]         = useState<Job[]>([]);
