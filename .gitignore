@@ -20,7 +20,7 @@ dist/
 JOB_*
 DEPLOY_*
 
-
+job-logs.md
 cv/*
 
 # OS
