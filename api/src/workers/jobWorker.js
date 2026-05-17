@@ -60,9 +60,14 @@ async function runJobWorker() {
     console.log(`[Worker:5] Done: ${purged.jobs} jobs, ${purged.raw} raw rows removed`);
 
     // Step 6: Full database backup → ~/db-backups, keep last 3
+    // Non-fatal: a backup failure must not undo the ingest/filter/notify work above.
     console.log('\n[Worker:6] Running database backup…');
-    const backup = await runDatabaseBackup();
-    console.log(`[Worker:6] Done: ${backup.file} (${backup.kept} kept, ${backup.pruned} pruned)`);
+    try {
+      const backup = await runDatabaseBackup();
+      console.log(`[Worker:6] Done: ${backup.file} (${backup.kept} kept, ${backup.pruned} pruned)`);
+    } catch (backupErr) {
+      console.error('[Worker:6] Backup failed (non-fatal):', backupErr.message);
+    }
 
     const secs = Math.round((Date.now() - t0) / 1000);
     console.log(`\n[Worker] ✅ Completed in ${secs}s`);
