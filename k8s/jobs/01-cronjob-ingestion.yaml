@@ -54,11 +54,11 @@ spec:
         spec:
           restartPolicy: Never
           serviceAccountName: job-worker
+          # fsGroup at pod level so the PVC is group-owned by 1001.
+          # runAsNonRoot/runAsUser are set per-container so the initContainer
+          # can run as root to chown the freshly-provisioned PVC directory.
           securityContext:
-            runAsNonRoot: true
-            runAsUser: 1001
-            runAsGroup: 1001
-            fsGroup: 1001   # ensures the backup PVC is writable by nodeapp
+            fsGroup: 1001
 
           imagePullSecrets:
             - name: ghcr-pull-secret
@@ -68,14 +68,16 @@ spec:
               persistentVolumeClaim:
                 claimName: job-worker-backups-pvc
 
-          # Runs as root before the worker to ensure the PVC mount is writable
-          # by UID 1001 (nodeapp). fsGroup alone is not reliable across all
-          # storage drivers — explicit chown is the safe approach.
+          # Runs as root to chown the PVC mount to nodeapp (UID 1001).
+          # A fresh PVC is root-owned; fsGroup alone does not grant write access
+          # without group-write bits, so explicit chown is required.
           initContainers:
           - name: fix-backup-perms
             image: busybox:1.36
             securityContext:
               runAsUser: 0
+              runAsNonRoot: false
+              allowPrivilegeEscalation: false
             command:
               - sh
               - -c
@@ -92,6 +94,11 @@ spec:
             image: ghcr.io/johnitopaisah/portfolio-mcs/api:latest
             imagePullPolicy: Always
             command: ["node", "src/workers/jobWorker.js"]
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 1001
+              runAsGroup: 1001
+              allowPrivilegeEscalation: false
 
             volumeMounts:
               - name: db-backups
