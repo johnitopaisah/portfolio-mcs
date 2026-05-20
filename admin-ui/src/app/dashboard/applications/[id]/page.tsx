@@ -23,6 +23,16 @@ interface AppDocument {
   created_at: string;
 }
 
+interface AppEmailResponse {
+  id: number;
+  sender_email: string;
+  sender_name: string;
+  subject: string;
+  ai_classification: string;
+  confidence_score: number | null;
+  received_at: string;
+}
+
 interface Application {
   id: number;
   job_id: string | null;
@@ -188,6 +198,10 @@ export default function ApplicationDetailPage() {
   const [generating,   setGenerating]   = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
 
+  // Email responses for this application
+  const [emailResponses, setEmailResponses] = useState<AppEmailResponse[]>([]);
+  const [emailsLoading,  setEmailsLoading]  = useState(true);
+
   const fetchApp = useCallback(async () => {
     try {
       const data: Application = await adminApi.getApplication(id);
@@ -206,6 +220,15 @@ export default function ApplicationDetailPage() {
   }, [id]);
 
   useEffect(() => { fetchApp(); }, [fetchApp]);
+
+  useEffect(() => {
+    if (!id) return;
+    setEmailsLoading(true);
+    adminApi.getAppEmailResponses(id)
+      .then(data => setEmailResponses(data.emails ?? []))
+      .catch(() => setEmailResponses([]))
+      .finally(() => setEmailsLoading(false));
+  }, [id]);
 
   async function handleMarkApplied() {
     if (!app) return;
@@ -523,11 +546,66 @@ export default function ApplicationDetailPage() {
             )}
           </Section>
 
-          {/* Section 5: Email Responses (placeholder) */}
+          {/* Section 5: Email Responses */}
           <Section title="Email Responses">
-            <div className="p-4 rounded-lg bg-gray-800/50 border border-dashed border-gray-700 text-center">
-              <p className="text-sm text-gray-500">Email tracking — available after Step 13.</p>
-            </div>
+            {emailsLoading ? (
+              <div className="animate-pulse space-y-2">
+                {[1, 2].map(i => <div key={i} className="h-10 bg-gray-800 rounded-lg" />)}
+              </div>
+            ) : emailResponses.length === 0 ? (
+              <p className="text-sm text-gray-600 text-center py-3">
+                No emails linked to this application yet.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {emailResponses.map(er => {
+                  const clsMap: Record<string, string> = {
+                    INTERVIEW_INVITE: 'bg-green-100 text-green-700',
+                    OFFER:            'bg-emerald-100 text-emerald-700',
+                    TECHNICAL_TEST:   'bg-blue-100 text-blue-700',
+                    REJECTION:        'bg-red-100 text-red-600',
+                    FOLLOW_UP_NEEDED: 'bg-yellow-100 text-yellow-700',
+                    GENERAL_RESPONSE: 'bg-gray-100 text-gray-600',
+                    UNKNOWN:          'bg-gray-200 text-gray-500',
+                  };
+                  const badgeCls = clsMap[er.ai_classification] ?? clsMap['UNKNOWN'];
+                  const label    = er.ai_classification.replace(/_/g, ' ');
+                  return (
+                    <div key={er.id}
+                      className="flex items-start justify-between gap-3 p-3 rounded-lg
+                        bg-gray-800/50 border border-gray-700/50">
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-gray-200 truncate">
+                          {er.subject || '(no subject)'}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {er.sender_name ? `${er.sender_name} · ` : ''}{er.sender_email}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className={`text-xs px-2 py-0.5 rounded-md font-medium ${badgeCls}`}>
+                          {label}
+                        </span>
+                        {er.confidence_score != null && (
+                          <span className="text-xs text-gray-500 font-mono">
+                            {Math.round(er.confidence_score * 100)}%
+                          </span>
+                        )}
+                        <span className="text-xs text-gray-600">
+                          {er.received_at ? timeAgo(er.received_at) : ''}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+                <Link
+                  href="/dashboard/email-tracking"
+                  className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors mt-1 text-right"
+                >
+                  View all in Email Tracking →
+                </Link>
+              </div>
+            )}
           </Section>
 
           {/* Section 6: Notes */}
