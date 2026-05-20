@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTheme } from './ThemeProvider';
 
 const links = [
@@ -44,8 +44,20 @@ function AdminIcon() {
 }
 
 export default function Navbar() {
-  const [open, setOpen] = useState(false);
-  const { theme, toggle } = useTheme();
+  const [open, setOpen]           = useState(false);
+  const [resumeOpen, setResumeOpen] = useState(false);
+  const resumeRef                 = useRef<HTMLDivElement>(null);
+  const { theme, toggle }         = useTheme();
+
+  useEffect(() => {
+    function handleOutside(e: MouseEvent) {
+      if (resumeRef.current && !resumeRef.current.contains(e.target as Node)) {
+        setResumeOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, []);
 
   return (
     <header className="fixed top-0 inset-x-0 z-50"
@@ -127,9 +139,43 @@ export default function Navbar() {
             {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
           </button>
 
-          <a href="/api/profile/resume" className="btn-primary text-sm py-2 px-4">
-            Resume ↓
-          </a>
+          {/* Resume dropdown */}
+          <div className="relative" ref={resumeRef}>
+            <button
+              onClick={() => setResumeOpen(o => !o)}
+              className="btn-primary text-sm py-2 px-4"
+              aria-haspopup="true"
+              aria-expanded={resumeOpen}>
+              Resume ↓
+            </button>
+            {resumeOpen && (
+              <div
+                className="absolute right-0 z-50 mt-1 overflow-hidden rounded-lg shadow-xl"
+                style={{ border: '1px solid rgba(255,255,255,0.1)', background: '#111827', minWidth: '160px' }}>
+                <a
+                  href="/api/profile/resume?lang=en"
+                  className="flex items-center gap-2 px-4 py-3 text-sm font-medium"
+                  style={{ color: '#e5e7eb' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  onClick={() => setResumeOpen(false)}>
+                  <span className="text-xs font-bold tracking-wider text-indigo-400">EN</span>
+                  CV (English)
+                </a>
+                <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)' }} />
+                <a
+                  href="/api/profile/resume?lang=fr"
+                  className="flex items-center gap-2 px-4 py-3 text-sm font-medium"
+                  style={{ color: '#e5e7eb' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  onClick={() => setResumeOpen(false)}>
+                  <span className="text-xs font-bold tracking-wider text-indigo-400">FR</span>
+                  CV (Français)
+                </a>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Mobile: toggle + hamburger */}
@@ -163,8 +209,13 @@ export default function Navbar() {
               {l.label}
             </Link>
           ))}
-          <div className="pt-2 flex items-center gap-2">
-            <a href="/api/profile/resume" className="btn-primary inline-flex text-sm">Resume ↓</a>
+          <div className="pt-2 flex items-center gap-2 flex-wrap">
+            <a href="/api/profile/resume?lang=en" className="btn-primary inline-flex text-sm items-center gap-1.5">
+              <span className="text-xs font-bold tracking-wider opacity-75">EN</span> Resume ↓
+            </a>
+            <a href="/api/profile/resume?lang=fr" className="btn-outline inline-flex text-sm items-center gap-1.5">
+              <span className="text-xs font-bold tracking-wider opacity-75">FR</span> Resume ↓
+            </a>
             <a
               href="https://admin.johnisah.com"
               target="_blank"

@@ -19,9 +19,11 @@ dist/
 
 JOB_*
 DEPLOY_*
+AGENTS.md
 
 job-logs.md
 cv/*
+prompts/*
 
 # OS
 .DS_Store

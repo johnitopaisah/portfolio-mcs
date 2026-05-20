@@ -123,6 +123,67 @@ export const adminApi = {
     request('/api/admin/jobs/sources-status'),
   jobFeedback: (id: string, action: string) =>
     request(`/api/jobs/${id}/feedback`, { method: 'POST', body: JSON.stringify({ action }) }),
+  createApplication: (jobId: string) =>
+    request('/api/applications', { method: 'POST', body: JSON.stringify({ job_id: jobId }) }),
+  getApplications: (params: Record<string, string> = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/api/applications${qs ? `?${qs}` : ''}`);
+  },
+  archiveApplication: (id: number) =>
+    request(`/api/applications/${id}`, { method: 'DELETE' }),
+  getApplication: (id: number | string) =>
+    request(`/api/applications/${id}`),
+  patchApplicationStatus: (id: number | string, status: string, description?: string) =>
+    request(`/api/applications/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, description }),
+    }),
+  addNote: (id: number | string, note: string) =>
+    request(`/api/applications/${id}/notes`, {
+      method: 'POST',
+      body: JSON.stringify({ note }),
+    }),
+  generateCv: (id: number | string, body: { force: boolean; language: string }) =>
+    request(`/api/applications/${id}/generate-cv`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  downloadCvDocument: async (appId: number | string, docId: number, filename: string): Promise<void> => {
+    const token = getToken();
+    const res = await fetch(
+      `${getApiBase()}/api/applications/${appId}/documents/${docId}/download`,
+      { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+  getCvLibrary: (type?: string) => {
+    const qs = type ? `?type=${encodeURIComponent(type)}` : '';
+    return request(`/api/applications/cv-library${qs}`);
+  },
+
+  // Email tracking
+  getEmailResponses: (page = 1, limit = 50) =>
+    request(`/api/applications/email-responses?page=${page}&limit=${limit}`),
+  linkEmailResponse: (id: number, application_id: number) =>
+    request(`/api/applications/email-responses/${id}/link`, {
+      method: 'PATCH',
+      body: JSON.stringify({ application_id }),
+    }),
+  reclassifyEmailResponse: (id: number, classification: string) =>
+    request(`/api/applications/email-responses/${id}/reclassify`, {
+      method: 'PATCH',
+      body: JSON.stringify({ classification }),
+    }),
+  getJob: (id: string) => request(`/api/jobs/${id}`),
 
   // Messages
   getMessages: () => request('/api/contact'),

@@ -2,15 +2,20 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package*.json ./
+# Skip Puppeteer's bundled Chrome — we use system Chromium in the runner stage
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 RUN npm install --omit=dev
 
 # ── Stage 2: runtime ────────────────────────────────────────
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+# Tell Puppeteer to use system Chromium rather than its own download
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
-# pg_dump is needed by the job worker's backup step
-RUN apk add --no-cache postgresql-client
+# pg_dump (job worker backup) + Chromium (PDF generation)
+RUN apk add --no-cache postgresql-client chromium nss freetype harfbuzz ca-certificates ttf-freefont
 
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S -u 1001 -G nodejs -h /home/nodeapp nodeapp && \
@@ -19,6 +24,7 @@ RUN addgroup -g 1001 -S nodejs && \
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY src ./src
+COPY scripts ./scripts
 COPY package.json ./
 
 USER nodeapp

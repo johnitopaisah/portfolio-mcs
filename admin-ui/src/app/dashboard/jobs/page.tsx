@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { adminApi } from '@/lib/api';
@@ -236,13 +237,15 @@ function SourceRow({ s }: { s: SourceStatus }) {
 
 // ── Job card (list item) ─────────────────────────────────────
 function JobCard({
-  job, selected, actionLoading, onSelect, onAction,
+  job, selected, actionLoading, creatingAppForJobId, onSelect, onAction, onCreateApplication,
 }: {
   job: Job;
   selected: boolean;
   actionLoading: string | null;
+  creatingAppForJobId: string | null;
   onSelect: () => void;
   onAction: (id: string, action: string) => void;
+  onCreateApplication: (id: string) => void;
 }) {
   const sal = formatSalary(job);
   const busy = (a: string) => actionLoading === job.id + a;
@@ -289,26 +292,37 @@ function JobCard({
           {job.visa_sponsored && <span className="text-blue-400">· Visa ✓</span>}
         </div>
 
-        {/* Quick actions — only show if no user decision yet */}
-        {!job.user_decision && (
-          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
-            onClick={e => e.stopPropagation()}>
-            <ActionBtn
-              label="♥" title="Save" color="text-yellow-400 hover:bg-yellow-900/40"
-              loading={busy('saved')} onClick={() => onAction(job.id, 'saved')}
-            />
-            <ActionBtn
-              label="✕" title="Skip" color="text-red-400 hover:bg-red-900/40"
-              loading={busy('skipped')} onClick={() => onAction(job.id, 'skipped')}
-            />
-          </div>
-        )}
+        {/* Quick actions */}
+        <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+          {(job.ai_decision === 'KEEP' || job.ai_decision === 'REVIEW') && job.relevance_score >= 60 && (
+            <button
+              onClick={() => onCreateApplication(job.id)}
+              disabled={creatingAppForJobId === job.id}
+              className="px-3 py-1 text-sm bg-green-600 hover:bg-green-700 text-white rounded disabled:opacity-50 opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              {creatingAppForJobId === job.id ? 'Creating…' : 'Create Application'}
+            </button>
+          )}
 
-        {job.user_decision && (
-          <span className="text-xs px-2 py-0.5 rounded bg-gray-800 text-gray-500">
-            {job.user_decision}
-          </span>
-        )}
+          {!job.user_decision && (
+            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <ActionBtn
+                label="♥" title="Save" color="text-yellow-400 hover:bg-yellow-900/40"
+                loading={busy('saved')} onClick={() => onAction(job.id, 'saved')}
+              />
+              <ActionBtn
+                label="✕" title="Skip" color="text-red-400 hover:bg-red-900/40"
+                loading={busy('skipped')} onClick={() => onAction(job.id, 'skipped')}
+              />
+            </div>
+          )}
+
+          {job.user_decision && (
+            <span className="text-xs px-2 py-0.5 rounded bg-gray-800 text-gray-500">
+              {job.user_decision}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -334,11 +348,13 @@ function ActionBtn({
 
 // ── Job detail panel ─────────────────────────────────────────
 function JobDetail({
-  job, actionLoading, onAction, onClose,
+  job, actionLoading, creatingAppForJobId, onAction, onCreateApplication, onClose,
 }: {
   job: Job;
   actionLoading: string | null;
+  creatingAppForJobId: string | null;
   onAction: (id: string, action: string) => void;
+  onCreateApplication: (id: string) => void;
   onClose?: () => void;
 }) {
   const sal = formatSalary(job);
@@ -443,6 +459,19 @@ function JobDetail({
           Apply Now →
         </a>
 
+        {/* Create Application button — only for KEEP/REVIEW jobs scoring >= 60 */}
+        {(job.ai_decision === 'KEEP' || job.ai_decision === 'REVIEW') && job.relevance_score >= 60 && (
+          <button
+            onClick={() => onCreateApplication(job.id)}
+            disabled={creatingAppForJobId === job.id}
+            className="flex items-center justify-center w-full py-2.5 rounded-lg
+              bg-green-600 hover:bg-green-700 text-white text-sm font-semibold
+              disabled:opacity-50 transition-colors"
+          >
+            {creatingAppForJobId === job.id ? 'Creating…' : '+ Create Application'}
+          </button>
+        )}
+
         {/* Secondary actions */}
         {!job.user_decision && (
           <div className="flex gap-2">
@@ -537,6 +566,7 @@ export default function JobsPage() {
 
 function JobsPageInner() {
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   const [tab,          setTab]          = useState<Tab>(() => (searchParams.get('tab') as Tab) || 'new');
   const [source,       setSource]       = useState(() => searchParams.get('source')      ?? '');
@@ -556,7 +586,8 @@ function JobsPageInner() {
   const [loading,      setLoading]      = useState(true);
   const [loadingMore,  setLoadingMore]  = useState(false);
   const [actionLoad,   setActionLoad]   = useState<string | null>(null);
-  const [mobileDetail, setMobileDetail] = useState(false);
+  const [mobileDetail,         setMobileDetail]         = useState(false);
+  const [creatingAppForJobId,  setCreatingAppForJobId]  = useState<string | null>(null);
 
   const loadProgress = useCallback(async () => {
     try {
@@ -675,6 +706,18 @@ function JobsPageInner() {
       setActionLoad(null);
     }
   }, [tab, selected, loadJobs, loadProgress]);
+
+  const handleCreateApplication = async (jobId: string) => {
+    setCreatingAppForJobId(jobId);
+    try {
+      const data = await adminApi.createApplication(jobId);
+      router.push(`/dashboard/applications/${data.id}`);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setCreatingAppForJobId(null);
+    }
+  };
 
   // Initial load
   useEffect(() => {
@@ -877,8 +920,10 @@ function JobsPageInner() {
                   job={job}
                   selected={selected?.id === job.id}
                   actionLoading={actionLoad}
+                  creatingAppForJobId={creatingAppForJobId}
                   onSelect={() => handleSelectJob(job)}
                   onAction={handleAction}
+                  onCreateApplication={handleCreateApplication}
                 />
               ))}
 
@@ -908,7 +953,9 @@ function JobsPageInner() {
             <JobDetail
               job={selected}
               actionLoading={actionLoad}
+              creatingAppForJobId={creatingAppForJobId}
               onAction={handleAction}
+              onCreateApplication={handleCreateApplication}
               onClose={mobileDetail ? () => setMobileDetail(false) : undefined}
             />
           ) : (
