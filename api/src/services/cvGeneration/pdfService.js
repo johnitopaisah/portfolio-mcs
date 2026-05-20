@@ -37,8 +37,30 @@ async function generate({ applicationId, version, aiOutput, language = 'en' }) {
     .replaceAll('{{CERTIFICATIONS}}', certHtml);
 
   // 3. Generate PDF with Puppeteer — return raw buffer, do not upload anywhere
-  const browser   = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
-  const page      = await browser.newPage();
+  //
+  // Container-safe Chromium flags:
+  //   --no-sandbox / --disable-setuid-sandbox  : required when running as non-root
+  //   --disable-dev-shm-usage                  : K8s limits /dev/shm to 64 MB by default;
+  //                                              this makes Chrome use /tmp instead
+  //   --disable-crash-reporter                 : stops crashpad handler from spawning
+  //                                              (crashes with "--database required" in
+  //                                              read-only container environments)
+  //   --no-zygote / --no-first-run             : skip process setup not needed in headless mode
+  //   --disable-gpu                            : no GPU available in containers
+  const browser = await puppeteer.launch({
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser',
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-crash-reporter',
+      '--disable-gpu',
+      '--no-zygote',
+      '--no-first-run',
+      '--headless',
+    ],
+  });
+  const page = await browser.newPage();
   await page.setContent(html, { waitUntil: 'networkidle0' });
   const pdfBuffer = await page.pdf({
     format:          'A4',
