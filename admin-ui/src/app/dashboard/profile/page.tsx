@@ -3,14 +3,17 @@ import { useEffect, useRef, useState } from 'react';
 import { adminApi } from '@/lib/api';
 
 export default function ProfilePage() {
-  const [loading, setLoading]     = useState(true);
-  const [saving, setSaving]       = useState(false);
-  const [success, setSuccess]     = useState(false);
-  const [hasAvatar, setHasAvatar] = useState(false);
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [resumeFile, setResumeFile] = useState<File | null>(null);
-  const [heroTags, setHeroTags]   = useState<string[]>([]);
-  const [tagInput, setTagInput]   = useState('');
+  const [loading, setLoading]       = useState(true);
+  const [saving, setSaving]         = useState(false);
+  const [success, setSuccess]       = useState(false);
+  const [hasAvatar, setHasAvatar]   = useState(false);
+  const [hasResumeEn, setHasResumeEn] = useState(false);
+  const [hasResumeFr, setHasResumeFr] = useState(false);
+  const [avatarFile, setAvatarFile]   = useState<File | null>(null);
+  const [resumeEnFile, setResumeEnFile] = useState<File | null>(null);
+  const [resumeFrFile, setResumefrFile] = useState<File | null>(null);
+  const [heroTags, setHeroTags]     = useState<string[]>([]);
+  const [tagInput, setTagInput]     = useState('');
   const tagInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
@@ -29,6 +32,8 @@ export default function ProfilePage() {
         linkedin_url: p.linkedin_url || '',
       });
       setHasAvatar(p.has_avatar);
+      setHasResumeEn(p.has_resume_en ?? false);
+      setHasResumeFr(p.has_resume_fr ?? false);
       setHeroTags(Array.isArray(p.hero_tags) ? p.hero_tags : []);
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
@@ -68,9 +73,12 @@ export default function ProfilePage() {
       Object.entries(form).forEach(([k, v]) => fd.append(k, v));
       // Send hero_tags as a JSON string so the API can parse it as TEXT[]
       fd.append('hero_tags', JSON.stringify(heroTags));
-      if (avatarFile) fd.append('avatar', avatarFile);
-      if (resumeFile) fd.append('resume', resumeFile);
-      await adminApi.updateProfile(fd);
+      if (avatarFile)   fd.append('avatar',    avatarFile);
+      if (resumeEnFile) fd.append('resume_en', resumeEnFile);
+      if (resumeFrFile) fd.append('resume_fr', resumeFrFile);
+      const saved = await adminApi.updateProfile(fd);
+      setHasResumeEn(saved?.has_resume_en ?? hasResumeEn);
+      setHasResumeFr(saved?.has_resume_fr ?? hasResumeFr);
       setSuccess(true);
     } catch (err: any) {
       alert(err.message);
@@ -167,13 +175,36 @@ export default function ProfilePage() {
           </p>
         </div>
 
-        {/* Resume */}
+        {/* CV — English */}
         <div>
-          <label className="label">Resume / CV (PDF)</label>
+          <label className="label">CV — English (PDF)</label>
+          <div className="flex items-center gap-3 mb-1.5">
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${hasResumeEn ? 'bg-green-500/15 text-green-400 border border-green-500/30' : 'bg-gray-700 text-gray-500'}`}>
+              {hasResumeEn ? 'Uploaded' : 'Not uploaded — will auto-generate from base CV'}
+            </span>
+          </div>
           <input type="file" accept=".pdf" className="input py-1.5"
-            onChange={e => setResumeFile(e.target.files?.[0] ?? null)} />
-          <p className="text-gray-600 text-xs mt-1">Leave empty to keep existing resume</p>
+            onChange={e => setResumeEnFile(e.target.files?.[0] ?? null)} />
+          <p className="text-gray-600 text-xs mt-1">
+            Upload a hand-crafted English CV. If omitted, the public endpoint generates one from the active base CV record.
+          </p>
         </div>
+
+        {/* CV — French */}
+        <div>
+          <label className="label">CV — Français (PDF)</label>
+          <div className="flex items-center gap-3 mb-1.5">
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${hasResumeFr ? 'bg-green-500/15 text-green-400 border border-green-500/30' : 'bg-gray-700 text-gray-500'}`}>
+              {hasResumeFr ? 'Uploaded' : 'Not uploaded — will auto-generate from base CV'}
+            </span>
+          </div>
+          <input type="file" accept=".pdf" className="input py-1.5"
+            onChange={e => setResumefrFile(e.target.files?.[0] ?? null)} />
+          <p className="text-gray-600 text-xs mt-1">
+            Upload a hand-crafted French CV. If omitted, the public endpoint generates one from the active base CV record.
+          </p>
+        </div>
+
 
         {success && <p className="text-green-400 text-sm">✓ Profile saved successfully</p>}
 

@@ -419,10 +419,28 @@ async function sendNewJobAlerts() {
   return sendDailyJobDigest();
 }
 
+// ── Generic notification (used by followUpWorker and other workers) ──
+// Thin wrapper over the existing singleton transport — no duplicate SMTP setup.
+async function sendNotification({ subject, html }) {
+  if (!process.env.NOTIFY_EMAIL_USER || !process.env.NOTIFY_EMAIL_PASS) {
+    console.warn('[notify] Email env vars not set — skipping notification');
+    return;
+  }
+  await getTransport().sendMail({
+    from:    `"Portfolio Notifications" <${process.env.NOTIFY_EMAIL_USER}>`,
+    to:      process.env.NOTIFY_EMAIL_TO || process.env.NOTIFY_EMAIL_USER,
+    subject,
+    html,
+    text: html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim(),
+  });
+  console.log(`[notify] Notification sent — subject: ${subject}`);
+}
+
 module.exports = {
   startDailyJobDigest,
   sendDailyJobDigest,
   sendWorkerRunDigest,
   sendNewJobAlerts,
   getAlertStats,
+  sendNotification,
 };

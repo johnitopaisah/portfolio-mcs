@@ -1,4 +1,5 @@
 import { api } from '@/lib/api';
+import CvDownloadButton from './CvDownloadButton';
 
 interface Profile {
   name: string; headline: string; bio: string;
@@ -92,7 +93,7 @@ export default function HeroSection({ profile }: { profile: Profile | null }) {
 
             <div className="flex flex-wrap gap-3">
               <a href="#projects" className="btn-primary">View Projects →</a>
-              <a href="/api/profile/resume" className="btn-outline">Download CV ↓</a>
+              <CvDownloadButton />
               {profile?.github_url && (
                 <a href={profile.github_url} target="_blank" rel="noopener noreferrer" className="btn-outline">
                   GitHub ↗

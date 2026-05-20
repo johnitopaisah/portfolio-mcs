@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CV — {{NAME}}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 11pt;
+      color: #1a1a1a;
+      background: #ffffff;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 24px 32px;
+      line-height: 1.5;
+    }
+
+    /* ── Header ── */
+    .cv-header {
+      margin-bottom: 20px;
+      border-bottom: 2px solid #1a1a1a;
+      padding-bottom: 14px;
+    }
+    .cv-header h1 {
+      font-size: 20pt;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    .cv-header .headline {
+      font-size: 12pt;
+      color: #333333;
+      margin-bottom: 8px;
+    }
+    .cv-header .contacts {
+      font-size: 9.5pt;
+      color: #444444;
+    }
+    .cv-header .contacts a {
+      color: #222222;
+      text-decoration: none;
+    }
+    .cv-header .contacts span {
+      margin: 0 6px;
+      color: #888888;
+    }
+
+    /* ── Sections ── */
+    .section {
+      margin-bottom: 18px;
+    }
+    .section-title {
+      font-size: 9pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: #111111;
+      border-bottom: 1px solid #1a1a1a;
+      padding-bottom: 3px;
+      margin-bottom: 10px;
+    }
+
+    /* ── Summary ── */
+    .summary-text {
+      font-size: 10.5pt;
+      color: #222222;
+      line-height: 1.6;
+    }
+
+    /* ── Skills ── */
+    .skills-text {
+      font-size: 10.5pt;
+      color: #222222;
+      line-height: 1.6;
+    }
+
+    /* ── Experience ── */
+    .exp-entry {
+      margin-bottom: 14px;
+    }
+    .exp-entry:last-child {
+      margin-bottom: 0;
+    }
+    .exp-header {
+      font-size: 11pt;
+      color: #111111;
+      margin-bottom: 4px;
+    }
+    .exp-header strong {
+      font-weight: 700;
+    }
+    .exp-header em {
+      font-style: italic;
+      color: #333333;
+    }
+    .exp-entry ul {
+      margin: 4px 0 0 18px;
+      padding: 0;
+    }
+    .exp-entry ul li {
+      font-size: 10.5pt;
+      color: #222222;
+      margin-bottom: 3px;
+      line-height: 1.5;
+    }
+
+    /* ── Certifications ── */
+    .cert-list {
+      margin: 0 0 0 18px;
+      padding: 0;
+    }
+    .cert-list li {
+      font-size: 10.5pt;
+      color: #222222;
+      margin-bottom: 3px;
+      line-height: 1.5;
+    }
+
+    /* ── Print optimisation ── */
+    @media print {
+      body { padding: 0; }
+      a { color: #222222 !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="cv-header">
+    <h1>{{NAME}}</h1>
+    <div class="headline">{{HEADLINE}}</div>
+    <div class="contacts">
+      <a href="mailto:{{EMAIL}}">{{EMAIL}}</a>
+      <span>|</span>
+      <a href="{{GITHUB_URL}}" target="_blank">{{GITHUB_URL}}</a>
+      <span>|</span>
+      <a href="{{LINKEDIN_URL}}" target="_blank">{{LINKEDIN_URL}}</a>
+    </div>
+  </div>
+
+  <!-- Professional Summary -->
+  <div class="section">
+    <div class="section-title">Professional Summary</div>
+    <p class="summary-text">{{SUMMARY}}</p>
+  </div>
+
+  <!-- Skills -->
+  <div class="section">
+    <div class="section-title">Skills</div>
+    <p class="skills-text">{{SKILLS}}</p>
+  </div>
+
+  <!-- Experience -->
+  <div class="section">
+    <div class="section-title">Experience</div>
+    {{EXPERIENCE}}
+  </div>
+
+  <!-- Certifications -->
+  <div class="section">
+    <div class="section-title">Certifications</div>
+    <ul class="cert-list">
+      {{CERTIFICATIONS}}
+    </ul>
+  </div>
+
+</body>
+</html>

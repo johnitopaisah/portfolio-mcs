@@ -3,10 +3,13 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   IconGrid, IconFolder, IconZap, IconBriefcase, IconAward,
-  IconMessage, IconUser, IconCpu, IconLayers, IconLogOut,
+  IconMessage, IconUser, IconCpu, IconLayers, IconClipboard, IconBookOpen, IconMail, IconLogOut,
 } from './Icons';
 
-const nav = [
+type NavChild = { href: string; label: string; Icon: React.ComponentType<React.SVGProps<SVGSVGElement>> };
+type NavItem  = NavChild & { children?: NavChild[] };
+
+const nav: NavItem[] = [
   { href: '/dashboard',                label: 'Dashboard',      Icon: IconGrid      },
   { href: '/dashboard/projects',       label: 'Projects',       Icon: IconFolder    },
   { href: '/dashboard/skills',         label: 'Skills',         Icon: IconZap       },
@@ -16,6 +19,15 @@ const nav = [
   { href: '/dashboard/profile',        label: 'Profile',        Icon: IconUser      },
   { href: '/dashboard/ai',             label: 'AI Engine',      Icon: IconCpu       },
   { href: '/dashboard/jobs',           label: 'Job Pipeline',   Icon: IconLayers    },
+  {
+    href:  '/dashboard/applications',
+    label: 'Applications',
+    Icon:  IconClipboard,
+    children: [
+      { href: '/dashboard/cv-library',     label: 'CV Library',     Icon: IconBookOpen },
+      { href: '/dashboard/email-tracking', label: 'Email Tracking', Icon: IconMail     },
+    ],
+  },
 ];
 
 interface SidebarProps { open: boolean; onClose: () => void; }
@@ -27,6 +39,10 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   function logout() {
     localStorage.removeItem('admin_token');
     router.push('/login');
+  }
+
+  function isActive(href: string) {
+    return pathname === href || (href !== '/dashboard' && pathname.startsWith(href));
   }
 
   const content = (
@@ -54,28 +70,88 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 py-3 px-3 space-y-0.5 overflow-y-auto">
-        {nav.map(({ href, label, Icon }) => {
-          const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href));
+      <nav className="flex-1 py-3 px-3 overflow-y-auto" style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+        {nav.map(({ href, label, Icon, children }) => {
+          const active       = isActive(href);
+          const childActive  = children?.some(c => isActive(c.href)) ?? false;
+
           return (
-            <Link
-              key={href}
-              href={href}
-              onClick={onClose}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 group"
-              style={active ? {
-                background: 'linear-gradient(135deg, rgba(124,58,237,0.75), rgba(79,70,229,0.75))',
-                color: '#fff',
-                boxShadow: '0 3px 10px rgba(79,70,229,0.3)',
-              } : {
-                color: '#475569',
-              }}
-              onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)'; (e.currentTarget as HTMLElement).style.color = '#94a3b8'; } }}
-              onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#475569'; } }}
-            >
-              <Icon width={17} height={17} className="shrink-0" />
-              <span className="truncate">{label}</span>
-            </Link>
+            <div key={href}>
+              {/* Parent link */}
+              <Link
+                href={href}
+                onClick={onClose}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150"
+                style={active ? {
+                  background: 'linear-gradient(135deg, rgba(124,58,237,0.75), rgba(79,70,229,0.75))',
+                  color: '#fff',
+                  boxShadow: '0 3px 10px rgba(79,70,229,0.3)',
+                } : childActive ? {
+                  background: 'rgba(124,58,237,0.08)',
+                  color: '#94a3b8',
+                } : {
+                  color: '#475569',
+                }}
+                onMouseEnter={e => {
+                  if (!active) {
+                    (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)';
+                    (e.currentTarget as HTMLElement).style.color = '#94a3b8';
+                  }
+                }}
+                onMouseLeave={e => {
+                  if (!active && !childActive) {
+                    (e.currentTarget as HTMLElement).style.background = 'transparent';
+                    (e.currentTarget as HTMLElement).style.color = '#475569';
+                  } else if (!active && childActive) {
+                    (e.currentTarget as HTMLElement).style.background = 'rgba(124,58,237,0.08)';
+                    (e.currentTarget as HTMLElement).style.color = '#94a3b8';
+                  }
+                }}
+              >
+                <Icon width={17} height={17} className="shrink-0" />
+                <span className="truncate">{label}</span>
+              </Link>
+
+              {/* Children — always visible when parent is in nav */}
+              {children && (
+                <div className="ml-3 mt-0.5 mb-0.5 pl-4 flex flex-col gap-0.5"
+                  style={{ borderLeft: '1px solid rgba(255,255,255,0.06)' }}>
+                  {children.map(child => {
+                    const childIsActive = isActive(child.href);
+                    return (
+                      <Link
+                        key={child.href}
+                        href={child.href}
+                        onClick={onClose}
+                        className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-all duration-150"
+                        style={childIsActive ? {
+                          background: 'linear-gradient(135deg, rgba(124,58,237,0.75), rgba(79,70,229,0.75))',
+                          color: '#fff',
+                          boxShadow: '0 2px 8px rgba(79,70,229,0.25)',
+                        } : {
+                          color: '#475569',
+                        }}
+                        onMouseEnter={e => {
+                          if (!childIsActive) {
+                            (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)';
+                            (e.currentTarget as HTMLElement).style.color = '#94a3b8';
+                          }
+                        }}
+                        onMouseLeave={e => {
+                          if (!childIsActive) {
+                            (e.currentTarget as HTMLElement).style.background = 'transparent';
+                            (e.currentTarget as HTMLElement).style.color = '#475569';
+                          }
+                        }}
+                      >
+                        <child.Icon width={14} height={14} className="shrink-0" />
+                        <span className="truncate">{child.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           );
         })}
       </nav>
@@ -86,8 +162,14 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           onClick={logout}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150"
           style={{ color: '#475569' }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#f87171'; (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.08)'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#475569'; (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+          onMouseEnter={e => {
+            (e.currentTarget as HTMLElement).style.color = '#f87171';
+            (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.08)';
+          }}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLElement).style.color = '#475569';
+            (e.currentTarget as HTMLElement).style.background = 'transparent';
+          }}
         >
           <IconLogOut width={17} height={17} className="shrink-0" />
           Sign out
