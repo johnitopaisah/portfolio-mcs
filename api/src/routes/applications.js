@@ -48,17 +48,37 @@ router.get('/cv-library', requireAuth, async (req, res) => {
 // Must be before /:id to avoid Express treating 'email-responses' as an id.
 router.get('/email-responses', requireAuth, async (req, res) => {
   try {
-    const { page = 1, limit = 50 } = req.query;
+    const { page = 1, limit = 50, application_id } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
+
+    const conditions = [];
+    const params     = [];
+
+    if (application_id) {
+      params.push(parseInt(application_id));
+      conditions.push(`er.application_id = $${params.length}`);
+    }
+
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    params.push(parseInt(limit), offset);
     const result = await pool.query(
       `SELECT er.*, a.company_name, a.job_title
        FROM email_responses er
        LEFT JOIN applications a ON er.application_id = a.id
+       ${where}
        ORDER BY er.received_at DESC
-       LIMIT $1 OFFSET $2`,
-      [parseInt(limit), offset]
+       LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params
     );
-    const countRes = await pool.query('SELECT COUNT(*) FROM email_responses');
+
+    const countParams = application_id ? [parseInt(application_id)] : [];
+    const countWhere  = application_id ? 'WHERE application_id = $1' : '';
+    const countRes = await pool.query(
+      `SELECT COUNT(*) FROM email_responses ${countWhere}`,
+      countParams
+    );
+
     res.json({
       emails: result.rows,
       total:  parseInt(countRes.rows[0].count),

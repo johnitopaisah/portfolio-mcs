@@ -173,6 +173,8 @@ export const adminApi = {
   // Email tracking
   getEmailResponses: (page = 1, limit = 50) =>
     request(`/api/applications/email-responses?page=${page}&limit=${limit}`),
+  getAppEmailResponses: (applicationId: number | string) =>
+    request(`/api/applications/email-responses?application_id=${applicationId}&limit=20`),
   linkEmailResponse: (id: number, application_id: number) =>
     request(`/api/applications/email-responses/${id}/link`, {
       method: 'PATCH',
