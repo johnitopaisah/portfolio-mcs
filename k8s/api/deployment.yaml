@@ -80,6 +80,13 @@ spec:
             runAsNonRoot: true
             runAsUser: 1001
 
+          volumeMounts:
+            # Puppeteer/Chromium writes temp Chrome profiles here.
+            # emptyDir keeps readOnlyRootFilesystem: true intact on
+            # the rest of the filesystem while giving /tmp a writable surface.
+            - name: tmp
+              mountPath: /tmp
+
           envFrom:
             - configMapRef:
                 name: portfolio-config-api
@@ -118,3 +125,7 @@ spec:
             preStop:
               exec:
                 command: ["/bin/sh", "-c", "sleep 10"]
+
+      volumes:
+        - name: tmp
+          emptyDir: {}
