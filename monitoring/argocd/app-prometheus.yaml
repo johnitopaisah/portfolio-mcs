@@ -41,3 +41,11 @@ spec:
       name: prometheus
       jsonPointers:
         - /spec/replicas   # future-safe if HPA is added later
+    - group: ""
+      kind: PersistentVolumeClaim
+      name: prometheus-pvc
+      jsonPointers:
+        - /spec/storageClassName   # immutable after creation
+        - /spec/accessModes        # immutable after creation
+        - /spec/resources          # resize forbidden unless storage class supports it
+        - /spec/volumeMode         # immutable after creation
