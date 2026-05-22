@@ -14,8 +14,9 @@ ENV NODE_ENV=production
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
-# pg_dump (job worker backup) + Chromium (PDF generation)
-RUN apk add --no-cache postgresql-client chromium nss freetype harfbuzz ca-certificates ttf-freefont
+# Upgrade all packages first to pick up security patches, then install deps
+RUN apk upgrade --no-cache && \
+    apk add --no-cache postgresql-client chromium nss freetype harfbuzz ca-certificates ttf-freefont
 
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S -u 1001 -G nodejs -h /home/nodeapp nodeapp && \
