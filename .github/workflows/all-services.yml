@@ -32,8 +32,9 @@ on:
         type: string
 
 permissions:
-  contents: write   # create releases + git tags
-  packages: write   # push images to GHCR
+  contents: write          # create releases + git tags
+  packages: write          # push images to GHCR
+  security-events: write   # allow child workflows to upload Trivy SARIF
 
 jobs:
 
