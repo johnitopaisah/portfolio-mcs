@@ -4,7 +4,10 @@ metadata:
   name: alertmanager-config
   namespace: monitoring
   labels:
-    app: alertmanager
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/component: alerting
+    app.kubernetes.io/managed-by: argocd
 data:
   alertmanager.yml: |
     global:

@@ -1,278 +1,344 @@
-ubuntu@instance-20260323-1248:~$ k -n portfolio top pod 
-NAME                                  CPU(cores)   MEMORY(bytes)   
-portfolio-admin-ui-5f78c4b5b6-bgt5g   2m           43Mi            
-portfolio-api-77df4cdf8c-dfphq        8m           33Mi            
-portfolio-api-77df4cdf8c-lmknx        10m          34Mi            
-portfolio-db-0                        9m           39Mi            
-portfolio-user-ui-76dd994bc8-2jqmn    28m          78Mi            
-portfolio-user-ui-76dd994bc8-9dpt4    25m          85Mi            
-ubuntu@instance-20260323-1248:~$
-
+![Architecture Diagram](portfolio-mcs-banner.svg)
 
 # Portfolio MCS
 
-A modern, microservices-based portfolio management system built with Next.js, Node.js, and PostgreSQL. Features a public portfolio website and a private admin CMS for content management.
+A production-grade, microservices-based portfolio platform built with Next.js, Node.js, and PostgreSQL. Features a public portfolio website, a private admin CMS, an AI-powered job intelligence system, an application CRM, automated CV generation, and a full observability stack — all deployed on Kubernetes via ArgoCD GitOps.
 
-## 🏗️ Architecture
+| Service | URL |
+|---|---|
+| Public portfolio | https://johnisah.com |
+| Admin dashboard | https://admin.johnisah.com |
+| REST API | https://api.johnisah.com |
+| API docs (Swagger) | https://api.johnisah.com/api/docs |
+| Grafana | https://grafana.johnisah.com |
 
-| Service | Technology | Purpose | Port | Domain |
-|---------|------------|---------|------|--------|
-| **user-ui** | Next.js 14 + React 18 + TypeScript | Public portfolio website | 3000 | https://johnisah.com |
-| **admin-ui** | Next.js 14 + React 18 + TypeScript | Private CMS dashboard | 3001 | https://admin.johnisah.com |
-| **api** | Node.js + Express.js | REST API with authentication | 4000 | https://api.johnisah.com |
-| **db** | PostgreSQL 16 | Database with file storage | 5432 | Internal only |
+---
 
-### Tech Stack
+## Architecture
 
-**Frontend:**
-- Next.js 14 (App Router)
-- React 18 with TypeScript
-- Tailwind CSS for styling
-- Server-side rendering with revalidation
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Kubernetes cluster (portfolio namespace)                        │
+│                                                                  │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
+│  │  user-ui     │  │  admin-ui    │  │  api                 │  │
+│  │  Next.js 14  │  │  Next.js 14  │  │  Node.js / Express   │  │
+│  │  port 3000   │  │  port 3001   │  │  port 4000           │  │
+│  └──────┬───────┘  └──────┬───────┘  └──────────┬───────────┘  │
+│         │                 │                       │              │
+│         └─────────────────┴───────────────────────┘             │
+│                                           │                      │
+│                              ┌────────────▼────────────┐        │
+│                              │  db (PostgreSQL 16)     │        │
+│                              │  StatefulSet, 5Gi PVC   │        │
+│                              └─────────────────────────┘        │
+│                                                                  │
+│  CronJobs (jobs namespace area):                                 │
+│    job-ingestion (every 15 min)  │  email-worker (hourly)       │
+│    follow-up-worker (daily)      │  cv-worker (on-demand)       │
+└─────────────────────────────────────────────────────────────────┘
 
-**Backend:**
-- Node.js 20+ with Express.js
-- JWT authentication with bcryptjs
-- PostgreSQL with connection pooling
-- File upload handling with Multer
-- Security middleware (Helmet, CORS, Rate limiting)
+┌─────────────────────────────────────────────────────────────────┐
+│  Kubernetes cluster (monitoring namespace)                       │
+│                                                                  │
+│  Prometheus ─── Grafana (7 dashboards) ─── Alertmanager         │
+│  node-exporter ─── kube-state-metrics ─── postgres-exporter     │
+└─────────────────────────────────────────────────────────────────┘
 
-**Infrastructure:**
-- Docker & Docker Compose for development
-- Kubernetes manifests for production
-- Health checks and service dependencies
+Secrets: Infisical operator → K8s Secrets (no plaintext in git)
+GitOps:  ArgoCD App-of-Apps → watches main branch → auto-syncs
+CI/CD:   GitHub Actions → GHCR (ghcr.io/johnitopaisah/portfolio-mcs/*)
+```
 
-## 📊 Database Schema
+---
 
-The application manages portfolio content across several tables:
+## Services
 
-- **`profile`** - Personal information (single row)
-- **`projects`** - Portfolio projects with tech stack, images, and links
-- **`skills`** - Technical skills with proficiency levels and categories
-- **`experiences`** - Work experience with company details and dates
-- **`certifications`** - Professional certifications with issuers and dates
-- **`contact_messages`** - Messages from the contact form
-- **`admin_user`** - Admin authentication (single user)
+| Service | Technology | Port | Description |
+|---|---|---|---|
+| `user-ui` | Next.js 14 + TypeScript + Tailwind | 3000 | Public portfolio — SSR, SEO optimised |
+| `admin-ui` | Next.js 14 + TypeScript + Tailwind | 3001 | Private CMS — full content management |
+| `api` | Node.js 20 + Express | 4000 | REST API, JWT auth, all business logic |
+| `db` | PostgreSQL 16 | 5432 | Primary datastore (internal only) |
 
-All tables include proper indexing and automatic `updated_at` timestamps.
+---
 
-## 🚀 Quick Start
+## Feature overview
+
+### Public portfolio (`user-ui`)
+
+- Hero, Projects, Skills, Experience, Certifications, Contact sections
+- AI-curated Jobs page (scored by Claude Haiku)
+- Server-side rendered with Next.js revalidation
+- Dynamic OpenGraph image generation
+
+### Admin CMS (`admin-ui`)
+
+- Full CRUD for all portfolio sections (profile, projects, skills, experience, certifications)
+- File uploads: avatar, resume (EN + FR), project images, skill icons
+- Contact message inbox
+- Job intelligence browser + relevance feedback
+- Application CRM (applied → interview → offer / rejected)
+- CV Library — download AI-tailored PDFs in English or French
+- Gmail inbox sync with application status classification
+- AI Engine configuration panel (keywords, scoring weights)
+
+### REST API (`api`)
+
+- JWT authentication with bcrypt
+- Portfolio CRUD routes with file upload (Multer)
+- Swagger UI at `/api/docs`
+- Prometheus metrics at `/metrics`
+- Job ingestion workers (Jooble, RemoteOK, Adzuna)
+- AI scoring via Claude Haiku (`@anthropic-ai/sdk`)
+- CV generation via Puppeteer (HTML → PDF)
+- Gmail OAuth email tracking
+- GeoIP visitor analytics
+- Daily digest emails (08:00 Paris time)
+
+### Monitoring
+
+- **Prometheus** — 30-day time-series retention
+- **Grafana** — 7 dashboards: System Overview, API Performance, Database Health, Infrastructure, Business Metrics, Alerts & SLO, Visitor Analytics
+- **Alertmanager** — email alerts via Zoho SMTP
+- **Exporters** — node-exporter, kube-state-metrics, postgres-exporter
+
+---
+
+## Database schema (key tables)
+
+| Table | Description |
+|---|---|
+| `profile` | Owner profile — name, bio, avatar, resume, social links |
+| `projects` | Portfolio projects with tech stacks, images, publish state |
+| `project_images` | Multi-image gallery per project |
+| `skills` | Skills with category and 1–5 proficiency |
+| `experiences` | Work history with date ranges and tech stacks |
+| `certifications` | Credentials with issuer and credential links |
+| `contact_messages` | Contact form submissions |
+| `admin_user` | Single admin account (bcrypt hash) |
+| `job_listings` | AI-scored jobs from 3 providers |
+| `job_feedback` | Per-job thumbs up/down (improves scoring) |
+| `ai_pattern_config` | Configurable AI scoring keywords and weights |
+| `applications` | Job application CRM (status tracking) |
+| `application_emails` | Gmail threads linked to applications |
+| `visitor_logs` | Anonymised visitor analytics |
+| `notification_log` | Digest dedup tracking |
+
+Full schema in [db/schema.sql](db/schema.sql) — migrations in [db/migrations/](db/migrations/).
+
+---
+
+## Quick start (local development)
 
 ### Prerequisites
+
 - Docker & Docker Compose
-- Node.js 20+ (for local development)
-- Make (optional, for convenience commands)
+- Node.js 20+ (optional, for running services without Docker)
+- Make
 
-### Development Setup
+### Setup
 
-1. **Clone and setup environment:**
-   ```bash
-   git clone <repository-url>
-   cd portfolio-mcs
-   make setup  # Creates .env from .env.example
-   ```
+```bash
+git clone <repository-url>
+cd portfolio-mcs
 
-2. **Configure environment variables:**
-   Edit `api/.env` and set:
-   - `JWT_SECRET` - Generate with: `node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"`
-   - Database credentials (optional, defaults provided)
+# Create .env from template
+make setup
 
-3. **Start all services:**
-   ```bash
-   make up
-   ```
+# Generate bcrypt hash for your admin password
+make hash-password
+# Copy the resulting $2b$12$... hash into ADMIN_PASSWORD_HASH in .env
 
-4. **Access the applications:**
-   - Public portfolio: http://localhost:3000
-   - Admin dashboard: http://localhost:3001
-   - API documentation: http://localhost:4000/api/health
+# Fill in JWT_SECRET (required):
+node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+# Paste the output into JWT_SECRET in .env
 
-### First Admin Login
+# Start all 4 services
+make up
+```
 
-1. The database is seeded with a default admin user:
-   - **Username:** `admin`
-   - **Password:** `admin123` (change this immediately!)
+### Access
 
-2. Login at http://localhost:3001 and update your password
+| Service | URL |
+|---|---|
+| Public portfolio | http://localhost:3000 |
+| Admin dashboard | http://localhost:3001 |
+| API | http://localhost:4000 |
+| Swagger docs | http://localhost:4000/api/docs |
+| Database | localhost:5432 |
 
-3. Use the admin dashboard to populate your portfolio content
+### First login
 
-## 📁 Project Structure
+Navigate to http://localhost:3001 and log in with username `admin` and the password you hashed above.
+
+---
+
+## Project structure
 
 ```
 portfolio-mcs/
-├── docker-compose.yml    # Development orchestration
-├── Makefile             # Convenience commands
-├── api/                 # REST API service
-│   ├── src/
-│   │   ├── index.js     # Express app setup
-│   │   ├── routes/      # API endpoints
-│   │   │   ├── auth.js
-│   │   │   ├── profile.js
-│   │   │   ├── projects.js
-│   │   │   ├── skills.js
-│   │   │   ├── experiences.js
-│   │   │   ├── certifications.js
-│   │   │   └── contact.js
-│   │   ├── middleware/  # Auth, error handling
-│   │   └── db/          # Database client
-│   ├── package.json
-│   └── .env.example
-├── user-ui/             # Public portfolio (Next.js)
-│   ├── src/app/
-│   │   ├── page.tsx     # Homepage with all sections
-│   │   ├── layout.tsx
-│   │   └── components/  # Portfolio sections
-│   ├── package.json
-│   └── next.config.js
-├── admin-ui/            # Admin CMS (Next.js)
-│   ├── src/app/
-│   │   ├── login/       # Authentication
-│   │   ├── dashboard/   # Content management
-│   │   └── layout.tsx
-│   └── package.json
-├── db/                  # PostgreSQL setup
-│   ├── schema.sql       # Database schema
-│   ├── seed.sql         # Initial data
-│   └── Dockerfile
-└── k8s/                 # Kubernetes manifests
-    ├── secrets/         # Secret templates
-    ├── ingress/         # Load balancer config
-    ├── db/
-    ├── api/
-    ├── user-ui/
-    └── admin-ui/
+├── docker-compose.yml          Local development orchestration
+├── Makefile                    Convenience shortcuts (see below)
+├── .env.example                Environment variable template
+├── architecture-diagram.svg
+│
+├── api/                        REST API (Node.js/Express) → api/README.md
+├── user-ui/                    Public portfolio (Next.js) → user-ui/README.md
+├── admin-ui/                   Admin CMS (Next.js) → admin-ui/README.md
+├── db/                         PostgreSQL setup + migrations → db/README.md
+├── scripts/                    Utility scripts → scripts/README.md
+│
+├── k8s/                        Kubernetes manifests → k8s/README.md
+│   ├── argocd/                 ArgoCD Application CRDs (App-of-Apps)
+│   ├── infisical/              Secret sync CRDs
+│   ├── db/ api/ user-ui/ admin-ui/ jobs/ policies/ backup/
+│   └── deploy.sh
+│
+├── monitoring/                 Observability stack → monitoring/README.md
+│   ├── prometheus/
+│   ├── grafana/dashboards/     7 pre-built dashboard ConfigMaps
+│   ├── alertmanager/
+│   ├── exporters/
+│   └── argocd/
+│
+└── .github/workflows/          CI/CD pipelines
+    ├── api.yml                 Build + push api image on tag
+    ├── user-ui.yml             Build + push user-ui image on tag
+    ├── admin-ui.yml            Build + push admin-ui image on tag
+    ├── db.yml                  Build + push db image on tag
+    ├── all-services.yml        Build all images together
+    └── build-and-deploy.yml    Matrix build on push/PR
 ```
 
-## 🔧 Development Commands
+---
 
-The `Makefile` provides convenient shortcuts:
+## Makefile commands
 
 ```bash
-# Setup
-make setup          # Create .env file
-make hash-password  # Generate bcrypt hash for admin password
+# First-time setup
+make setup              # Create .env from .env.example
+make hash-password      # Generate bcrypt hash for admin password
 
-# Services
-make up             # Start all services
-make down           # Stop all services
-make restart        # Restart all services
-make rebuild        # Force rebuild all images
+# Development lifecycle
+make up                 # Build and start all 4 services
+make down               # Stop all services
+make restart            # Stop then start
+make rebuild            # Force rebuild all images
 
-# Individual services
-make up-db          # Database only
-make up-api         # Database + API
-make up-user        # Database + API + User UI
-make up-admin       # Database + API + Admin UI
+# Rebuild individual services
+make rebuild-api
+make rebuild-user
+make rebuild-admin
+make rebuild-db
 
-# Monitoring
-make logs           # Tail all service logs
-make status         # Show container status
+# Partial stack
+make up-db              # Database only
+make up-api             # Database + API
+make up-user            # Database + API + user-ui
+make up-admin           # Database + API + admin-ui
+
+# Observability
+make logs               # Tail all service logs
+make status             # Container status
 
 # Cleanup
-make clean          # Remove all containers, volumes, images
+make clean              # Remove all containers, volumes, and images
 ```
 
-## 🌐 API Endpoints
+---
 
-### Public Endpoints (No Auth Required)
-- `GET /api/health` - Service health check
-- `GET /api/profile` - Portfolio owner's profile
-- `GET /api/projects` - Published projects
-- `GET /api/skills` - Technical skills
-- `GET /api/experiences` - Work experience
-- `GET /api/certifications` - Certifications
-- `POST /api/contact` - Send contact message
+## CI/CD
 
-### Admin Endpoints (JWT Required)
-- `POST /api/auth/login` - Admin authentication
-- `GET/PUT /api/profile` - Manage profile
-- `GET/POST/PUT/DELETE /api/projects` - CRUD projects
-- `GET/POST/PUT/DELETE /api/skills` - CRUD skills
-- `GET/POST/PUT/DELETE /api/experiences` - CRUD experiences
-- `GET/POST/PUT/DELETE /api/certifications` - CRUD certifications
-- `GET/PATCH /api/contact` - View/manage contact messages
+GitHub Actions builds and pushes Docker images to GitHub Container Registry (GHCR) on every push to `main` or `develop`, and on version tags.
 
-### Authentication
-- Send `Authorization: Bearer <jwt-token>` header
-- Tokens expire in 7 days (configurable via `JWT_EXPIRES_IN`)
+### Image tags
 
-## 🎨 Features
+| Event | Tag pattern |
+|---|---|
+| Push to `main` | `latest` |
+| Push to `develop` | `develop` |
+| Tag `v1.2.3` | `1.2.3`, `1.2` |
+| Any push | `sha-<commit>` |
 
-### Public Portfolio
-- **Hero Section** - Name, headline, bio, avatar
-- **Projects** - Featured work with tech stacks, live/repo links
-- **Skills** - Categorized technical skills with proficiency levels
-- **Experience** - Work history with company details
-- **Certifications** - Professional credentials
-- **Contact Form** - Send messages to portfolio owner
+### Image registry
 
-### Admin Dashboard
-- **Content Management** - CRUD operations for all portfolio sections
-- **File Uploads** - Images for projects, skills, experiences, certifications
-- **Message Management** - View and mark contact messages as read
-- **Publishing Controls** - Draft/publish projects
-- **Ordering** - Custom sort order for all content types
-
-### Technical Features
-- **Responsive Design** - Mobile-first with Tailwind CSS
-- **SEO Optimized** - Server-side rendering with Next.js
-- **Security** - JWT auth, CORS, rate limiting, input validation
-- **Performance** - Image optimization, caching, compression
-- **Health Checks** - Service monitoring and dependency management
-
-## 🚢 Production Deployment
-
-### Docker Images
-Each service builds its own optimized Docker image:
-- Multi-stage builds for minimal image size
-- Non-root user execution
-- Health check endpoints
-
-### Kubernetes Deployment
-Apply manifests in order:
-```bash
-kubectl apply -f k8s/namespace.yaml
-kubectl apply -f k8s/secrets/
-kubectl apply -f k8s/db/
-kubectl apply -f k8s/api/
-kubectl apply -f k8s/user-ui/
-kubectl apply -f k8s/admin-ui/
-kubectl apply -f k8s/ingress/
+```
+ghcr.io/johnitopaisah/portfolio-mcs/api:TAG
+ghcr.io/johnitopaisah/portfolio-mcs/user-ui:TAG
+ghcr.io/johnitopaisah/portfolio-mcs/admin-ui:TAG
+ghcr.io/johnitopaisah/portfolio-mcs/db:TAG
 ```
 
-### Environment Variables
-Production requires these additional environment variables:
-- `NODE_ENV=production`
-- Secure `JWT_SECRET` (64+ character random string)
-- Production database URL
-- Domain-specific `ALLOWED_ORIGINS`
+ArgoCD watches the `main` branch and auto-syncs the cluster when manifests in `k8s/` change.
 
-## 🔒 Security
+---
 
-- **Authentication:** JWT tokens with bcrypt password hashing
-- **Authorization:** Route-level middleware protection
-- **CORS:** Configured allowed origins
-- **Rate Limiting:** API endpoint protection
-- **Input Validation:** Request sanitization
-- **Security Headers:** Helmet.js middleware
-- **File Upload Security:** Type validation and size limits
+## API reference (summary)
 
-## 🤝 Contributing
+### Public endpoints
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/your-feature`
-3. Make changes and test locally
-4. Ensure all services build and run: `make rebuild`
-5. Commit changes: `git commit -am 'Add your feature'`
-6. Push to branch: `git push origin feature/your-feature`
-7. Submit a pull request
+```
+GET  /api/health
+GET  /api/profile
+GET  /api/projects
+GET  /api/skills
+GET  /api/experiences
+GET  /api/certifications
+POST /api/contact
+GET  /api/jobs
+GET  /api/docs              Swagger UI
+GET  /metrics               Prometheus scrape endpoint
+```
 
-## 📝 License
+### Admin endpoints (JWT required — `Authorization: Bearer <token>`)
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+```
+POST /api/auth/login
+POST /api/auth/forgot-password
+POST /api/auth/reset-password
 
-## 👤 Author
+GET|PUT          /api/profile
+GET|POST|PUT|DELETE  /api/projects
+GET|POST|DELETE  /api/projects/:id/images
+GET|POST|PUT|DELETE  /api/skills
+GET|POST|PUT|DELETE  /api/experiences
+GET|POST|PUT|DELETE  /api/certifications
+GET|PATCH        /api/contact
+GET|POST|PUT|DELETE  /api/applications
+GET              /api/admin/jobs
+POST             /api/admin/jobs/:id/feedback
+GET|PUT          /api/admin/ai
+```
+
+---
+
+## Production deployment
+
+See [k8s/README.md](k8s/README.md) for the full guide. Summary:
+
+1. Install ArgoCD and apply the root App-of-Apps: `kubectl apply -f k8s/argocd/root-app.yaml`
+2. Bootstrap Infisical machine identity secret in both `portfolio` and `monitoring` namespaces
+3. Populate all secrets in Infisical (see `k8s/secrets/01-app-secret.example.yaml`)
+4. Create GHCR pull secret in the `portfolio` namespace
+5. Push to `main` — ArgoCD auto-syncs everything
+
+---
+
+## Security
+
+- Secrets managed by Infisical operator — zero plaintext in git
+- JWT tokens with bcrypt (cost 12) password hashing
+- Helmet.js security headers on all API responses
+- CORS restricted to configured origins
+- Rate limiting on API endpoints
+- Network policies restricting pod-to-pod traffic
+- Non-root container execution
+- HTTPS enforced via cert-manager (Let's Encrypt) on all public domains
+
+---
+
+## Author
 
 **John Itopa ISAH**
 - Email: johnitopaisah@gmail.com
@@ -281,4 +347,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ---
 
-Built with ❤️ using Next.js, Node.js, and PostgreSQL. Deployed on Kubernetes.
+Built with Next.js, Node.js, PostgreSQL, and Kubernetes.

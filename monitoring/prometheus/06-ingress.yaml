@@ -14,7 +14,10 @@ metadata:
   name: prometheus-ingress
   namespace: monitoring
   labels:
-    app: prometheus
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/component: metrics
+    app.kubernetes.io/managed-by: argocd
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     traefik.ingress.kubernetes.io/router.entrypoints: web,websecure

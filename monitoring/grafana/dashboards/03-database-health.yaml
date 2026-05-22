@@ -4,7 +4,10 @@ metadata:
   name: grafana-dashboard-03-database
   namespace: monitoring
   labels:
-    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/component: visualization
+    app.kubernetes.io/managed-by: argocd
     dashboard: database-health
 data:
   03-database-health.json: |

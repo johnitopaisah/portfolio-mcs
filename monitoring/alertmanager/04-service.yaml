@@ -1,19 +1,19 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: grafana
+  name: alertmanager
   namespace: monitoring
   labels:
-    app.kubernetes.io/name: grafana
+    app.kubernetes.io/name: alertmanager
     app.kubernetes.io/part-of: portfolio-monitoring
-    app.kubernetes.io/component: visualization
+    app.kubernetes.io/component: alerting
     app.kubernetes.io/managed-by: argocd
 spec:
   type: ClusterIP
   selector:
-    app: grafana
+    app: alertmanager
   ports:
     - name: http
-      port: 3000
-      targetPort: 3000
+      port: 9093
+      targetPort: 9093
       protocol: TCP

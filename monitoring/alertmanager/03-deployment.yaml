@@ -5,6 +5,10 @@ metadata:
   namespace: monitoring
   labels:
     app: alertmanager
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/component: alerting
+    app.kubernetes.io/managed-by: argocd
 spec:
   replicas: 1
   selector:
@@ -14,7 +18,11 @@ spec:
     metadata:
       labels:
         app: alertmanager
+        app.kubernetes.io/name: alertmanager
+        app.kubernetes.io/part-of: portfolio-monitoring
+        app.kubernetes.io/component: alerting
     spec:
+      serviceAccountName: alertmanager
       securityContext:
         runAsNonRoot: true
         runAsUser: 65534
@@ -75,20 +83,3 @@ spec:
             secretName: alertmanager-smtp-secret
         - name: alertmanager-data
           emptyDir: {}
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: alertmanager
-  namespace: monitoring
-  labels:
-    app: alertmanager
-spec:
-  type: ClusterIP
-  selector:
-    app: alertmanager
-  ports:
-    - name: http
-      port: 9093
-      targetPort: 9093
-      protocol: TCP

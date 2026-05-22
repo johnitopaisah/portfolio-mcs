@@ -4,7 +4,10 @@ metadata:
   name: grafana-dashboard-06-alerts
   namespace: monitoring
   labels:
-    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/component: visualization
+    app.kubernetes.io/managed-by: argocd
     dashboard: alerts-slo
 data:
   06-alerts-slo.json: |

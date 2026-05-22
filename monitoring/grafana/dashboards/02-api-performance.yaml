@@ -4,7 +4,10 @@ metadata:
   name: grafana-dashboard-02-api
   namespace: monitoring
   labels:
-    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/component: visualization
+    app.kubernetes.io/managed-by: argocd
     dashboard: api-performance
 data:
   02-api-performance.json: |

@@ -4,4 +4,5 @@ metadata:
   name: monitoring
   labels:
     kubernetes.io/metadata.name: monitoring
-    app: portfolio-monitoring
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/managed-by: argocd
