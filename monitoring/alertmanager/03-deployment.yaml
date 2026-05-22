@@ -67,9 +67,7 @@ spec:
             - name: config
               mountPath: /etc/alertmanager
             - name: smtp-password
-              mountPath: /etc/alertmanager/smtp-password
-              # subPath must match the exact key name in the K8s secret.
-              # Infisical syncs the key as ALERTMANAGER_SMTP_PASSWORD.
+              mountPath: /etc/alertmanager-secrets/smtp-password
               subPath: smtp-password
             - name: alertmanager-data
               mountPath: /alertmanager
