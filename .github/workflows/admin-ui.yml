@@ -28,8 +28,9 @@ on:
         type: string
 
 permissions:
-  contents: write  # write needed for manifest update commit
+  contents: write         # write needed for manifest update commit
   packages: write
+  security-events: write  # upload Trivy SARIF to GitHub Security tab
 
 env:
   IMAGE:    ${{ vars.IMAGE_REGISTRY_BASE }}/admin-ui
@@ -154,12 +155,43 @@ jobs:
           cache-from: type=gha,scope=admin-ui
           cache-to:   type=gha,scope=admin-ui,mode=max
 
-  # ── 4. Update manifest ───────────────────────────────────
-  update-manifest:
-    name: Update k8s manifest
+  # ── 4. Trivy image scan ──────────────────────────────────
+  scan:
+    name: Scan image
     needs: [validate, build-push]
     runs-on: ubuntu-latest
-    if: needs.build-push.result == 'success'
+    permissions:
+      security-events: write
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: '${{ vars.IMAGE_REGISTRY_BASE }}/admin-ui:${{ needs.validate.outputs.tag }}'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+          ignore-unfixed: true
+
+      - name: Upload results to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # ── 5. Update manifest ───────────────────────────────────
+  update-manifest:
+    name: Update k8s manifest
+    needs: [validate, scan]
+    runs-on: ubuntu-latest
+    if: needs.scan.result == 'success'
     steps:
       - name: Checkout develop
         uses: actions/checkout@v4
@@ -191,10 +223,10 @@ jobs:
           [ "$PUSHED" = "true" ] || { echo "❌ Failed to push after 5 attempts"; exit 1; }
           echo "✅ Manifest updated — ArgoCD will sync shortly"
 
-  # ── 5. Summary ───────────────────────────────────────────
+  # ── 6. Summary ───────────────────────────────────────────
   summary:
     name: Summary
-    needs: [validate, quality, build-push, update-manifest]
+    needs: [validate, quality, build-push, scan, update-manifest]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -203,6 +235,7 @@ jobs:
           TAG="${{ needs.validate.outputs.tag }}"
           QUALITY="${{ needs.quality.result }}"
           BUILD="${{ needs.build-push.result }}"
+          SCAN="${{ needs.scan.result }}"
           MANIFEST="${{ needs.update-manifest.result }}"
           ok() { [ "$1" = "success" ] && echo "✅" || ( [ "$1" = "skipped" ] && echo "⏭️" || echo "❌" ); }
           echo "## Admin UI pipeline" >> $GITHUB_STEP_SUMMARY
@@ -210,5 +243,6 @@ jobs:
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| Lint & typecheck | $(ok $QUALITY) $QUALITY |" >> $GITHUB_STEP_SUMMARY
           echo "| Build & push     | $(ok $BUILD) $BUILD |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trivy scan       | $(ok $SCAN) $SCAN |" >> $GITHUB_STEP_SUMMARY
           echo "| Update manifest  | $(ok $MANIFEST) $MANIFEST |" >> $GITHUB_STEP_SUMMARY
           echo "**Image:** \`${{ vars.IMAGE_REGISTRY_BASE }}/admin-ui:$TAG\`" >> $GITHUB_STEP_SUMMARY

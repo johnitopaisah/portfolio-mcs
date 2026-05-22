@@ -32,6 +32,7 @@ on:
 permissions:
   contents: read
   packages: write
+  security-events: write  # upload Trivy SARIF to GitHub Security tab
 
 env:
   IMAGE: ${{ vars.IMAGE_REGISTRY_BASE }}/db
@@ -89,21 +90,58 @@ jobs:
           cache-from: type=gha,scope=db
           cache-to:   type=gha,scope=db,mode=max
 
-  # ── 3. Summary ───────────────────────────────────────────
+  # ── 3. Trivy image scan ──────────────────────────────────
+  scan:
+    name: Scan image
+    needs: [validate, build-push]
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: '${{ vars.IMAGE_REGISTRY_BASE }}/db:${{ needs.validate.outputs.tag }}'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+          ignore-unfixed: true
+
+      - name: Upload results to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # ── 4. Summary ───────────────────────────────────────────
   # NOTE: k8s/db/statefulset.yaml is intentionally NOT updated by CI.
   # Edit the manifest manually and push to trigger an ArgoCD sync.
   summary:
     name: Summary
-    needs: [validate, build-push]
+    needs: [validate, build-push, scan]
     runs-on: ubuntu-latest
     if: always()
     steps:
       - name: Write summary
         run: |
           TAG="${{ needs.validate.outputs.tag }}"
-          STATUS="${{ needs.build-push.result }}"
-          ICON=$([ "$STATUS" = "success" ] && echo "✅" || echo "❌")
-          echo "## DB pipeline — $ICON $STATUS" >> $GITHUB_STEP_SUMMARY
+          BUILD="${{ needs.build-push.result }}"
+          SCAN="${{ needs.scan.result }}"
+          ok() { [ "$1" = "success" ] && echo "✅" || ( [ "$1" = "skipped" ] && echo "⏭️" || echo "❌" ); }
+          ICON=$([ "$BUILD" = "success" ] && [ "$SCAN" = "success" ] && echo "✅" || echo "❌")
+          echo "## DB pipeline — $ICON" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Build & push | $(ok $BUILD) $BUILD |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trivy scan   | $(ok $SCAN) $SCAN |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| | |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
