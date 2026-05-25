@@ -31,6 +31,7 @@ router.get('/', async (req, res, next) => {
     const { rows } = await pool.query(
       `SELECT id, name, headline, bio, avatar_mime, resume_mime,
               github_url, linkedin_url, email, hero_tags, updated_at,
+              availability_status,
               (avatar     IS NOT NULL) AS has_avatar,
               (resume     IS NOT NULL) AS has_resume,
               (resume_en  IS NOT NULL) AS has_resume_en,
@@ -277,5 +278,19 @@ router.put('/', requireAuth,
     } catch (err) { next(err); }
   }
 );
+
+router.put('/availability', requireAuth, async (req, res, next) => {
+  try {
+    const { status } = req.body;
+    if (!['active', 'passive', 'not_open'].includes(status)) {
+      return res.status(400).json({ error: 'status must be active, passive, or not_open' });
+    }
+    const { rows } = await pool.query(
+      `UPDATE profile SET availability_status = $1 RETURNING availability_status`,
+      [status]
+    );
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
 
 module.exports = router;

@@ -65,6 +65,8 @@ export const adminApi = {
   // Profile
   getProfile: () => request('/api/profile'),
   updateProfile: (fd: FormData) => upload('/api/profile', fd, 'PUT'),
+  setAvailabilityStatus: (status: 'active' | 'passive' | 'not_open') =>
+    request('/api/profile/availability', { method: 'PUT', body: JSON.stringify({ status }) }),
 
   // Projects
   getProjects: () => request('/api/projects/all'),

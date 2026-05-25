@@ -7,6 +7,96 @@ import {
   IconMessage, IconUser, IconCpu, IconLayers, IconArrow,
 } from '@/components/Icons';
 
+type AvailStatus = 'active' | 'passive' | 'not_open';
+
+const AVAIL_OPTIONS: { value: AvailStatus; label: string; dot: string }[] = [
+  { value: 'active',   label: 'Available',     dot: '#22c55e' },
+  { value: 'passive',  label: 'Open to right', dot: '#f59e0b' },
+  { value: 'not_open', label: 'Not open',      dot: '#6b7280' },
+];
+
+function AvailabilityWidget() {
+  const [current, setCurrent] = useState<AvailStatus | null>(null);
+  const [saving,  setSaving]  = useState(false);
+  const [saved,   setSaved]   = useState(false);
+  const [error,   setError]   = useState<string | null>(null);
+
+  useEffect(() => {
+    adminApi.getProfile()
+      .then((p: any) => setCurrent(p?.availability_status ?? 'active'))
+      .catch(() => setError('Could not load — is the DB migration applied?'));
+  }, []);
+
+  async function select(val: AvailStatus) {
+    if (val === current || saving) return;
+    const prev = current;
+    setCurrent(val);   // optimistic — UI responds instantly
+    setSaving(true);
+    setError(null);
+    setSaved(false);
+    try {
+      await adminApi.setAvailabilityStatus(val);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e: any) {
+      setCurrent(prev); // revert on failure
+      setError(e?.message || 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mb-8 rounded-2xl p-5"
+      style={{ background: 'rgba(12,21,38,0.7)', border: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+        <div className="flex-1">
+          <p className="text-sm font-semibold mb-0.5" style={{ color: 'var(--text-1)' }}>
+            Portfolio Availability
+          </p>
+          <p className="text-xs" style={{ color: 'var(--text-2)' }}>
+            Availability signal shown to recruiters
+          </p>
+        </div>
+
+        <div className="flex gap-2 flex-wrap">
+          {AVAIL_OPTIONS.map(opt => {
+            const isSelected = current === opt.value;
+            return (
+              <button
+                key={opt.value}
+                onClick={() => select(opt.value)}
+                disabled={saving}
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all"
+                style={{
+                  background: isSelected ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.04)',
+                  border:     isSelected ? '1px solid rgba(34,197,94,0.5)' : '1px solid rgba(255,255,255,0.08)',
+                  color:      isSelected ? '#22c55e' : 'var(--text-3)',
+                  cursor:     saving ? 'not-allowed' : 'pointer',
+                  opacity:    saving && !isSelected ? 0.5 : 1,
+                }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full"
+                  style={{
+                    background: isSelected ? opt.dot : 'rgba(255,255,255,0.2)',
+                    boxShadow:  isSelected ? `0 0 5px ${opt.dot}` : 'none',
+                  }} />
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="shrink-0 min-w-[64px] text-right">
+          {saving && <span className="text-xs" style={{ color: 'var(--text-3)' }}>Saving…</span>}
+          {!saving && saved && <span className="text-xs" style={{ color: '#22c55e' }}>✓ Saved</span>}
+          {!saving && !saved && error && <span className="text-xs" style={{ color: '#ef4444' }} title={error}>⚠ Error</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface Stats {
   projects: number;
   skills: number;
@@ -153,6 +243,8 @@ export default function DashboardPage() {
         <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--text-1)' }}>Dashboard</h1>
         <p className="text-sm" style={{ color: 'var(--text-2)' }}>Overview of your portfolio content</p>
       </div>
+
+      <AvailabilityWidget />
 
       {/* Cards grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

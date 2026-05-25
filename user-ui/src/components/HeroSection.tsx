@@ -5,6 +5,7 @@ interface Profile {
   name: string; headline: string; bio: string;
   github_url?: string; linkedin_url?: string;
   has_avatar: boolean; hero_tags?: string[];
+  availability_status?: 'active' | 'passive' | 'not_open';
 }
 
 const FALLBACK_TAGS = ['Kubernetes', 'AWS', 'CI/CD', 'Docker', 'Terraform', 'GitOps'];
@@ -53,11 +54,23 @@ export default function HeroSection({ profile }: { profile: Profile | null }) {
         <div className="grid md:grid-cols-2 gap-16 items-center">
 
           <div>
-            <div className="inline-flex items-center gap-2 mb-6 px-3 py-1.5 rounded-full text-xs font-medium"
-              style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)', color: '#22c55e' }}>
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-              Available for opportunities
-            </div>
+            {(profile?.availability_status ?? 'active') !== 'not_open' && (
+              <div className="inline-flex items-center gap-2 mb-6 px-3 py-1.5 rounded-full text-xs font-medium"
+                style={
+                  (profile?.availability_status ?? 'active') === 'passive'
+                    ? { background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', color: '#f59e0b' }
+                    : { background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)', color: '#22c55e' }
+                }>
+                <span className={`w-1.5 h-1.5 rounded-full ${
+                  (profile?.availability_status ?? 'active') === 'passive'
+                    ? 'bg-amber-500'
+                    : 'bg-green-500 animate-pulse'
+                }`} />
+                {(profile?.availability_status ?? 'active') === 'passive'
+                  ? 'Open to the right opportunity'
+                  : 'Available for opportunities'}
+              </div>
+            )}
 
             <p className="font-mono text-violet-400 text-sm mb-3 tracking-wide">
               {'// hi, i\'m'}
