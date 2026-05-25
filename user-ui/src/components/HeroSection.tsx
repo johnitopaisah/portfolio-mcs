@@ -2,12 +2,14 @@
 import { api } from '@/lib/api';
 import CvDownloadButton from './CvDownloadButton';
 import { useTheme } from './ThemeProvider';
+import BadgeOrbit from './BadgeOrbit';
 
 interface Profile {
   name: string; headline: string; bio: string;
   github_url?: string; linkedin_url?: string;
   has_avatar: boolean; hero_tags?: string[];
   availability_status?: 'active' | 'passive' | 'not_open';
+  orbit_badge_ids?: string[];
 }
 
 const FALLBACK_TAGS = ['Kubernetes', 'AWS', 'CI/CD', 'Docker', 'Terraform', 'GitOps'];
@@ -140,15 +142,25 @@ export default function HeroSection({ profile }: { profile: Profile | null }) {
 
           {/* Avatar */}
           <div className="flex justify-center">
-            <div className="relative">
-              <div className="absolute inset-0 rounded-full"
-                style={{ background: 'radial-gradient(circle, rgba(124,58,237,0.25) 0%, transparent 70%)', transform: 'scale(1.15)' }} />
+            <div style={{ position: 'relative', width: '22rem', height: '22rem' }}>
+              {/* Ambient glow */}
+              <div style={{
+                position: 'absolute', inset: 0, borderRadius: '50%',
+                background: 'radial-gradient(circle, rgba(124,58,237,0.25) 0%, transparent 70%)',
+                transform: 'scale(1.15)',
+              }} />
+
+              {/* Orbiting badges — rendered below the avatar */}
+              <BadgeOrbit orbitBadgeIds={profile?.orbit_badge_ids ?? []} />
+
+              {/* Avatar image / initials */}
               {profile?.has_avatar ? (
                 <img src={api.avatarUrl} alt={profile.name}
                   style={{
                     width: '22rem', height: '22rem', borderRadius: '50%',
                     objectFit: 'cover', border: '3px solid rgba(124,58,237,0.4)',
-                    position: 'relative', boxShadow: '0 0 60px rgba(124,58,237,0.2)',
+                    position: 'relative', zIndex: 2,
+                    boxShadow: '0 0 60px rgba(124,58,237,0.2)',
                   }} />
               ) : (
                 <div style={{
@@ -156,7 +168,7 @@ export default function HeroSection({ profile }: { profile: Profile | null }) {
                   background: 'linear-gradient(135deg,rgba(124,58,237,0.15),rgba(6,182,212,0.1))',
                   border: '3px solid rgba(124,58,237,0.4)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  position: 'relative',
+                  position: 'relative', zIndex: 2,
                 }}>
                   <span style={{
                     fontSize: '6rem', fontWeight: '700',

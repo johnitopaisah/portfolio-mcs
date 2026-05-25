@@ -31,7 +31,7 @@ router.get('/', async (req, res, next) => {
     const { rows } = await pool.query(
       `SELECT id, name, headline, bio, avatar_mime, resume_mime,
               github_url, linkedin_url, email, hero_tags, updated_at,
-              availability_status,
+              availability_status, orbit_badge_ids,
               (avatar     IS NOT NULL) AS has_avatar,
               (resume     IS NOT NULL) AS has_resume,
               (resume_en  IS NOT NULL) AS has_resume_en,
@@ -278,6 +278,20 @@ router.put('/', requireAuth,
     } catch (err) { next(err); }
   }
 );
+
+router.put('/orbit-badges', requireAuth, async (req, res, next) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.some(id => typeof id !== 'string')) {
+      return res.status(400).json({ error: 'ids must be an array of strings' });
+    }
+    const { rows } = await pool.query(
+      `UPDATE profile SET orbit_badge_ids = $1 RETURNING orbit_badge_ids`,
+      [ids]
+    );
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
 
 router.put('/availability', requireAuth, async (req, res, next) => {
   try {

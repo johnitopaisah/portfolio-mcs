@@ -67,6 +67,8 @@ export const adminApi = {
   updateProfile: (fd: FormData) => upload('/api/profile', fd, 'PUT'),
   setAvailabilityStatus: (status: 'active' | 'passive' | 'not_open') =>
     request('/api/profile/availability', { method: 'PUT', body: JSON.stringify({ status }) }),
+  setOrbitBadges: (ids: string[]) =>
+    request('/api/profile/orbit-badges', { method: 'PUT', body: JSON.stringify({ ids }) }),
 
   // Projects
   getProjects: () => request('/api/projects/all'),
@@ -188,6 +190,15 @@ export const adminApi = {
       body: JSON.stringify({ classification }),
     }),
   getJob: (id: string) => request(`/api/jobs/${id}`),
+
+  // Social links
+  getSocialLinks: () => request('/api/social-links/all'),
+  createSocialLink: (data: Record<string, unknown>) =>
+    request('/api/social-links', { method: 'POST', body: JSON.stringify(data) }),
+  updateSocialLink: (id: string, data: Record<string, unknown>) =>
+    request(`/api/social-links/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteSocialLink: (id: string) =>
+    request(`/api/social-links/${id}`, { method: 'DELETE' }),
 
   // Messages
   getMessages: () => request('/api/contact'),

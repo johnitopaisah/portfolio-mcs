@@ -4,6 +4,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   IconGrid, IconFolder, IconZap, IconBriefcase, IconAward,
   IconMessage, IconUser, IconCpu, IconLayers, IconClipboard, IconBookOpen, IconMail, IconLogOut,
+  IconLink,
 } from './Icons';
 
 type NavChild = { href: string; label: string; Icon: React.ComponentType<React.SVGProps<SVGSVGElement>> };
@@ -17,6 +18,7 @@ const nav: NavItem[] = [
   { href: '/dashboard/certifications', label: 'Certifications', Icon: IconAward     },
   { href: '/dashboard/messages',       label: 'Messages',       Icon: IconMessage   },
   { href: '/dashboard/profile',        label: 'Profile',        Icon: IconUser      },
+  { href: '/dashboard/social-links',   label: 'Social Links',   Icon: IconLink      },
   { href: '/dashboard/ai',             label: 'AI Engine',      Icon: IconCpu       },
   { href: '/dashboard/jobs',           label: 'Job Pipeline',   Icon: IconLayers    },
   {

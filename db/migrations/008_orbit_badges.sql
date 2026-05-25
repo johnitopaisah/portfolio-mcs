@@ -1,0 +1,2 @@
+ALTER TABLE profile
+  ADD COLUMN IF NOT EXISTS orbit_badge_ids TEXT[] NOT NULL DEFAULT '{}';

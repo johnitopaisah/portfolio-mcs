@@ -110,6 +110,7 @@ app.use('/api/skills',         require('./routes/skills'));
 app.use('/api/experiences',    require('./routes/experiences'));
 app.use('/api/certifications', require('./routes/certifications'));
 app.use('/api/contact',        require('./routes/contact'));
+app.use('/api/social-links',   require('./routes/socialLinks'));
 app.use('/api/visitors',       require('./routes/visitors'));
 app.use('/api/jobs',           require('./routes/jobs'));
 app.use('/api/admin/jobs',     require('./routes/admin/jobs'));

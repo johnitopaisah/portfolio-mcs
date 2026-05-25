@@ -7,19 +7,27 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- profile (single row)
 CREATE TABLE IF NOT EXISTS profile (
-  id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-  name          TEXT        NOT NULL,
-  headline      TEXT        NOT NULL,
-  bio           TEXT        NOT NULL,
-  avatar        BYTEA,
-  avatar_mime   TEXT,
-  resume        BYTEA,
-  resume_mime   TEXT,
-  github_url    TEXT,
-  linkedin_url  TEXT,
-  email         TEXT        NOT NULL,
-  hero_tags     TEXT[]      NOT NULL DEFAULT '{}',
-  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  name                TEXT        NOT NULL,
+  headline            TEXT        NOT NULL,
+  bio                 TEXT        NOT NULL,
+  avatar              BYTEA,
+  avatar_mime         TEXT,
+  resume              BYTEA,
+  resume_mime         TEXT,
+  resume_en           BYTEA,
+  resume_en_mime      TEXT,
+  resume_fr           BYTEA,
+  resume_fr_mime      TEXT,
+  github_url          TEXT,
+  linkedin_url        TEXT,
+  email               TEXT        NOT NULL,
+  hero_tags           TEXT[]      NOT NULL DEFAULT '{}',
+  availability_status TEXT        NOT NULL DEFAULT 'active'
+                        CONSTRAINT availability_status_check
+                          CHECK (availability_status IN ('active','passive','not_open')),
+  orbit_badge_ids     TEXT[]      NOT NULL DEFAULT '{}',
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- projects
@@ -96,6 +104,17 @@ CREATE TABLE IF NOT EXISTS certifications (
   order_index    INT         NOT NULL DEFAULT 0,
   created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- social_links — dynamic contact/social links shown on the portfolio
+CREATE TABLE IF NOT EXISTS social_links (
+  id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  platform    TEXT        NOT NULL,
+  label       TEXT        NOT NULL,
+  url         TEXT        NOT NULL,
+  order_index INTEGER     NOT NULL DEFAULT 0,
+  visible     BOOLEAN     NOT NULL DEFAULT true,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- contact_messages

@@ -52,6 +52,28 @@ psql -v ON_ERROR_STOP=1 \
   )
   ON CONFLICT DO NOTHING;
 
+  -- Seed social links from profile env vars
+  INSERT INTO social_links (platform, label, url, order_index, visible)
+  SELECT 'email',
+         :'email',
+         'mailto:' || :'email',
+         0, true
+  WHERE NOT EXISTS (SELECT 1 FROM social_links WHERE platform = 'email');
+
+  INSERT INTO social_links (platform, label, url, order_index, visible)
+  SELECT 'github',
+         regexp_replace(:'github', 'https?://(www\.)?', ''),
+         :'github',
+         1, true
+  WHERE NOT EXISTS (SELECT 1 FROM social_links WHERE platform = 'github');
+
+  INSERT INTO social_links (platform, label, url, order_index, visible)
+  SELECT 'linkedin',
+         regexp_replace(:'linkedin', 'https?://(www\.)?', ''),
+         :'linkedin',
+         2, true
+  WHERE NOT EXISTS (SELECT 1 FROM social_links WHERE platform = 'linkedin');
+
 EOSQL
 
 echo "✅  Seed complete — admin user and profile created"
