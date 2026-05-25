@@ -12,6 +12,12 @@ interface Profile {
   orbit_badge_ids?: string[];
 }
 
+interface Certification {
+  id: string;
+  name: string;
+  credential_url?: string;
+}
+
 const FALLBACK_TAGS = ['Kubernetes', 'AWS', 'CI/CD', 'Docker', 'Terraform', 'GitOps'];
 
 const TAG_COLORS = [
@@ -25,9 +31,20 @@ const TAG_COLORS = [
   { color: 'rgba(236,72,153,0.12)',  border: 'rgba(236,72,153,0.3)',   text: '#f9a8d4' },
 ];
 
-export default function HeroSection({ profile }: { profile: Profile | null }) {
+export default function HeroSection({
+  profile,
+  certifications = [],
+}: {
+  profile: Profile | null;
+  certifications?: Certification[];
+}) {
   const { theme } = useTheme();
   const isGradient = theme === 'dark';
+
+  // Build orbit badge data: preserve the admin-chosen order from orbit_badge_ids
+  const orbitBadges = (profile?.orbit_badge_ids ?? [])
+    .map(id => certifications.find(c => c.id === id))
+    .filter((c): c is Certification => !!c);
 
   const tags =
     profile?.hero_tags && profile.hero_tags.length > 0
@@ -151,7 +168,7 @@ export default function HeroSection({ profile }: { profile: Profile | null }) {
               }} />
 
               {/* Orbiting badges — rendered below the avatar */}
-              <BadgeOrbit orbitBadgeIds={profile?.orbit_badge_ids ?? []} />
+              <BadgeOrbit orbitBadges={orbitBadges} />
 
               {/* Avatar image / initials */}
               {profile?.has_avatar ? (

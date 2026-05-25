@@ -7,6 +7,9 @@ build/
 dist/
 .claude
 
+bootstrapping/infisical*
+bootstrapping/nginx*
+
 # Env — NEVER commit these
 .env
 .env.local

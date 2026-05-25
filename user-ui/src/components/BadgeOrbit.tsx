@@ -1,20 +1,23 @@
 'use client';
 import React from 'react';
 
-// Figure-8 (lemniscate) path centered at origin.
-// Horizontal span ≈ ±190px, vertical span ≈ ±140px — scaled to sit just
-// outside the 22rem (352px) avatar circle.
 const PATH = "M 0 0 C 190 -140, 190 140, 0 0 C -190 -140, -190 140, 0 0";
-const DURATION = 14; // seconds per full orbit
+const DURATION = 14;
 
-interface Props {
-  orbitBadgeIds: string[];
+interface OrbitBadge {
+  id: string;
+  name?: string;
+  credential_url?: string;
 }
 
-export default function BadgeOrbit({ orbitBadgeIds }: Props) {
-  if (!orbitBadgeIds?.length) return null;
+interface Props {
+  orbitBadges: OrbitBadge[];
+}
 
-  const count = orbitBadgeIds.length;
+export default function BadgeOrbit({ orbitBadges }: Props) {
+  if (!orbitBadges?.length) return null;
+
+  const count = orbitBadges.length;
 
   return (
     <div
@@ -44,10 +47,31 @@ export default function BadgeOrbit({ orbitBadgeIds }: Props) {
           97%  { transform: scale(1.08); opacity: 1;    }
           100% { transform: scale(0.58); opacity: 0.38; }
         }
+        .orbit-badge-link:hover img {
+          border-color: rgba(255,255,255,0.95);
+          box-shadow: 0 0 22px rgba(124,58,237,0.7), 0 4px 18px rgba(0,0,0,0.45);
+        }
       `}</style>
 
-      {orbitBadgeIds.map((id, i) => {
+      {orbitBadges.map(({ id, name, credential_url }, i) => {
         const delay = `${(-(DURATION * i / count)).toFixed(2)}s`;
+        const img = (
+          <img
+            src={`/api/certifications/${id}/image`}
+            alt={name ?? ''}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              borderRadius: '50%',
+              border: '2.5px solid rgba(255,255,255,0.65)',
+              boxShadow: '0 4px 18px rgba(0,0,0,0.45)',
+              display: 'block',
+              transition: 'border-color 0.2s, box-shadow 0.2s',
+            }}
+          />
+        );
+
         return (
           <div
             key={id}
@@ -63,19 +87,26 @@ export default function BadgeOrbit({ orbitBadgeIds }: Props) {
               ].join(', '),
             } as React.CSSProperties}
           >
-            <img
-              src={`/api/certifications/${id}/image`}
-              alt=""
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                borderRadius: '50%',
-                border: '2.5px solid rgba(255,255,255,0.65)',
-                boxShadow: '0 4px 18px rgba(0,0,0,0.45)',
-                display: 'block',
-              }}
-            />
+            {credential_url ? (
+              <a
+                href={credential_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={name ? `Verify: ${name}` : 'Verify credential'}
+                className="orbit-badge-link"
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  height: '100%',
+                  borderRadius: '50%',
+                  pointerEvents: 'auto',
+                  cursor: 'pointer',
+                }}
+                aria-label={name ? `Verify ${name} credential` : 'Verify credential'}
+              >
+                {img}
+              </a>
+            ) : img}
           </div>
         );
       })}

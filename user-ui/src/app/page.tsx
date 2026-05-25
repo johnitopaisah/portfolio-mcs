@@ -23,7 +23,7 @@ export default async function HomePage() {
     <>
       <Navbar />
       <main>
-        <HeroSection profile={profile} />
+        <HeroSection profile={profile} certifications={certifications} />
         <ProjectsSection projects={projects} />
         <SkillsSection skills={skills} />
         <ExperienceSection experiences={experiences} />
