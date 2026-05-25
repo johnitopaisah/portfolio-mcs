@@ -48,7 +48,7 @@ function AvailabilityWidget() {
 
   return (
     <div className="mb-8 rounded-2xl p-5"
-      style={{ background: 'rgba(12,21,38,0.7)', border: '1px solid rgba(255,255,255,0.06)' }}>
+      style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
       <div className="flex flex-col sm:flex-row sm:items-center gap-4">
         <div className="flex-1">
           <p className="text-sm font-semibold mb-0.5" style={{ color: 'var(--text-1)' }}>
@@ -257,19 +257,19 @@ export default function DashboardPage() {
           return (
             <Link key={c.label} href={c.href} className="group block rounded-2xl transition-all duration-200"
               style={{
-                background: 'rgba(12, 21, 38, 0.7)',
-                border: '1px solid rgba(255,255,255,0.06)',
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
                 padding: '1.25rem',
               }}
               onMouseEnter={e => {
                 const el = e.currentTarget as HTMLElement;
-                el.style.border = `1px solid rgba(255,255,255,0.12)`;
+                el.style.border = `1px solid rgba(124,58,237,0.25)`;
                 el.style.boxShadow = `0 8px 32px ${c.shadow}`;
                 el.style.transform = 'translateY(-2px)';
               }}
               onMouseLeave={e => {
                 const el = e.currentTarget as HTMLElement;
-                el.style.border = '1px solid rgba(255,255,255,0.06)';
+                el.style.border = '1px solid var(--border)';
                 el.style.boxShadow = 'none';
                 el.style.transform = 'translateY(0)';
               }}

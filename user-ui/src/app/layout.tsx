@@ -14,17 +14,16 @@ export const metadata: Metadata = {
 };
 
 // Runs BEFORE first paint — zero flash of wrong theme.
-// Policy: dark is always the default for first-time visitors.
-// Only switches to light if the user has explicitly chosen it before
-// (stored in localStorage). OS preference is intentionally ignored
-// because the portfolio's design and brand are optimised for dark.
+// Policy: light lavender is the default for first-time visitors.
+// Only switches to dark if the user has explicitly chosen it before
+// (stored in localStorage).
 const themeScript = `
 (function(){
   try{
     var t=localStorage.getItem('portfolio-theme');
-    document.documentElement.setAttribute('data-theme', t === 'light' ? 'light' : 'dark');
+    document.documentElement.setAttribute('data-theme', t === 'dark' ? 'dark' : 'light');
   }catch(e){
-    document.documentElement.setAttribute('data-theme','dark');
+    document.documentElement.setAttribute('data-theme','light');
   }
 })();
 `;

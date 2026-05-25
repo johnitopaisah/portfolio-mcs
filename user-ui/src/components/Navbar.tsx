@@ -150,27 +150,27 @@ export default function Navbar() {
             </button>
             {resumeOpen && (
               <div
-                className="absolute right-0 z-50 mt-1 overflow-hidden rounded-lg shadow-xl"
-                style={{ border: '1px solid rgba(255,255,255,0.1)', background: '#111827', minWidth: '160px' }}>
+                className="absolute right-0 z-50 mt-1 overflow-hidden rounded-xl shadow-xl"
+                style={{ border: '1px solid var(--border-card)', background: 'var(--bg-card)', minWidth: '160px', backdropFilter: 'blur(12px)' }}>
                 <a
                   href="/api/profile/resume?lang=en"
-                  className="flex items-center gap-2 px-4 py-3 text-sm font-medium"
-                  style={{ color: '#e5e7eb' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
+                  className="flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors"
+                  style={{ color: 'var(--text-1)' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(124,58,237,0.06)')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                   onClick={() => setResumeOpen(false)}>
-                  <span className="text-xs font-bold tracking-wider text-indigo-400">EN</span>
+                  <span className="text-xs font-bold tracking-wider text-indigo-500">EN</span>
                   CV (English)
                 </a>
-                <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)' }} />
+                <div style={{ height: '1px', background: 'var(--border)' }} />
                 <a
                   href="/api/profile/resume?lang=fr"
-                  className="flex items-center gap-2 px-4 py-3 text-sm font-medium"
-                  style={{ color: '#e5e7eb' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
+                  className="flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors"
+                  style={{ color: 'var(--text-1)' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(124,58,237,0.06)')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                   onClick={() => setResumeOpen(false)}>
-                  <span className="text-xs font-bold tracking-wider text-indigo-400">FR</span>
+                  <span className="text-xs font-bold tracking-wider text-indigo-500">FR</span>
                   CV (Français)
                 </a>
               </div>

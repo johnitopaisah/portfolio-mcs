@@ -26,12 +26,12 @@ const TAG_COLORS = [
 ];
 
 const GRADIENTS = [
-  'linear-gradient(135deg,#1e1b4b 0%,#0f172a 100%)',
-  'linear-gradient(135deg,#042c53 0%,#0f172a 100%)',
-  'linear-gradient(135deg,#064e3b 0%,#0f172a 100%)',
-  'linear-gradient(135deg,#3b0764 0%,#0f172a 100%)',
-  'linear-gradient(135deg,#1c1917 0%,#0f172a 100%)',
-  'linear-gradient(135deg,#1e3a5f 0%,#0f172a 100%)',
+  'linear-gradient(135deg,rgba(124,58,237,0.1) 0%,rgba(79,70,229,0.15) 100%)',
+  'linear-gradient(135deg,rgba(6,182,212,0.1) 0%,rgba(59,130,246,0.15) 100%)',
+  'linear-gradient(135deg,rgba(16,185,129,0.1) 0%,rgba(6,182,212,0.15) 100%)',
+  'linear-gradient(135deg,rgba(168,85,247,0.1) 0%,rgba(236,72,153,0.15) 100%)',
+  'linear-gradient(135deg,rgba(245,158,11,0.1) 0%,rgba(249,115,22,0.15) 100%)',
+  'linear-gradient(135deg,rgba(59,130,246,0.1) 0%,rgba(139,92,246,0.15) 100%)',
 ];
 
 function getIcon(tech: string[]): string {

@@ -9,7 +9,7 @@ export const useTheme = () => useContext(ThemeContext);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // Initialise from what the inline <head> script already set on <html>
-  const [theme, setTheme] = useState<Theme>('dark');
+  const [theme, setTheme] = useState<Theme>('light');
 
   useEffect(() => {
     const stored = document.documentElement.getAttribute('data-theme') as Theme | null;
