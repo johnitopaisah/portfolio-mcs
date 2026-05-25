@@ -1,5 +1,7 @@
+'use client';
 import { api } from '@/lib/api';
 import CvDownloadButton from './CvDownloadButton';
+import { useTheme } from './ThemeProvider';
 
 interface Profile {
   name: string; headline: string; bio: string;
@@ -22,6 +24,9 @@ const TAG_COLORS = [
 ];
 
 export default function HeroSection({ profile }: { profile: Profile | null }) {
+  const { theme } = useTheme();
+  const isGradient = theme === 'dark';
+
   const tags =
     profile?.hero_tags && profile.hero_tags.length > 0
       ? profile.hero_tags
@@ -94,6 +99,19 @@ export default function HeroSection({ profile }: { profile: Profile | null }) {
 
             <div className="flex flex-wrap gap-2 mb-8">
               {tags.map((tag, i) => {
+                if (isGradient) {
+                  return (
+                    <span key={tag} className="text-xs font-semibold px-4 py-1.5 rounded-full"
+                      style={{
+                        background: 'rgba(255,255,255,0.92)',
+                        color: '#3730a3',
+                        border: 'none',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                      }}>
+                      {tag}
+                    </span>
+                  );
+                }
                 const c = TAG_COLORS[i % TAG_COLORS.length];
                 return (
                   <span key={tag} className="text-xs font-medium px-3 py-1 rounded-full"

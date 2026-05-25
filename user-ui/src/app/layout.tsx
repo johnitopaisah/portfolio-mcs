@@ -14,16 +14,16 @@ export const metadata: Metadata = {
 };
 
 // Runs BEFORE first paint — zero flash of wrong theme.
-// Policy: light lavender is the default for first-time visitors.
-// Only switches to dark if the user has explicitly chosen it before
+// Policy: purple gradient (dark) is the default for first-time visitors.
+// Switches to light only if the user has explicitly chosen it before
 // (stored in localStorage).
 const themeScript = `
 (function(){
   try{
     var t=localStorage.getItem('portfolio-theme');
-    document.documentElement.setAttribute('data-theme', t === 'dark' ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', t === 'light' ? 'light' : 'dark');
   }catch(e){
-    document.documentElement.setAttribute('data-theme','light');
+    document.documentElement.setAttribute('data-theme','dark');
   }
 })();
 `;
