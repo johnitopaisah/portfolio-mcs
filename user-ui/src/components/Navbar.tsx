@@ -43,11 +43,49 @@ function AdminIcon() {
   );
 }
 
-export default function Navbar() {
+type AvailStatus = 'active' | 'passive' | 'not_open';
+
+function PingDot({ status }: { status: AvailStatus }) {
+  const isActive   = status === 'active';
+  const dotColor   = isActive ? '#4ade80' : '#fbbf24';
+  const pingColor1 = isActive ? 'rgba(74,222,128,0.55)' : 'rgba(251,191,36,0.55)';
+  const pingColor2 = isActive ? 'rgba(74,222,128,0.25)' : 'rgba(251,191,36,0.25)';
+  const glow       = isActive
+    ? '0 0 8px 2px #4ade80, 0 0 18px 4px rgba(74,222,128,0.5)'
+    : '0 0 8px 2px #fbbf24, 0 0 18px 4px rgba(251,191,36,0.5)';
+  return (
+    <span style={{ position: 'relative', display: 'inline-flex', width: '12px', height: '12px', flexShrink: 0 }}>
+      {/* Outer slow ring */}
+      <span style={{
+        position: 'absolute', inset: '-3px', borderRadius: '50%',
+        background: pingColor2,
+        animation: 'nav-ping 2s cubic-bezier(0,0,0.2,1) infinite',
+      }} />
+      {/* Inner fast ring */}
+      <span style={{
+        position: 'absolute', inset: 0, borderRadius: '50%',
+        background: pingColor1,
+        animation: 'nav-ping 1.2s cubic-bezier(0,0,0.2,1) infinite',
+      }} />
+      {/* Solid core */}
+      <span style={{
+        position: 'relative', display: 'inline-flex',
+        width: '12px', height: '12px', borderRadius: '50%',
+        background: dotColor,
+        boxShadow: glow,
+      }} />
+    </span>
+  );
+}
+
+export default function Navbar({ availabilityStatus }: { availabilityStatus?: AvailStatus }) {
   const [open, setOpen]           = useState(false);
   const [resumeOpen, setResumeOpen] = useState(false);
   const resumeRef                 = useRef<HTMLDivElement>(null);
   const { theme, toggle }         = useTheme();
+
+  const showStatus = availabilityStatus && availabilityStatus !== 'not_open';
+  const isActive   = availabilityStatus === 'active';
 
   useEffect(() => {
     function handleOutside(e: MouseEvent) {
@@ -68,14 +106,39 @@ export default function Navbar() {
       }}>
       <nav className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
 
-        {/* Logo */}
-        <Link href="/" className="font-bold text-lg tracking-tight flex items-center gap-1"
-          style={{ color: 'var(--text-1)' }}>
-          John
-          <span style={{ background: 'linear-gradient(135deg,#7c3aed,#06b6d4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            .
-          </span>
-        </Link>
+        {/* Logo + availability status */}
+        <div className="flex items-center gap-3">
+          <Link href="/" className="font-bold text-lg tracking-tight flex items-center gap-1"
+            style={{ color: 'var(--text-1)' }}>
+            John
+            <span style={{ background: 'linear-gradient(135deg,#7c3aed,#06b6d4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              .
+            </span>
+          </Link>
+
+          {showStatus && (
+            <>
+              {/* Divider — desktop only */}
+              <span className="hidden md:block w-px h-4 rounded-full"
+                style={{ background: 'var(--border)' }} />
+
+              {/* Full pill — desktop */}
+              <div className="hidden md:inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold"
+                style={isActive
+                  ? { background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.28)', color: '#22c55e' }
+                  : { background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.28)', color: '#f59e0b' }
+                }>
+                <PingDot status={availabilityStatus!} />
+                {isActive ? 'Available for opportunities' : 'Open to the right opportunity'}
+              </div>
+
+              {/* Dot only — mobile (saves navbar space) */}
+              <div className="md:hidden">
+                <PingDot status={availabilityStatus!} />
+              </div>
+            </>
+          )}
+        </div>
 
         {/* Desktop links */}
         <ul className="hidden md:flex items-center gap-7">

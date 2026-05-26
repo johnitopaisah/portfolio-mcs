@@ -21,9 +21,10 @@ export default async function HomePage() {
 
   return (
     <>
-      <Navbar />
+      <Navbar availabilityStatus={profile?.availability_status} />
       <main>
         <HeroSection profile={profile} certifications={certifications} />
+
         <ProjectsSection projects={projects} />
         <SkillsSection skills={skills} />
         <ExperienceSection experiences={experiences} />

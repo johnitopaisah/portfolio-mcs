@@ -78,23 +78,6 @@ export default function HeroSection({
         <div className="grid md:grid-cols-2 gap-16 items-center">
 
           <div>
-            {(profile?.availability_status ?? 'active') !== 'not_open' && (
-              <div className="inline-flex items-center gap-2 mb-6 px-3 py-1.5 rounded-full text-xs font-medium"
-                style={
-                  (profile?.availability_status ?? 'active') === 'passive'
-                    ? { background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', color: '#f59e0b' }
-                    : { background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)', color: '#22c55e' }
-                }>
-                <span className={`w-1.5 h-1.5 rounded-full ${
-                  (profile?.availability_status ?? 'active') === 'passive'
-                    ? 'bg-amber-500'
-                    : 'bg-green-500 animate-pulse'
-                }`} />
-                {(profile?.availability_status ?? 'active') === 'passive'
-                  ? 'Open to the right opportunity'
-                  : 'Available for opportunities'}
-              </div>
-            )}
 
             <p className="font-mono text-violet-400 text-sm mb-3 tracking-wide">
               {'// hi, i\'m'}
