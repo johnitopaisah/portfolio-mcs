@@ -5,6 +5,10 @@ node_modules/
 out/
 build/
 dist/
+.claude
+
+bootstrapping/infisical*
+bootstrapping/nginx*
 
 # Env — NEVER commit these
 .env
@@ -17,7 +21,16 @@ dist/
 ./api/.env.production
 ./api/.env.*.local
 
+JOB_*
+MONITORING_*
+monitoring/ARGOCD_MANAGEMENT_PLAN.md
+monitoring/DASHBOARD_DEPLOYMENT_GUIDE.md
+DEPLOY_*
+AGENTS.md
+
+job-logs.md
 cv/*
+prompts/*
 
 # OS
 .DS_Store
@@ -30,3 +43,7 @@ k8s/secrets/*.yaml
 # Never ignore the CI workflows
 !.github/
 !.github/workflows/
+
+# All .md files except README.md (planning/implementation notes should not be committed)
+*.md
+!README.md

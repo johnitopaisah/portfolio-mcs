@@ -3,6 +3,8 @@ FROM postgres:16-alpine
 LABEL maintainer="John Itopa ISAH"
 LABEL service="portfolio-db"
 
+RUN apk upgrade --no-cache
+
 # Init scripts run in alphabetical order on first container start.
 # 01-schema.sql  — creates all tables and indexes
 # 02-seed.sh     — inserts admin user + profile from env vars (no hardcoded secrets)

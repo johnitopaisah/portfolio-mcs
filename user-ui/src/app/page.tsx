@@ -10,24 +10,26 @@ import ContactSection from '@/components/ContactSection';
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
-  const [profile, projects, skills, experiences, certifications] = await Promise.all([
+  const [profile, projects, skills, experiences, certifications, socialLinks] = await Promise.all([
     api.getProfile().catch(() => null),
     api.getProjects().catch(() => []),
     api.getSkills().catch(() => []),
     api.getExperiences().catch(() => []),
     api.getCertifications().catch(() => []),
+    api.getSocialLinks().catch(() => []),
   ]);
 
   return (
     <>
-      <Navbar />
+      <Navbar availabilityStatus={profile?.availability_status} />
       <main>
-        <HeroSection profile={profile} />
+        <HeroSection profile={profile} certifications={certifications} />
+
         <ProjectsSection projects={projects} />
         <SkillsSection skills={skills} />
         <ExperienceSection experiences={experiences} />
         <CertificationsSection certifications={certifications} />
-        <ContactSection />
+        <ContactSection socialLinks={socialLinks} />
       </main>
 
       <footer className="py-10 mt-8" style={{ borderTop: '1px solid var(--border)' }}>

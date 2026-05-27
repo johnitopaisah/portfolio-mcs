@@ -33,8 +33,9 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write         # write needed for manifest update commit
   packages: write
+  security-events: write  # upload Trivy SARIF to GitHub Security tab
 
 env:
   IMAGE:    ${{ vars.IMAGE_REGISTRY_BASE }}/user-ui
@@ -64,9 +65,9 @@ jobs:
       - name: Verify required GitHub Variables are set
         run: |
           MISSING=0
-          [ -z "${{ vars.NEXT_PUBLIC_API_URL }}" ]   && echo "❌ GitHub Variable NEXT_PUBLIC_API_URL is not set"  && MISSING=1
-          [ -z "${{ vars.INTERNAL_API_URL }}" ]       && echo "❌ GitHub Variable INTERNAL_API_URL is not set"    && MISSING=1
-          [ -z "${{ vars.IMAGE_REGISTRY_BASE }}" ]    && echo "❌ GitHub Variable IMAGE_REGISTRY_BASE is not set" && MISSING=1
+          [ -z "${{ vars.NEXT_PUBLIC_API_URL }}" ]   && echo "❌ NEXT_PUBLIC_API_URL not set"  && MISSING=1
+          [ -z "${{ vars.INTERNAL_API_URL }}" ]       && echo "❌ INTERNAL_API_URL not set"    && MISSING=1
+          [ -z "${{ vars.IMAGE_REGISTRY_BASE }}" ]    && echo "❌ IMAGE_REGISTRY_BASE not set" && MISSING=1
           [ $MISSING -eq 0 ] && echo "✅ All required GitHub Variables are set"
           exit $MISSING
 
@@ -77,8 +78,10 @@ jobs:
           cache: npm
           cache-dependency-path: user-ui/package-lock.json
 
-      - name: Install dependencies
-        run: npm install
+      # npm ci: deterministic, fast, uses exact versions from package-lock.json.
+      # Never re-resolves peer deps — eliminates the eslint version conflict.
+      - name: Install dependencies (npm ci)
+        run: npm ci
 
       - name: ESLint
         run: npm run lint
@@ -95,6 +98,7 @@ jobs:
             src/app/globals.css \
             src/lib/api.ts \
             src/components/Navbar.tsx \
+            src/components/ThemeProvider.tsx \
             src/components/HeroSection.tsx \
             src/components/ProjectsSection.tsx \
             src/components/SkillsSection.tsx \
@@ -104,14 +108,13 @@ jobs:
             test -f "$f" && echo "✅ $f" || (echo "❌ Missing: $f" && exit 1)
           done
 
-      - name: Check NEXT_PUBLIC_API_URL is not hardcoded to localhost
+      - name: Check no hardcoded localhost in source
         run: |
-          echo "── Scanning for hardcoded localhost ──"
           if grep -r "localhost:4000" src/ --include="*.ts" --include="*.tsx" -l 2>/dev/null; then
-            echo "⚠️  Found hardcoded localhost:4000 — should come from env var"
+            echo "❌ Found hardcoded localhost:4000 — must use env var"
             exit 1
           fi
-          echo "✅  No hardcoded localhost found"
+          echo "✅ No hardcoded localhost found"
 
   # ── 3. Build & push ──────────────────────────────────────
   build-push:
@@ -147,10 +150,93 @@ jobs:
           cache-from: type=gha,scope=user-ui
           cache-to:   type=gha,scope=user-ui,mode=max
 
-  # ── 4. Summary ───────────────────────────────────────────
+  # ── 4. Trivy image scan ──────────────────────────────────
+  scan:
+    name: Scan image
+    needs: [validate, build-push]
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: '${{ vars.IMAGE_REGISTRY_BASE }}/user-ui:${{ needs.validate.outputs.tag }}'
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+          ignore-unfixed: true
+          trivyignores: user-ui/.trivyignore
+
+      - name: Run Trivy vulnerability scanner (SARIF report)
+        if: always()
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: '${{ vars.IMAGE_REGISTRY_BASE }}/user-ui:${{ needs.validate.outputs.tag }}'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+          ignore-unfixed: true
+          trivyignores: user-ui/.trivyignore
+
+      - name: Upload results to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # ── 5. Update manifest ───────────────────────────────────
+  update-manifest:
+    name: Update k8s manifest
+    needs: [validate, scan]
+    runs-on: ubuntu-latest
+    if: needs.scan.result == 'success'
+    steps:
+      - name: Checkout develop
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update image tag in manifest
+        run: |
+          TAG="${{ needs.validate.outputs.tag }}"
+          BASE="ghcr.io/johnitopaisah/portfolio-mcs"
+          sed -i "s|${BASE}/user-ui:.*|${BASE}/user-ui:${TAG}|g" k8s/user-ui/deployment.yaml
+          echo "✅ k8s/user-ui/deployment.yaml → ${BASE}/user-ui:${TAG}"
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          TAG="${{ needs.validate.outputs.tag }}"
+          git add k8s/user-ui/deployment.yaml
+          git diff --cached --quiet && echo "No manifest change needed" && exit 0
+          git commit -m "chore: bump user-ui image to ${TAG} [skip ci]"
+          PUSHED=false
+          for i in 1 2 3 4 5; do
+            git pull --rebase origin develop && git push origin develop && { PUSHED=true; break; }
+            echo "Push attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          [ "$PUSHED" = "true" ] || { echo "❌ Failed to push after 5 attempts"; exit 1; }
+          echo "✅ Manifest updated — ArgoCD will sync shortly"
+
+  # ── 6. Summary ───────────────────────────────────────────
   summary:
     name: Summary
-    needs: [validate, quality, build-push]
+    needs: [validate, quality, build-push, scan, update-manifest]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -159,15 +245,14 @@ jobs:
           TAG="${{ needs.validate.outputs.tag }}"
           QUALITY="${{ needs.quality.result }}"
           BUILD="${{ needs.build-push.result }}"
-
-          overall() { [ "$1" = "success" ] && echo "✅" || echo "❌"; }
-
+          SCAN="${{ needs.scan.result }}"
+          MANIFEST="${{ needs.update-manifest.result }}"
+          ok() { [ "$1" = "success" ] && echo "✅" || ( [ "$1" = "skipped" ] && echo "⏭️" || echo "❌" ); }
           echo "## User UI pipeline" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Stage | Result |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Lint & typecheck | $(overall $QUALITY) $QUALITY |" >> $GITHUB_STEP_SUMMARY
-          echo "| Build & push     | $(overall $BUILD) $BUILD |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Lint & typecheck | $(ok $QUALITY) $QUALITY |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build & push     | $(ok $BUILD) $BUILD |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trivy scan       | $(ok $SCAN) $SCAN |" >> $GITHUB_STEP_SUMMARY
+          echo "| Update manifest  | $(ok $MANIFEST) $MANIFEST |" >> $GITHUB_STEP_SUMMARY
           echo "**Image:** \`${{ vars.IMAGE_REGISTRY_BASE }}/user-ui:$TAG\`" >> $GITHUB_STEP_SUMMARY
-          echo "**API URL baked in:** \`${{ vars.NEXT_PUBLIC_API_URL }}\`" >> $GITHUB_STEP_SUMMARY

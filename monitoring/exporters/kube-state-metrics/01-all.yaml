@@ -5,14 +5,20 @@ metadata:
   name: kube-state-metrics
   namespace: monitoring
   labels:
-    app: kube-state-metrics
+    app.kubernetes.io/name: kube-state-metrics
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/component: exporter
+    app.kubernetes.io/managed-by: argocd
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: kube-state-metrics
   labels:
-    app: kube-state-metrics
+    app.kubernetes.io/name: kube-state-metrics
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/component: exporter
+    app.kubernetes.io/managed-by: argocd
 rules:
   - apiGroups: [""]
     resources:
@@ -65,7 +71,10 @@ kind: ClusterRoleBinding
 metadata:
   name: kube-state-metrics
   labels:
-    app: kube-state-metrics
+    app.kubernetes.io/name: kube-state-metrics
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/component: exporter
+    app.kubernetes.io/managed-by: argocd
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -82,6 +91,10 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-state-metrics
+    app.kubernetes.io/name: kube-state-metrics
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/component: exporter
+    app.kubernetes.io/managed-by: argocd
 spec:
   replicas: 1
   selector:
@@ -91,6 +104,9 @@ spec:
     metadata:
       labels:
         app: kube-state-metrics
+        app.kubernetes.io/name: kube-state-metrics
+        app.kubernetes.io/part-of: portfolio-monitoring
+        app.kubernetes.io/component: exporter
     spec:
       serviceAccountName: kube-state-metrics
       securityContext:
@@ -135,7 +151,10 @@ metadata:
   name: kube-state-metrics
   namespace: monitoring
   labels:
-    app: kube-state-metrics
+    app.kubernetes.io/name: kube-state-metrics
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/component: exporter
+    app.kubernetes.io/managed-by: argocd
 spec:
   type: ClusterIP
   selector:

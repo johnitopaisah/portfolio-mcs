@@ -1,9 +1,21 @@
+'use client';
 import { api } from '@/lib/api';
+import CvDownloadButton from './CvDownloadButton';
+import { useTheme } from './ThemeProvider';
+import BadgeOrbit from './BadgeOrbit';
 
 interface Profile {
   name: string; headline: string; bio: string;
   github_url?: string; linkedin_url?: string;
   has_avatar: boolean; hero_tags?: string[];
+  availability_status?: 'active' | 'passive' | 'not_open';
+  orbit_badge_ids?: string[];
+}
+
+interface Certification {
+  id: string;
+  name: string;
+  credential_url?: string;
 }
 
 const FALLBACK_TAGS = ['Kubernetes', 'AWS', 'CI/CD', 'Docker', 'Terraform', 'GitOps'];
@@ -19,7 +31,21 @@ const TAG_COLORS = [
   { color: 'rgba(236,72,153,0.12)',  border: 'rgba(236,72,153,0.3)',   text: '#f9a8d4' },
 ];
 
-export default function HeroSection({ profile }: { profile: Profile | null }) {
+export default function HeroSection({
+  profile,
+  certifications = [],
+}: {
+  profile: Profile | null;
+  certifications?: Certification[];
+}) {
+  const { theme } = useTheme();
+  const isGradient = theme === 'dark';
+
+  // Build orbit badge data: preserve the admin-chosen order from orbit_badge_ids
+  const orbitBadges = (profile?.orbit_badge_ids ?? [])
+    .map(id => certifications.find(c => c.id === id))
+    .filter((c): c is Certification => !!c);
+
   const tags =
     profile?.hero_tags && profile.hero_tags.length > 0
       ? profile.hero_tags
@@ -52,11 +78,6 @@ export default function HeroSection({ profile }: { profile: Profile | null }) {
         <div className="grid md:grid-cols-2 gap-16 items-center">
 
           <div>
-            <div className="inline-flex items-center gap-2 mb-6 px-3 py-1.5 rounded-full text-xs font-medium"
-              style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)', color: '#22c55e' }}>
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-              Available for opportunities
-            </div>
 
             <p className="font-mono text-violet-400 text-sm mb-3 tracking-wide">
               {'// hi, i\'m'}
@@ -80,6 +101,19 @@ export default function HeroSection({ profile }: { profile: Profile | null }) {
 
             <div className="flex flex-wrap gap-2 mb-8">
               {tags.map((tag, i) => {
+                if (isGradient) {
+                  return (
+                    <span key={tag} className="text-xs font-semibold px-4 py-1.5 rounded-full"
+                      style={{
+                        background: 'rgba(255,255,255,0.92)',
+                        color: '#3730a3',
+                        border: 'none',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                      }}>
+                      {tag}
+                    </span>
+                  );
+                }
                 const c = TAG_COLORS[i % TAG_COLORS.length];
                 return (
                   <span key={tag} className="text-xs font-medium px-3 py-1 rounded-full"
@@ -92,7 +126,7 @@ export default function HeroSection({ profile }: { profile: Profile | null }) {
 
             <div className="flex flex-wrap gap-3">
               <a href="#projects" className="btn-primary">View Projects →</a>
-              <a href="/api/profile/resume" className="btn-outline">Download CV ↓</a>
+              <CvDownloadButton />
               {profile?.github_url && (
                 <a href={profile.github_url} target="_blank" rel="noopener noreferrer" className="btn-outline">
                   GitHub ↗
@@ -108,15 +142,25 @@ export default function HeroSection({ profile }: { profile: Profile | null }) {
 
           {/* Avatar */}
           <div className="flex justify-center">
-            <div className="relative">
-              <div className="absolute inset-0 rounded-full"
-                style={{ background: 'radial-gradient(circle, rgba(124,58,237,0.25) 0%, transparent 70%)', transform: 'scale(1.15)' }} />
+            <div style={{ position: 'relative', width: '22rem', height: '22rem' }}>
+              {/* Ambient glow */}
+              <div style={{
+                position: 'absolute', inset: 0, borderRadius: '50%',
+                background: 'radial-gradient(circle, rgba(124,58,237,0.25) 0%, transparent 70%)',
+                transform: 'scale(1.15)',
+              }} />
+
+              {/* Orbiting badges — rendered below the avatar */}
+              <BadgeOrbit orbitBadges={orbitBadges} />
+
+              {/* Avatar image / initials */}
               {profile?.has_avatar ? (
                 <img src={api.avatarUrl} alt={profile.name}
                   style={{
                     width: '22rem', height: '22rem', borderRadius: '50%',
                     objectFit: 'cover', border: '3px solid rgba(124,58,237,0.4)',
-                    position: 'relative', boxShadow: '0 0 60px rgba(124,58,237,0.2)',
+                    position: 'relative', zIndex: 2,
+                    boxShadow: '0 0 60px rgba(124,58,237,0.2)',
                   }} />
               ) : (
                 <div style={{
@@ -124,7 +168,7 @@ export default function HeroSection({ profile }: { profile: Profile | null }) {
                   background: 'linear-gradient(135deg,rgba(124,58,237,0.15),rgba(6,182,212,0.1))',
                   border: '3px solid rgba(124,58,237,0.4)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  position: 'relative',
+                  position: 'relative', zIndex: 2,
                 }}>
                   <span style={{
                     fontSize: '6rem', fontWeight: '700',

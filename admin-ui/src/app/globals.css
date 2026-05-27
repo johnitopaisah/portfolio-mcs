@@ -3,16 +3,177 @@
 @tailwind utilities;
 
 @layer base {
-  body { @apply bg-gray-950 text-gray-100 antialiased; }
+  :root {
+    --bg:        #edeef8;
+    --surface:   #ffffff;
+    --surface-2: #f5f4fd;
+    --border:    rgba(124, 58, 237, 0.1);
+    --border-2:  rgba(124, 58, 237, 0.2);
+    --text-1:    #1a1b2e;
+    --text-2:    #5a5f80;
+    --text-3:    #9298b8;
+    --accent:    #7c3aed;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text-1);
+    -webkit-font-smoothing: antialiased;
+    /*  Radiating lavender orbs — mirrors the reference image  */
+    background-image:
+      radial-gradient(ellipse 80% 70% at -5%  -5%,  rgba(124, 58, 237, 0.14) 0%, transparent 55%),
+      radial-gradient(ellipse 60% 55% at 105% 108%, rgba(99, 102, 241, 0.12)  0%, transparent 55%),
+      radial-gradient(ellipse 50% 50% at 50%  50%,  rgba(167,139,250, 0.06)   0%, transparent 65%);
+    background-attachment: fixed;
+  }
+
+  ::-webkit-scrollbar        { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track  { background: transparent; }
+  ::-webkit-scrollbar-thumb  { background: rgba(124,58,237,0.18); border-radius: 999px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(124,58,237,0.32); }
+}
+
+/* ─────────────────────────────────────────────────────────
+   Dark-Tailwind → light-lavender remapping
+   Sub-pages were authored against a dark theme; these
+   overrides remap every hardcoded dark Tailwind class to
+   the current lavender CSS variables without touching JSX.
+───────────────────────────────────────────────────────── */
+
+/* Text colours */
+.text-white           { color: var(--text-1) !important; }
+.text-gray-300        { color: var(--text-2) !important; }
+.text-gray-400        { color: var(--text-2) !important; }
+.text-gray-500        { color: var(--text-3) !important; }
+.text-gray-600        { color: var(--text-3) !important; }
+
+/* Backgrounds */
+.bg-gray-900          { background-color: var(--surface)  !important; }
+.bg-gray-800          { background-color: var(--surface-2) !important; }
+.bg-gray-700          { background-color: rgba(124,58,237,0.1) !important; }
+
+/* Opacity-variant backgrounds */
+.bg-gray-800\/50      { background-color: rgba(124,58,237,0.04) !important; }
+.bg-gray-800\/40      { background-color: rgba(124,58,237,0.03) !important; }
+.bg-gray-800\/30      { background-color: rgba(124,58,237,0.025) !important; }
+.bg-gray-900\/30      { background-color: rgba(255,255,255,0.6) !important; }
+
+/* Borders */
+.border-gray-800      { border-color: var(--border)   !important; }
+.border-gray-700      { border-color: var(--border-2) !important; }
+.border-gray-800\/60  { border-color: rgba(124,58,237,0.07) !important; }
+.border-gray-700\/50  { border-color: rgba(124,58,237,0.1)  !important; }
+.border-gray-800\/50  { border-color: rgba(124,58,237,0.08) !important; }
+.border-gray-800\/40  { border-color: rgba(124,58,237,0.06) !important; }
+
+/* Hover states */
+.hover\:bg-gray-800\/40:hover { background-color: rgba(124,58,237,0.05) !important; }
+.hover\:bg-gray-800\/30:hover { background-color: rgba(124,58,237,0.04) !important; }
+.hover\:bg-gray-700:hover     { background-color: rgba(124,58,237,0.07) !important; }
+.hover\:text-white:hover      { color: var(--text-1) !important; }
+
+/* Divide colour */
+.divide-gray-800 > * + * { border-color: var(--border) !important; }
+
+/* Skeleton shimmer */
+.bg-gray-800.animate-pulse { background-color: rgba(124,58,237,0.07) !important; }
+
+/* Restore white text on coloured surfaces (buttons, badges, etc.) */
+.btn-primary                  { color: #fff !important; }
+.bg-indigo-600, .bg-indigo-500 { color: #fff !important; }
+.bg-red-900\/30               { background-color: rgba(239,68,68,0.07) !important; }
+.border-red-800\/50           { border-color: rgba(239,68,68,0.2) !important; }
+.text-red-400                 { color: #ef4444 !important; }
+.hover\:text-red-400:hover    { color: #ef4444 !important; }
+.hover\:bg-red-900\/40:hover  { background-color: rgba(239,68,68,0.08) !important; }
+.hover\:border-red-800\/50:hover { border-color: rgba(239,68,68,0.25) !important; }
+
+/* ── Page heading gradient ───────────────────────────────────
+   All h1/h2 that used text-white get a purple gradient instead
+   of the plain --text-1 dark colour from the .text-white rule. */
+h1.text-white,
+h2.text-white {
+  background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent !important;
+}
+
+/* Sidebar indicator tab breathe */
+@keyframes tab-breathe {
+  0%, 100% { opacity: 0.55; transform: scaleX(0.88); }
+  50%       { opacity: 1;    transform: scaleX(1);    }
+}
+
+/* Sidebar peek strip pulse (kept for reference) */
+@keyframes peek-breathe {
+  0%, 100% { opacity: 0.3; transform: scaleY(0.7) translateY(-50%); }
+  50%       { opacity: 0.8; transform: scaleY(1)   translateY(-50%); }
 }
 
 @layer components {
-  .card         { @apply bg-gray-900 border border-gray-800 rounded-xl p-6; }
-  .btn-primary  { @apply bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
-  .btn-danger   { @apply bg-red-600/10 hover:bg-red-600/20 text-red-400 text-sm font-medium px-4 py-2 rounded-lg transition-colors border border-red-500/20; }
-  .btn-ghost    { @apply text-gray-400 hover:text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors hover:bg-gray-800; }
-  .input        { @apply w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-indigo-500; }
-  .label        { @apply block text-sm font-medium text-gray-300 mb-1.5; }
-  .table-cell   { @apply px-4 py-3 text-sm text-gray-300; }
-  .table-header { @apply px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-left; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem;
+    box-shadow: 0 1px 4px rgba(124,58,237,0.04), 0 8px 24px rgba(124,58,237,0.06);
+  }
+
+  .card-sm {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem;
+    box-shadow: 0 1px 4px rgba(124,58,237,0.04);
+  }
+
+  .btn-primary {
+    @apply text-white text-sm font-medium px-4 py-2 rounded-xl transition-all duration-200
+           disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center;
+    background: linear-gradient(135deg, #7c3aed, #4f46e5);
+    box-shadow: 0 2px 12px rgba(124,58,237,0.3);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, #6d28d9, #4338ca);
+    box-shadow: 0 4px 20px rgba(124,58,237,0.45);
+  }
+
+  .btn-danger {
+    @apply text-sm font-medium px-4 py-2 rounded-xl transition-all duration-200 border;
+    color: #dc2626;
+    background: rgba(220, 38, 38, 0.06);
+    border-color: rgba(220, 38, 38, 0.2);
+  }
+  .btn-danger:hover { background: rgba(220, 38, 38, 0.1); }
+
+  .btn-ghost {
+    @apply text-sm font-medium px-4 py-2 rounded-xl transition-all duration-200;
+    color: var(--text-2);
+  }
+  .btn-ghost:hover {
+    color: var(--text-1);
+    background: rgba(124, 58, 237, 0.06);
+  }
+
+  .input {
+    @apply w-full rounded-xl px-3 py-2 text-sm outline-none transition-all duration-200;
+    background: var(--surface-2);
+    border: 1px solid var(--border-2);
+    color: var(--text-1);
+  }
+  .input::placeholder { color: var(--text-3); }
+  .input:focus {
+    border-color: rgba(124, 58, 237, 0.5);
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+  }
+
+  .label { @apply block text-sm font-medium mb-1.5; color: var(--text-2); }
+
+  .table-cell   { @apply px-4 py-3 text-sm; color: var(--text-2); }
+  .table-header {
+    @apply px-4 py-3 text-xs font-semibold uppercase tracking-wider text-left;
+    color: var(--text-3);
+  }
 }

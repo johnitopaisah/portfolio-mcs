@@ -1,0 +1,494 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 1780" width="1400" height="1780">
+<defs>
+  <filter id="glow-purple" x="-20%" y="-20%" width="140%" height="140%">
+    <feGaussianBlur stdDeviation="6" result="blur"/>
+    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <filter id="glow-blue" x="-20%" y="-20%" width="140%" height="140%">
+    <feGaussianBlur stdDeviation="5" result="blur"/>
+    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <filter id="glow-cyan" x="-20%" y="-20%" width="140%" height="140%">
+    <feGaussianBlur stdDeviation="4" result="blur"/>
+    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <filter id="glow-orange" x="-20%" y="-20%" width="140%" height="140%">
+    <feGaussianBlur stdDeviation="4" result="blur"/>
+    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <filter id="glow-title" x="-30%" y="-30%" width="160%" height="160%">
+    <feGaussianBlur stdDeviation="10" result="blur"/>
+    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+    <stop offset="0%" style="stop-color:#050816"/>
+    <stop offset="100%" style="stop-color:#080d24"/>
+  </linearGradient>
+  <linearGradient id="k8s-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+    <stop offset="0%" style="stop-color:#04071a"/>
+    <stop offset="100%" style="stop-color:#060b20"/>
+  </linearGradient>
+  <linearGradient id="title-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+    <stop offset="0%" style="stop-color:#8b5cf6"/>
+    <stop offset="50%" style="stop-color:#06b6d4"/>
+    <stop offset="100%" style="stop-color:#8b5cf6"/>
+  </linearGradient>
+  <marker id="arr-purple" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+    <polygon points="0 0, 10 3.5, 0 7" fill="#8b5cf6"/>
+  </marker>
+  <marker id="arr-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+    <polygon points="0 0, 10 3.5, 0 7" fill="#3b82f6"/>
+  </marker>
+  <marker id="arr-cyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+    <polygon points="0 0, 10 3.5, 0 7" fill="#06b6d4"/>
+  </marker>
+  <marker id="arr-orange" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+    <polygon points="0 0, 10 3.5, 0 7" fill="#f59e0b"/>
+  </marker>
+  <marker id="arr-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+    <polygon points="0 0, 10 3.5, 0 7" fill="#10b981"/>
+  </marker>
+  <pattern id="grid-dots" width="30" height="30" patternUnits="userSpaceOnUse">
+    <circle cx="15" cy="15" r="0.8" fill="#ffffff0a"/>
+  </pattern>
+</defs>
+
+<!-- BACKGROUND -->
+<rect width="1400" height="1780" fill="url(#bg-grad)"/>
+<rect width="1400" height="1780" fill="url(#grid-dots)"/>
+
+<!-- TITLE -->
+<text x="700" y="48" text-anchor="middle" font-family="'Courier New',monospace" font-size="36" font-weight="bold" fill="url(#title-grad)" filter="url(#glow-title)">Portfolio MCS</text>
+<text x="700" y="74" text-anchor="middle" font-family="'Courier New',monospace" font-size="15" fill="#8b5cf6">Cloud-Native GitOps Deployment Platform</text>
+<text x="700" y="96" text-anchor="middle" font-family="'Courier New',monospace" font-size="11" fill="#475569">Production-grade CI/CD · GitOps · Kubernetes Infrastructure</text>
+<line x1="80" y1="107" x2="1320" y2="107" stroke="#8b5cf615" stroke-width="1"/>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- LAYER 1: DEVELOPER + GITHUB            -->
+<!-- ═══════════════════════════════════════ -->
+<circle cx="145" cy="172" r="38" fill="#0f172a" stroke="#7c3aed" stroke-width="2" filter="url(#glow-purple)"/>
+<text x="145" y="164" text-anchor="middle" font-size="22" font-family="sans-serif">&#128100;</text>
+<text x="145" y="181" text-anchor="middle" font-family="'Courier New',monospace" font-size="9" font-weight="bold" fill="#8b5cf6">DEV</text>
+<text x="145" y="224" text-anchor="middle" font-family="'Courier New',monospace" font-size="11" fill="#64748b">Developer</text>
+
+<line x1="186" y1="172" x2="308" y2="172" stroke="#8b5cf6" stroke-width="2" marker-end="url(#arr-purple)" stroke-dasharray="6,3"/>
+<text x="247" y="163" text-anchor="middle" font-family="'Courier New',monospace" font-size="9" fill="#7c3aed">git push</text>
+
+<rect x="318" y="138" width="230" height="80" rx="10" fill="#0f172a" stroke="#3b82f6" stroke-width="2" filter="url(#glow-blue)"/>
+<text x="433" y="162" text-anchor="middle" font-family="'Courier New',monospace" font-size="10" fill="#64748b">&#11042; Source Control</text>
+<text x="433" y="184" text-anchor="middle" font-family="'Courier New',monospace" font-size="16" font-weight="bold" fill="#e2e8f0">GitHub</text>
+<text x="433" y="204" text-anchor="middle" font-family="'Courier New',monospace" font-size="9" fill="#3b82f6">portfolio-mcs</text>
+
+<line x1="433" y1="218" x2="433" y2="250" stroke="#8b5cf6" stroke-width="2" marker-end="url(#arr-purple)"/>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- LAYER 2: GITHUB ACTIONS CI/CD          -->
+<!-- ═══════════════════════════════════════ -->
+<rect x="80" y="258" width="960" height="168" rx="10" fill="#0c1020" stroke="#f59e0b" stroke-width="2"/>
+<rect x="80" y="258" width="960" height="28" rx="10" fill="#f59e0b18"/>
+<text x="103" y="277" font-family="'Courier New',monospace" font-size="11" font-weight="bold" fill="#f59e0b">&#9881;  GitHub Actions</text>
+<text x="1022" y="277" text-anchor="end" font-family="'Courier New',monospace" font-size="9" fill="#78716c">CI/CD Pipeline</text>
+
+<!-- Stage 1: Validate -->
+<rect x="95" y="292" width="138" height="120" rx="7" fill="#111827" stroke="#10b98150" stroke-width="1"/>
+<rect x="95" y="292" width="138" height="22" rx="7" fill="#10b98118"/>
+<text x="164" y="307" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#10b981">STAGE 1</text>
+<text x="164" y="335" text-anchor="middle" font-size="20" font-family="sans-serif">&#9989;</text>
+<text x="164" y="356" text-anchor="middle" font-family="'Courier New',monospace" font-size="12" font-weight="bold" fill="#e2e8f0">Validate</text>
+<text x="164" y="372" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#64748b">lint · format</text>
+<text x="164" y="385" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#64748b">type check</text>
+<line x1="233" y1="352" x2="250" y2="352" stroke="#f59e0b" stroke-width="2" marker-end="url(#arr-orange)"/>
+
+<!-- Stage 2: Build -->
+<rect x="253" y="292" width="138" height="120" rx="7" fill="#111827" stroke="#3b82f650" stroke-width="1"/>
+<rect x="253" y="292" width="138" height="22" rx="7" fill="#3b82f618"/>
+<text x="322" y="307" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#3b82f6">STAGE 2</text>
+<text x="322" y="335" text-anchor="middle" font-size="20" font-family="sans-serif">&#128296;</text>
+<text x="322" y="356" text-anchor="middle" font-family="'Courier New',monospace" font-size="12" font-weight="bold" fill="#e2e8f0">Build</text>
+<text x="322" y="372" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#64748b">compile</text>
+<text x="322" y="385" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#64748b">dependencies</text>
+<line x1="391" y1="352" x2="408" y2="352" stroke="#f59e0b" stroke-width="2" marker-end="url(#arr-orange)"/>
+
+<!-- Stage 3: Test -->
+<rect x="411" y="292" width="138" height="120" rx="7" fill="#111827" stroke="#8b5cf650" stroke-width="1"/>
+<rect x="411" y="292" width="138" height="22" rx="7" fill="#8b5cf618"/>
+<text x="480" y="307" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#8b5cf6">STAGE 3</text>
+<text x="480" y="335" text-anchor="middle" font-size="20" font-family="sans-serif">&#129514;</text>
+<text x="480" y="356" text-anchor="middle" font-family="'Courier New',monospace" font-size="12" font-weight="bold" fill="#e2e8f0">Test</text>
+<text x="480" y="372" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#64748b">unit tests</text>
+<text x="480" y="385" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#64748b">integration</text>
+<line x1="549" y1="352" x2="566" y2="352" stroke="#f59e0b" stroke-width="2" marker-end="url(#arr-orange)"/>
+
+<!-- Stage 4: Docker Build -->
+<rect x="569" y="292" width="138" height="120" rx="7" fill="#111827" stroke="#06b6d450" stroke-width="1"/>
+<rect x="569" y="292" width="138" height="22" rx="7" fill="#06b6d418"/>
+<text x="638" y="307" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#06b6d4">STAGE 4</text>
+<text x="638" y="335" text-anchor="middle" font-size="20" font-family="sans-serif">&#128051;</text>
+<text x="638" y="356" text-anchor="middle" font-family="'Courier New',monospace" font-size="12" font-weight="bold" fill="#e2e8f0">Docker</text>
+<text x="638" y="372" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#64748b">multi-stage</text>
+<text x="638" y="385" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#64748b">build image</text>
+<line x1="707" y1="352" x2="724" y2="352" stroke="#f59e0b" stroke-width="2" marker-end="url(#arr-orange)"/>
+
+<!-- Stage 5: Push GHCR -->
+<rect x="727" y="292" width="138" height="120" rx="7" fill="#111827" stroke="#7c3aed50" stroke-width="1"/>
+<rect x="727" y="292" width="138" height="22" rx="7" fill="#7c3aed18"/>
+<text x="796" y="307" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#8b5cf6">STAGE 5</text>
+<text x="796" y="335" text-anchor="middle" font-size="20" font-family="sans-serif">&#128230;</text>
+<text x="796" y="356" text-anchor="middle" font-family="'Courier New',monospace" font-size="12" font-weight="bold" fill="#e2e8f0">Push GHCR</text>
+<text x="796" y="372" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#64748b">ghcr.io</text>
+<text x="796" y="385" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#64748b">versioned tag</text>
+<line x1="865" y1="352" x2="882" y2="352" stroke="#f59e0b" stroke-width="2" marker-end="url(#arr-orange)"/>
+
+<!-- Stage 6: Update Manifests -->
+<rect x="885" y="292" width="140" height="120" rx="7" fill="#111827" stroke="#f97316" stroke-width="1.5"/>
+<rect x="885" y="292" width="140" height="22" rx="7" fill="#f9731618"/>
+<text x="955" y="307" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#f97316">STAGE 6</text>
+<text x="955" y="335" text-anchor="middle" font-size="20" font-family="sans-serif">&#128221;</text>
+<text x="955" y="354" text-anchor="middle" font-family="'Courier New',monospace" font-size="11" font-weight="bold" fill="#e2e8f0">Update</text>
+<text x="955" y="369" text-anchor="middle" font-family="'Courier New',monospace" font-size="11" font-weight="bold" fill="#e2e8f0">Manifests</text>
+<text x="955" y="385" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#64748b">bump tag · git push</text>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- LAYER 3: GHCR + ArgoCD                 -->
+<!-- ═══════════════════════════════════════ -->
+
+<!-- Arrow: Push GHCR → GHCR box -->
+<line x1="796" y1="412" x2="796" y2="440" stroke="#8b5cf6" stroke-width="1.5" stroke-dasharray="5,3"/>
+<line x1="796" y1="440" x2="230" y2="440" stroke="#8b5cf6" stroke-width="1.5" stroke-dasharray="5,3"/>
+<line x1="230" y1="440" x2="230" y2="462" stroke="#8b5cf6" stroke-width="1.5" marker-end="url(#arr-purple)" stroke-dasharray="5,3"/>
+<text x="510" y="435" text-anchor="middle" font-family="'Courier New',monospace" font-size="9" fill="#8b5cf6">push image</text>
+
+<!-- Arrow: Update Manifests → ArgoCD -->
+<line x1="955" y1="412" x2="955" y2="440" stroke="#06b6d4" stroke-width="1.5" stroke-dasharray="5,3"/>
+<line x1="955" y1="440" x2="1145" y2="440" stroke="#06b6d4" stroke-width="1.5" stroke-dasharray="5,3"/>
+<line x1="1145" y1="440" x2="1145" y2="462" stroke="#06b6d4" stroke-width="1.5" marker-end="url(#arr-cyan)" stroke-dasharray="5,3"/>
+<text x="1053" y="435" text-anchor="middle" font-family="'Courier New',monospace" font-size="9" fill="#06b6d4">update manifests</text>
+
+<!-- GHCR box -->
+<rect x="90" y="465" width="280" height="132" rx="10" fill="#0f172a" stroke="#8b5cf6" stroke-width="2" filter="url(#glow-purple)"/>
+<rect x="90" y="465" width="280" height="26" rx="10" fill="#8b5cf615"/>
+<text x="230" y="483" text-anchor="middle" font-family="'Courier New',monospace" font-size="10" fill="#8b5cf6">&#128230;  Container Registry</text>
+<text x="230" y="512" text-anchor="middle" font-family="'Courier New',monospace" font-size="18" font-weight="bold" fill="#e2e8f0">GHCR</text>
+<text x="230" y="533" text-anchor="middle" font-family="'Courier New',monospace" font-size="9" fill="#7c3aed">api:v0.1.0</text>
+<text x="230" y="549" text-anchor="middle" font-family="'Courier New',monospace" font-size="9" fill="#7c3aed">admin-ui:v0.1.0</text>
+<text x="230" y="565" text-anchor="middle" font-family="'Courier New',monospace" font-size="9" fill="#7c3aed">user-ui:v0.1.0</text>
+<text x="230" y="581" text-anchor="middle" font-family="'Courier New',monospace" font-size="9" fill="#475569">ghcr.io/johnitopaisah</text>
+
+<!-- ArgoCD box -->
+<rect x="1005" y="465" width="280" height="132" rx="10" fill="#0f172a" stroke="#06b6d4" stroke-width="2" filter="url(#glow-cyan)"/>
+<rect x="1005" y="465" width="280" height="26" rx="10" fill="#06b6d415"/>
+<text x="1145" y="483" text-anchor="middle" font-family="'Courier New',monospace" font-size="10" fill="#06b6d4">&#8857;  GitOps Controller</text>
+<text x="1145" y="512" text-anchor="middle" font-family="'Courier New',monospace" font-size="18" font-weight="bold" fill="#e2e8f0">ArgoCD</text>
+<text x="1145" y="533" text-anchor="middle" font-family="'Courier New',monospace" font-size="10" fill="#06b6d4">Continuous Delivery</text>
+<text x="1145" y="551" text-anchor="middle" font-family="'Courier New',monospace" font-size="9" fill="#475569">Auto Sync · Reconciliation</text>
+<text x="1145" y="567" text-anchor="middle" font-family="'Courier New',monospace" font-size="9" fill="#475569">Health checks · Rollback</text>
+<text x="1145" y="583" text-anchor="middle" font-family="'Courier New',monospace" font-size="9" fill="#06b6d4">GitOps Enabled</text>
+
+<!-- Arrow: GHCR → K8s -->
+<line x1="230" y1="597" x2="230" y2="628" stroke="#8b5cf6" stroke-width="1.5" stroke-dasharray="4,3"/>
+<line x1="230" y1="628" x2="400" y2="628" stroke="#8b5cf6" stroke-width="1.5" stroke-dasharray="4,3"/>
+<line x1="400" y1="628" x2="400" y2="648" stroke="#8b5cf6" stroke-width="1.5" marker-end="url(#arr-purple)" stroke-dasharray="4,3"/>
+<text x="295" y="621" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#8b5cf6">image pull</text>
+
+<!-- Arrow: ArgoCD → K8s -->
+<line x1="1145" y1="597" x2="1145" y2="628" stroke="#06b6d4" stroke-width="1.5" stroke-dasharray="4,3"/>
+<line x1="1145" y1="628" x2="960" y2="628" stroke="#06b6d4" stroke-width="1.5" stroke-dasharray="4,3"/>
+<line x1="960" y1="628" x2="960" y2="648" stroke="#06b6d4" stroke-width="1.5" marker-end="url(#arr-cyan)" stroke-dasharray="4,3"/>
+<text x="1055" y="621" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#06b6d4">deploy sync</text>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- LAYER 4: KUBERNETES CLUSTER            -->
+<!-- ═══════════════════════════════════════ -->
+<rect x="60" y="655" width="1280" height="740" rx="16" fill="url(#k8s-grad)" stroke="#8b5cf6" stroke-width="2" stroke-dasharray="12,6"/>
+
+<!-- Cluster badge -->
+<rect x="78" y="643" width="298" height="24" rx="12" fill="#7c3aed" filter="url(#glow-purple)"/>
+<text x="227" y="659" text-anchor="middle" font-family="'Courier New',monospace" font-size="11" font-weight="bold" fill="white">&#9096;  Production Kubernetes Cluster</text>
+
+<!-- Version badge -->
+<rect x="1097" y="643" width="223" height="24" rx="12" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+<text x="1208" y="659" text-anchor="middle" font-family="'Courier New',monospace" font-size="10" fill="#94a3b8">v0.1.0-rc3  →  latest</text>
+
+<!-- ── FRONTEND ── -->
+<rect x="80" y="670" width="560" height="165" rx="8" fill="#05091e" stroke="#3b82f625" stroke-width="1"/>
+<text x="100" y="688" font-family="'Courier New',monospace" font-size="9" fill="#3b82f6">▸  FRONTEND</text>
+
+<rect x="92" y="695" width="250" height="125" rx="8" fill="#0f172a" stroke="#3b82f6" stroke-width="2"/>
+<rect x="92" y="695" width="250" height="22" rx="8" fill="#3b82f615"/>
+<text x="217" y="710" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#3b82f6">Deployment</text>
+<text x="217" y="739" text-anchor="middle" font-size="18" font-family="sans-serif">&#128187;</text>
+<text x="217" y="759" text-anchor="middle" font-family="'Courier New',monospace" font-size="14" font-weight="bold" fill="#3b82f6">User UI</text>
+<text x="217" y="776" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#94a3b8">user-ui:v0.1.0</text>
+<rect x="108" y="786" width="58" height="16" rx="8" fill="#10b98125"/>
+<text x="137" y="798" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#10b981">&#9679; Running</text>
+<rect x="176" y="786" width="65" height="16" rx="8" fill="#3b82f620"/>
+<text x="208" y="798" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#3b82f6">port:3000</text>
+<rect x="251" y="786" width="45" height="16" rx="8" fill="#3b82f615"/>
+<text x="273" y="798" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#475569">rep:2</text>
+
+<rect x="373" y="695" width="250" height="125" rx="8" fill="#0f172a" stroke="#3b82f6" stroke-width="2"/>
+<rect x="373" y="695" width="250" height="22" rx="8" fill="#3b82f615"/>
+<text x="498" y="710" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#3b82f6">Deployment</text>
+<text x="498" y="739" text-anchor="middle" font-size="18" font-family="sans-serif">&#9881;&#65039;</text>
+<text x="498" y="759" text-anchor="middle" font-family="'Courier New',monospace" font-size="14" font-weight="bold" fill="#3b82f6">Admin UI</text>
+<text x="498" y="776" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#94a3b8">admin-ui:v0.1.0</text>
+<rect x="389" y="786" width="58" height="16" rx="8" fill="#10b98125"/>
+<text x="418" y="798" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#10b981">&#9679; Running</text>
+<rect x="457" y="786" width="65" height="16" rx="8" fill="#3b82f620"/>
+<text x="489" y="798" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#3b82f6">port:3001</text>
+<rect x="532" y="786" width="45" height="16" rx="8" fill="#3b82f615"/>
+<text x="554" y="798" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#475569">rep:1</text>
+
+<!-- ── BACKEND ── -->
+<rect x="660" y="670" width="660" height="165" rx="8" fill="#05091e" stroke="#8b5cf625" stroke-width="1"/>
+<text x="680" y="688" font-family="'Courier New',monospace" font-size="9" fill="#8b5cf6">▸  BACKEND</text>
+
+<rect x="672" y="695" width="198" height="125" rx="8" fill="#0f172a" stroke="#8b5cf6" stroke-width="2"/>
+<rect x="672" y="695" width="198" height="22" rx="8" fill="#8b5cf615"/>
+<text x="771" y="710" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#8b5cf6">Deployment</text>
+<text x="771" y="739" text-anchor="middle" font-size="18" font-family="sans-serif">&#128640;</text>
+<text x="771" y="757" text-anchor="middle" font-family="'Courier New',monospace" font-size="13" font-weight="bold" fill="#8b5cf6">Portfolio API</text>
+<text x="771" y="774" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#94a3b8">api:v0.1.0</text>
+<rect x="688" y="785" width="58" height="16" rx="8" fill="#10b98125"/>
+<text x="717" y="797" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#10b981">&#9679; Running</text>
+<rect x="756" y="785" width="65" height="16" rx="8" fill="#8b5cf620"/>
+<text x="788" y="797" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#8b5cf6">port:8000</text>
+
+<rect x="888" y="695" width="198" height="125" rx="8" fill="#0f172a" stroke="#8b5cf6" stroke-width="2"/>
+<rect x="888" y="695" width="198" height="22" rx="8" fill="#8b5cf615"/>
+<text x="987" y="710" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#8b5cf6">Deployment</text>
+<text x="987" y="739" text-anchor="middle" font-size="18" font-family="sans-serif">&#9889;</text>
+<text x="987" y="757" text-anchor="middle" font-family="'Courier New',monospace" font-size="13" font-weight="bold" fill="#8b5cf6">Job Workers</text>
+<text x="987" y="774" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#94a3b8">worker:v0.1.0</text>
+<rect x="904" y="785" width="58" height="16" rx="8" fill="#10b98125"/>
+<text x="933" y="797" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#10b981">&#9679; Running</text>
+<rect x="972" y="785" width="45" height="16" rx="8" fill="#8b5cf615"/>
+<text x="994" y="797" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#475569">rep:2</text>
+
+<rect x="1104" y="695" width="200" height="125" rx="8" fill="#0f172a" stroke="#f59e0b" stroke-width="2"/>
+<rect x="1104" y="695" width="200" height="22" rx="8" fill="#f59e0b15"/>
+<text x="1204" y="710" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#f59e0b">CronJob</text>
+<text x="1204" y="739" text-anchor="middle" font-size="18" font-family="sans-serif">&#128336;</text>
+<text x="1204" y="757" text-anchor="middle" font-family="'Courier New',monospace" font-size="13" font-weight="bold" fill="#f59e0b">CronJobs</text>
+<text x="1204" y="774" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#94a3b8">scraper · analytics</text>
+<rect x="1120" y="785" width="88" height="16" rx="8" fill="#f59e0b20"/>
+<text x="1164" y="797" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#f59e0b">*/5 * * * *</text>
+
+<!-- ── DATA LAYER ── -->
+<rect x="80" y="850" width="400" height="155" rx="8" fill="#05091e" stroke="#10b98125" stroke-width="1"/>
+<text x="100" y="868" font-family="'Courier New',monospace" font-size="9" fill="#10b981">▸  DATA LAYER</text>
+
+<rect x="92" y="876" width="185" height="115" rx="8" fill="#0f172a" stroke="#10b981" stroke-width="2"/>
+<rect x="92" y="876" width="185" height="22" rx="8" fill="#10b98115"/>
+<text x="184" y="891" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#10b981">StatefulSet</text>
+<text x="184" y="917" text-anchor="middle" font-size="18" font-family="sans-serif">&#128451;&#65039;</text>
+<text x="184" y="937" text-anchor="middle" font-family="'Courier New',monospace" font-size="13" font-weight="bold" fill="#10b981">PostgreSQL</text>
+<text x="184" y="953" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#94a3b8">postgres:15  ·  rep:1</text>
+<rect x="110" y="963" width="68" height="16" rx="8" fill="#10b98125"/>
+<text x="144" y="975" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#10b981">port:5432</text>
+
+<rect x="293" y="876" width="177" height="115" rx="8" fill="#0f172a" stroke="#10b981" stroke-width="1.5" stroke-dasharray="6,3"/>
+<rect x="293" y="876" width="177" height="22" rx="8" fill="#10b98110"/>
+<text x="381" y="891" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#10b981">PVC</text>
+<text x="381" y="917" text-anchor="middle" font-size="18" font-family="sans-serif">&#128190;</text>
+<text x="381" y="937" text-anchor="middle" font-family="'Courier New',monospace" font-size="13" font-weight="bold" fill="#10b981">Storage</text>
+<text x="381" y="953" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#94a3b8">20Gi  ·  ReadWriteOnce</text>
+<rect x="308" y="963" width="55" height="16" rx="8" fill="#10b98115"/>
+<text x="335" y="975" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#475569">ssd-class</text>
+
+<!-- ── INFRASTRUCTURE ── -->
+<rect x="500" y="850" width="820" height="155" rx="8" fill="#05091e" stroke="#94a3b820" stroke-width="1"/>
+<text x="520" y="868" font-family="'Courier New',monospace" font-size="9" fill="#94a3b8">▸  INFRASTRUCTURE</text>
+
+<rect x="513" y="876" width="145" height="115" rx="8" fill="#0f172a" stroke="#64748b" stroke-width="1"/>
+<text x="585" y="917" text-anchor="middle" font-size="20" font-family="sans-serif">&#128203;</text>
+<text x="585" y="937" text-anchor="middle" font-family="'Courier New',monospace" font-size="12" font-weight="bold" fill="#e2e8f0">ConfigMaps</text>
+<text x="585" y="953" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#64748b">app config</text>
+<text x="585" y="966" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#64748b">env vars</text>
+
+<rect x="670" y="876" width="145" height="115" rx="8" fill="#0f172a" stroke="#ef4444" stroke-width="1.5"/>
+<text x="742" y="917" text-anchor="middle" font-size="20" font-family="sans-serif">&#128272;</text>
+<text x="742" y="937" text-anchor="middle" font-family="'Courier New',monospace" font-size="12" font-weight="bold" fill="#e2e8f0">Secrets</text>
+<text x="742" y="953" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#64748b">Infisical sync</text>
+<text x="742" y="966" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#ef4444">auto-rotated</text>
+
+<rect x="827" y="876" width="140" height="115" rx="8" fill="#0f172a" stroke="#f59e0b" stroke-width="1.5"/>
+<text x="897" y="917" text-anchor="middle" font-size="20" font-family="sans-serif">&#128200;</text>
+<text x="897" y="937" text-anchor="middle" font-family="'Courier New',monospace" font-size="12" font-weight="bold" fill="#e2e8f0">HPA</text>
+<text x="897" y="953" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#64748b">auto-scaling</text>
+<text x="897" y="966" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#f59e0b">CPU · Memory</text>
+
+<rect x="979" y="876" width="145" height="115" rx="8" fill="#0f172a" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="1051" y="917" text-anchor="middle" font-size="20" font-family="sans-serif">&#128279;</text>
+<text x="1051" y="937" text-anchor="middle" font-family="'Courier New',monospace" font-size="12" font-weight="bold" fill="#e2e8f0">Services</text>
+<text x="1051" y="953" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#64748b">ClusterIP</text>
+<text x="1051" y="966" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#3b82f6">load balance</text>
+
+<rect x="1136" y="876" width="172" height="115" rx="8" fill="#0f172a" stroke="#06b6d4" stroke-width="1.5"/>
+<text x="1222" y="917" text-anchor="middle" font-size="20" font-family="sans-serif">&#127758;</text>
+<text x="1222" y="937" text-anchor="middle" font-family="'Courier New',monospace" font-size="12" font-weight="bold" fill="#e2e8f0">Ingress</text>
+<text x="1222" y="953" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#64748b">nginx controller</text>
+<text x="1222" y="966" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#06b6d4">TLS termination</text>
+
+<!-- ── OBSERVABILITY ── -->
+<rect x="80" y="1022" width="1240" height="192" rx="8" fill="#05091e" stroke="#f59e0b20" stroke-width="1"/>
+<text x="100" y="1040" font-family="'Courier New',monospace" font-size="9" fill="#f59e0b">▸  OBSERVABILITY STACK</text>
+
+<rect x="92" y="1048" width="190" height="152" rx="8" fill="#0f172a" stroke="#f59e0b" stroke-width="2"/>
+<rect x="92" y="1048" width="190" height="22" rx="8" fill="#f59e0b15"/>
+<text x="187" y="1063" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#f59e0b">StatefulSet</text>
+<text x="187" y="1090" text-anchor="middle" font-size="18" font-family="sans-serif">&#128202;</text>
+<text x="187" y="1110" text-anchor="middle" font-family="'Courier New',monospace" font-size="13" font-weight="bold" fill="#f59e0b">Prometheus</text>
+<text x="187" y="1126" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#94a3b8">metrics scraper</text>
+<text x="187" y="1140" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#64748b">15s interval</text>
+<rect x="108" y="1150" width="62" height="16" rx="8" fill="#f59e0b20"/>
+<text x="139" y="1162" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#f59e0b">port:9090</text>
+<rect x="180" y="1150" width="72" height="16" rx="8" fill="#10b98120"/>
+<text x="216" y="1162" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#10b981">&#9679; Active</text>
+
+<rect x="300" y="1048" width="190" height="152" rx="8" fill="#0f172a" stroke="#f97316" stroke-width="2"/>
+<rect x="300" y="1048" width="190" height="22" rx="8" fill="#f9731615"/>
+<text x="395" y="1063" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#f97316">Deployment</text>
+<text x="395" y="1090" text-anchor="middle" font-size="18" font-family="sans-serif">&#128200;</text>
+<text x="395" y="1110" text-anchor="middle" font-family="'Courier New',monospace" font-size="13" font-weight="bold" fill="#f97316">Grafana</text>
+<text x="395" y="1126" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#94a3b8">7 custom dashboards</text>
+<text x="395" y="1140" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#64748b">SLO · Alerts · Business</text>
+<rect x="316" y="1150" width="62" height="16" rx="8" fill="#f9731620"/>
+<text x="347" y="1162" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#f97316">port:3000</text>
+<rect x="388" y="1150" width="72" height="16" rx="8" fill="#10b98120"/>
+<text x="424" y="1162" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#10b981">&#9679; Active</text>
+
+<rect x="508" y="1048" width="190" height="152" rx="8" fill="#0f172a" stroke="#ef4444" stroke-width="2"/>
+<rect x="508" y="1048" width="190" height="22" rx="8" fill="#ef444415"/>
+<text x="603" y="1063" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#ef4444">Deployment</text>
+<text x="603" y="1090" text-anchor="middle" font-size="18" font-family="sans-serif">&#128276;</text>
+<text x="603" y="1110" text-anchor="middle" font-family="'Courier New',monospace" font-size="13" font-weight="bold" fill="#ef4444">AlertManager</text>
+<text x="603" y="1126" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#94a3b8">alert routing</text>
+<text x="603" y="1140" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#64748b">Slack · email</text>
+<rect x="524" y="1150" width="62" height="16" rx="8" fill="#ef444420"/>
+<text x="555" y="1162" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#ef4444">port:9093</text>
+
+<rect x="716" y="1048" width="180" height="152" rx="8" fill="#0f172a" stroke="#64748b" stroke-width="1.5"/>
+<rect x="716" y="1048" width="180" height="22" rx="8" fill="#64748b15"/>
+<text x="806" y="1063" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#94a3b8">DaemonSet</text>
+<text x="806" y="1090" text-anchor="middle" font-size="18" font-family="sans-serif">&#128421;&#65039;</text>
+<text x="806" y="1110" text-anchor="middle" font-family="'Courier New',monospace" font-size="12" font-weight="bold" fill="#94a3b8">Node Exporter</text>
+<text x="806" y="1126" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#94a3b8">node metrics</text>
+<text x="806" y="1140" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#64748b">CPU · RAM · Disk</text>
+<rect x="732" y="1150" width="62" height="16" rx="8" fill="#64748b20"/>
+<text x="763" y="1162" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#94a3b8">port:9100</text>
+
+<rect x="912" y="1048" width="190" height="152" rx="8" fill="#0f172a" stroke="#64748b" stroke-width="1.5"/>
+<rect x="912" y="1048" width="190" height="22" rx="8" fill="#64748b15"/>
+<text x="1007" y="1063" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#94a3b8">Deployment</text>
+<text x="1007" y="1090" text-anchor="middle" font-size="18" font-family="sans-serif">&#9881;&#65039;</text>
+<text x="1007" y="1108" text-anchor="middle" font-family="'Courier New',monospace" font-size="12" font-weight="bold" fill="#94a3b8">Kube State</text>
+<text x="1007" y="1123" text-anchor="middle" font-family="'Courier New',monospace" font-size="12" font-weight="bold" fill="#94a3b8">Metrics</text>
+<text x="1007" y="1140" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#64748b">k8s object metrics</text>
+<rect x="928" y="1150" width="62" height="16" rx="8" fill="#64748b20"/>
+<text x="959" y="1162" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#94a3b8">port:8080</text>
+
+<rect x="1118" y="1048" width="190" height="152" rx="8" fill="#0f172a" stroke="#10b981" stroke-width="1.5"/>
+<rect x="1118" y="1048" width="190" height="22" rx="8" fill="#10b98115"/>
+<text x="1213" y="1063" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#10b981">Deployment</text>
+<text x="1213" y="1090" text-anchor="middle" font-size="18" font-family="sans-serif">&#128451;&#65039;</text>
+<text x="1213" y="1108" text-anchor="middle" font-family="'Courier New',monospace" font-size="12" font-weight="bold" fill="#10b981">Postgres</text>
+<text x="1213" y="1123" text-anchor="middle" font-family="'Courier New',monospace" font-size="12" font-weight="bold" fill="#10b981">Exporter</text>
+<text x="1213" y="1140" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#94a3b8">DB metrics</text>
+<rect x="1134" y="1150" width="62" height="16" rx="8" fill="#10b98120"/>
+<text x="1165" y="1162" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#10b981">port:9187</text>
+
+<!-- ── SECURITY ── -->
+<rect x="80" y="1232" width="480" height="140" rx="8" fill="#05091e" stroke="#8b5cf625" stroke-width="1"/>
+<text x="100" y="1250" font-family="'Courier New',monospace" font-size="9" fill="#8b5cf6">▸  SECURITY</text>
+
+<rect x="92" y="1258" width="210" height="100" rx="8" fill="#0f172a" stroke="#8b5cf6" stroke-width="2"/>
+<rect x="92" y="1258" width="210" height="22" rx="8" fill="#8b5cf615"/>
+<text x="197" y="1273" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#8b5cf6">Secrets Operator</text>
+<text x="197" y="1300" text-anchor="middle" font-size="16" font-family="sans-serif">&#128737;&#65039;</text>
+<text x="197" y="1319" text-anchor="middle" font-family="'Courier New',monospace" font-size="13" font-weight="bold" fill="#8b5cf6">Infisical</text>
+<text x="197" y="1335" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#94a3b8">CRD-based · auto-rotation</text>
+
+<rect x="322" y="1258" width="225" height="100" rx="8" fill="#0f172a" stroke="#3b82f6" stroke-width="2"/>
+<rect x="322" y="1258" width="225" height="22" rx="8" fill="#3b82f615"/>
+<text x="434" y="1273" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#3b82f6">Controller</text>
+<text x="434" y="1300" text-anchor="middle" font-size="16" font-family="sans-serif">&#128274;</text>
+<text x="434" y="1319" text-anchor="middle" font-family="'Courier New',monospace" font-size="13" font-weight="bold" fill="#3b82f6">cert-manager</text>
+<text x="434" y="1335" text-anchor="middle" font-family="'Courier New',monospace" font-size="8" fill="#94a3b8">TLS certs · Let's Encrypt</text>
+
+<!-- Version flow panel -->
+<rect x="580" y="1232" width="740" height="140" rx="8" fill="#0c1324" stroke="#475569" stroke-width="1" stroke-dasharray="6,4"/>
+<text x="950" y="1256" text-anchor="middle" font-family="'Courier New',monospace" font-size="10" fill="#64748b">Release Pipeline</text>
+<text x="950" y="1286" text-anchor="middle" font-family="'Courier New',monospace" font-size="15" font-weight="bold" fill="#e2e8f0">v0.1.0-rc1  →  v0.1.0-rc2  →  v0.1.0-rc3  →  latest</text>
+
+<rect x="598" y="1302" width="80" height="22" rx="11" fill="#10b98125" stroke="#10b98140" stroke-width="1"/>
+<text x="638" y="1317" text-anchor="middle" font-family="'Courier New',monospace" font-size="9" fill="#10b981">CI/CD</text>
+<rect x="690" y="1302" width="80" height="22" rx="11" fill="#3b82f625" stroke="#3b82f640" stroke-width="1"/>
+<text x="730" y="1317" text-anchor="middle" font-family="'Courier New',monospace" font-size="9" fill="#3b82f6">GitOps</text>
+<rect x="782" y="1302" width="100" height="22" rx="11" fill="#8b5cf625" stroke="#8b5cf640" stroke-width="1"/>
+<text x="832" y="1317" text-anchor="middle" font-family="'Courier New',monospace" font-size="9" fill="#8b5cf6">Auto Deploy</text>
+<rect x="894" y="1302" width="100" height="22" rx="11" fill="#06b6d425" stroke="#06b6d440" stroke-width="1"/>
+<text x="944" y="1317" text-anchor="middle" font-family="'Courier New',monospace" font-size="9" fill="#06b6d4">TLS Secured</text>
+<rect x="1006" y="1302" width="100" height="22" rx="11" fill="#f59e0b25" stroke="#f59e0b40" stroke-width="1"/>
+<text x="1056" y="1317" text-anchor="middle" font-family="'Courier New',monospace" font-size="9" fill="#f59e0b">Monitored</text>
+<rect x="1118" y="1302" width="80" height="22" rx="11" fill="#ef444425" stroke="#ef444440" stroke-width="1"/>
+<text x="1158" y="1317" text-anchor="middle" font-family="'Courier New',monospace" font-size="9" fill="#ef4444">HA Ready</text>
+
+<text x="598" y="1355" font-family="'Courier New',monospace" font-size="8" fill="#374151">ns: default  ·  ns: monitoring  ·  ns: cert-manager  ·  ns: infisical-operator</text>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- LAYER 5: CLOUDFLARE                     -->
+<!-- ═══════════════════════════════════════ -->
+<line x1="700" y1="1395" x2="700" y2="1435" stroke="#f97316" stroke-width="2" marker-end="url(#arr-orange)"/>
+<text x="722" y="1420" font-family="'Courier New',monospace" font-size="9" fill="#f97316">Ingress → edge</text>
+
+<rect x="330" y="1440" width="740" height="95" rx="12" fill="#0f172a" stroke="#f97316" stroke-width="2" filter="url(#glow-orange)"/>
+<rect x="330" y="1440" width="740" height="28" rx="12" fill="#f9731615"/>
+<text x="700" y="1460" text-anchor="middle" font-family="'Courier New',monospace" font-size="11" fill="#f97316">&#9729;  Edge Network</text>
+<text x="700" y="1490" text-anchor="middle" font-family="'Courier New',monospace" font-size="20" font-weight="bold" fill="#e2e8f0">Cloudflare</text>
+<text x="700" y="1512" text-anchor="middle" font-family="'Courier New',monospace" font-size="10" fill="#94a3b8">DNS  ·  TLS 1.3  ·  DDoS Protection  ·  CDN  ·  Domain Routing</text>
+
+<line x1="700" y1="1535" x2="700" y2="1567" stroke="#06b6d4" stroke-width="2" marker-end="url(#arr-cyan)"/>
+<text x="722" y="1556" font-family="'Courier New',monospace" font-size="9" fill="#06b6d4">HTTPS</text>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- LAYER 6: USERS                          -->
+<!-- ═══════════════════════════════════════ -->
+<rect x="440" y="1572" width="520" height="85" rx="12" fill="#0f172a" stroke="#06b6d4" stroke-width="2" filter="url(#glow-cyan)"/>
+<text x="700" y="1600" text-anchor="middle" font-size="22" font-family="sans-serif">&#127758;</text>
+<text x="700" y="1622" text-anchor="middle" font-family="'Courier New',monospace" font-size="14" font-weight="bold" fill="#e2e8f0">Internet Users</text>
+<text x="700" y="1642" text-anchor="middle" font-family="'Courier New',monospace" font-size="9" fill="#475569">Secure  ·  Global  ·  HTTPS</text>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- METRICS FOOTER                          -->
+<!-- ═══════════════════════════════════════ -->
+<rect x="60" y="1682" width="1280" height="82" rx="10" fill="#080d20" stroke="#1e293b" stroke-width="1"/>
+<line x1="80" y1="1702" x2="1320" y2="1702" stroke="#1e293b" stroke-width="1"/>
+<text x="700" y="1697" text-anchor="middle" font-family="'Courier New',monospace" font-size="9" fill="#374151">Platform Metrics</text>
+
+<rect x="83" y="1710" width="188" height="44" rx="8" fill="#111827"/>
+<text x="177" y="1729" text-anchor="middle" font-family="'Courier New',monospace" font-size="9" fill="#64748b">Microservices</text>
+<text x="177" y="1748" text-anchor="middle" font-family="'Courier New',monospace" font-size="16" font-weight="bold" fill="#8b5cf6">5 Services</text>
+
+<rect x="283" y="1710" width="188" height="44" rx="8" fill="#111827"/>
+<text x="377" y="1729" text-anchor="middle" font-family="'Courier New',monospace" font-size="9" fill="#64748b">Deployment</text>
+<text x="377" y="1748" text-anchor="middle" font-family="'Courier New',monospace" font-size="16" font-weight="bold" fill="#06b6d4">GitOps</text>
+
+<rect x="483" y="1710" width="188" height="44" rx="8" fill="#111827"/>
+<text x="577" y="1729" text-anchor="middle" font-family="'Courier New',monospace" font-size="9" fill="#64748b">Dashboards</text>
+<text x="577" y="1748" text-anchor="middle" font-family="'Courier New',monospace" font-size="16" font-weight="bold" fill="#f59e0b">7 Boards</text>
+
+<rect x="683" y="1710" width="188" height="44" rx="8" fill="#111827"/>
+<text x="777" y="1729" text-anchor="middle" font-family="'Courier New',monospace" font-size="9" fill="#64748b">Security</text>
+<text x="777" y="1748" text-anchor="middle" font-family="'Courier New',monospace" font-size="16" font-weight="bold" fill="#10b981">TLS + Secrets</text>
+
+<rect x="883" y="1710" width="188" height="44" rx="8" fill="#111827"/>
+<text x="977" y="1729" text-anchor="middle" font-family="'Courier New',monospace" font-size="9" fill="#64748b">Scaling</text>
+<text x="977" y="1748" text-anchor="middle" font-family="'Courier New',monospace" font-size="16" font-weight="bold" fill="#f97316">HPA Enabled</text>
+
+<rect x="1083" y="1710" width="252" height="44" rx="8" fill="#111827"/>
+<text x="1209" y="1729" text-anchor="middle" font-family="'Courier New',monospace" font-size="9" fill="#64748b">Automation</text>
+<text x="1209" y="1748" text-anchor="middle" font-family="'Courier New',monospace" font-size="16" font-weight="bold" fill="#3b82f6">CI/CD Pipeline</text>
+
+</svg>

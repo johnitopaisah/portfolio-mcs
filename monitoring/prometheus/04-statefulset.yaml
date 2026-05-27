@@ -5,6 +5,10 @@ metadata:
   namespace: monitoring
   labels:
     app: prometheus
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/component: metrics
+    app.kubernetes.io/managed-by: argocd
 spec:
   serviceName: prometheus
   replicas: 1
@@ -15,6 +19,9 @@ spec:
     metadata:
       labels:
         app: prometheus
+        app.kubernetes.io/name: prometheus
+        app.kubernetes.io/part-of: portfolio-monitoring
+        app.kubernetes.io/component: metrics
     spec:
       serviceAccountName: prometheus
       securityContext:

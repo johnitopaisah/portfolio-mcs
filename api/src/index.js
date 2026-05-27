@@ -9,7 +9,8 @@ const swaggerUi         = require('swagger-ui-express');
 const swaggerSpec       = require('./swagger');
 const { register }      = require('./metrics');
 const metricsMiddleware = require('./metricsMiddleware');
-const { startDailyDigest } = require('./services/visitorDigest');
+const { startDailyDigest }    = require('./services/visitorDigest');
+const { startDailyJobDigest } = require('./services/jobIngestion/notificationService');
 
 const { errorHandler } = require('./middleware/errorHandler');
 
@@ -64,16 +65,6 @@ app.get('/metrics', async (_req, res) => {
 });
 
 // ── Health ──────────────────────────────────────────────────
-/**
- * @swagger
- * /api/health:
- *   get:
- *     summary: API health check
- *     tags: [Health]
- *     responses:
- *       200:
- *         description: API is healthy
- */
 app.get('/api/health', (_req, res) =>
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 );
@@ -119,7 +110,12 @@ app.use('/api/skills',         require('./routes/skills'));
 app.use('/api/experiences',    require('./routes/experiences'));
 app.use('/api/certifications', require('./routes/certifications'));
 app.use('/api/contact',        require('./routes/contact'));
-app.use('/api/visitors',       require('./routes/visitors'));  // ← visitor analytics
+app.use('/api/social-links',   require('./routes/socialLinks'));
+app.use('/api/visitors',       require('./routes/visitors'));
+app.use('/api/jobs',           require('./routes/jobs'));
+app.use('/api/admin/jobs',     require('./routes/admin/jobs'));
+app.use('/api/admin/ai',      require('./routes/admin/ai'));
+app.use('/api/applications', require('./routes/applications'));
 
 // ── 404 + Error handler ─────────────────────────────────────
 app.use((req, res) => res.status(404).json({ error: `${req.method} ${req.path} not found` }));
@@ -127,6 +123,14 @@ app.use(errorHandler);
 
 app.listen(PORT, () => {
   console.log(`[API] port ${PORT}  env:${process.env.NODE_ENV || 'development'}`);
-  // Start daily visitor digest — fires at 08:00 Europe/Paris every day
+
+  // 08:00 Europe/Paris — visitor analytics digest
   startDailyDigest();
+
+  // 08:15 Europe/Paris — job opportunities digest (15 min after visitor digest)
+  if (process.env.NOTIFY_EMAIL_USER) {
+    startDailyJobDigest();
+  } else {
+    console.warn('[JobDigest] NOTIFY_EMAIL_USER not set — job digest disabled');
+  }
 });

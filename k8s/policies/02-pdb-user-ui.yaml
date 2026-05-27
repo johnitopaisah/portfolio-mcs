@@ -4,8 +4,8 @@ metadata:
   name: portfolio-user-ui-pdb
   namespace: portfolio
   labels:
-    app: portfolio-mcs
-    component: user-ui
+    app.kubernetes.io/part-of: portfolio-mcs
+    app.kubernetes.io/managed-by: argocd
 spec:
   minAvailable: 1
   selector:

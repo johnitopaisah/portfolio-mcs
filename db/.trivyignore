@@ -1,0 +1,39 @@
+# ============================================================
+# Trivy ignore list for the DB image (postgres:16-alpine)
+#
+# All entries below are CVEs in the Go standard library (stdlib)
+# affecting the gosu v1.19 binary shipped by the official
+# postgres:16-alpine image (compiled with Go 1.24.6).
+#
+# Root cause:  gosu has not yet released a build with Go >=1.24.13
+#              (which contains the upstream fixes).  The postgres
+#              Docker image team ships whatever gosu version exists
+#              at image build time.
+#
+# Checked:     postgres:16-alpine AND postgres:17-alpine both carry
+#              gosu 1.19 / go1.24.6 — no fixed upstream image is
+#              available as of 2026-05-22.
+#
+# Risk:        gosu is a privilege-dropping helper called once at
+#              container startup (it exec's postgres as the postgres
+#              user and then exits).  It never opens network sockets,
+#              processes HTTP, or validates TLS certificates at
+#              runtime, so the attack surface for all crypto/tls,
+#              net/url, and net/http CVEs below is effectively zero.
+#
+# Action:      Remove this file when postgres:16-alpine ships with
+#              gosu >= 1.20 compiled against Go >= 1.24.13 / 1.25.8.
+# ============================================================
+
+CVE-2025-68121
+CVE-2025-61726
+CVE-2025-61729
+CVE-2026-25679
+CVE-2026-32280
+CVE-2026-32281
+CVE-2026-32283
+CVE-2026-33811
+CVE-2026-33814
+CVE-2026-39820
+CVE-2026-39836
+CVE-2026-42499

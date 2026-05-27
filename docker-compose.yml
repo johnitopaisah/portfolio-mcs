@@ -25,7 +25,7 @@ services:
       POSTGRES_DB:       ${POSTGRES_DB:-portfolio_db}
       POSTGRES_USER:     ${POSTGRES_USER:-portfolio_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
-      ADMIN_PASSWORD_HASH:     ${ADMIN_PASSWORD_HASH:?ADMIN_PASSWORD_HASH must be set in .env}
+      ADMIN_PASSWORD_HASH:     ${ADMIN_PASSWORD_HASH}
       ADMIN_PROFILE_NAME:      ${ADMIN_PROFILE_NAME:-John Itopa ISAH}
       ADMIN_PROFILE_HEADLINE:  ${ADMIN_PROFILE_HEADLINE:-DevOps & Cloud Engineer}
       ADMIN_PROFILE_BIO:       ${ADMIN_PROFILE_BIO:-Engineering graduate specialising in cloud infrastructure, Kubernetes, and scalable distributed systems.}
@@ -67,6 +67,9 @@ services:
       TWILIO_AUTH_TOKEN:  ${TWILIO_AUTH_TOKEN:-}
       TWILIO_FROM:        ${TWILIO_FROM:-}
       TWILIO_TO:          ${TWILIO_TO:-}
+      ANTHROPIC_API_KEY:  ${ANTHROPIC_API_KEY:-}
+      GROQ_API_KEY:       ${GROQ_API_KEY:-}
+      GEMINI_API_KEY:     ${GEMINI_API_KEY:-}
     ports:
       - "4000:4000"
     healthcheck:

@@ -63,7 +63,7 @@ spec:
 
       containers:
         - name: api
-          image: ghcr.io/johnitopaisah/portfolio-mcs/api:v0.0.1-rc
+          image: ghcr.io/johnitopaisah/portfolio-mcs/api:v0.1.4
           imagePullPolicy: Always
 
           ports:
@@ -79,6 +79,13 @@ spec:
             readOnlyRootFilesystem: true
             runAsNonRoot: true
             runAsUser: 1001
+
+          volumeMounts:
+            # Puppeteer/Chromium writes temp Chrome profiles here.
+            # emptyDir keeps readOnlyRootFilesystem: true intact on
+            # the rest of the filesystem while giving /tmp a writable surface.
+            - name: tmp
+              mountPath: /tmp
 
           envFrom:
             - configMapRef:
@@ -118,3 +125,7 @@ spec:
             preStop:
               exec:
                 command: ["/bin/sh", "-c", "sleep 10"]
+
+      volumes:
+        - name: tmp
+          emptyDir: {}

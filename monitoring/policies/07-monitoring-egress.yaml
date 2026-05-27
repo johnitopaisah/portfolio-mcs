@@ -1,12 +1,20 @@
-# NetworkPolicy in the MONITORING namespace.
-# Controls what monitoring pods can talk to.
+# ============================================================
+#  NetworkPolicy — monitoring namespace egress rules
+#
+#  Allows monitoring pods to reach:
+#    - kube-system: DNS (UDP/TCP 53)
+#    - portfolio:   API :4000 (Prometheus scrape) and DB :5432 (postgres-exporter)
+#    - monitoring:  intra-namespace (Prometheus→Alertmanager, Grafana→Prometheus)
+#    - internet:    Alertmanager SMTP :465 (Zoho) + K8s API :6443
+# ============================================================
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: monitoring-egress-policy
   namespace: monitoring
   labels:
-    app: portfolio-monitoring
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/managed-by: argocd
 spec:
   podSelector: {}
   policyTypes:
@@ -23,7 +31,7 @@ spec:
         - protocol: TCP
           port: 53
 
-    # Prometheus → portfolio API and DB (via postgres-exporter)
+    # Prometheus → portfolio API (/metrics) and postgres-exporter → DB
     - to:
         - namespaceSelector:
             matchLabels:
@@ -32,16 +40,15 @@ spec:
         - protocol: TCP
           port: 4000   # API /metrics
         - protocol: TCP
-          port: 5432   # PostgreSQL (postgres-exporter)
+          port: 5432   # PostgreSQL
 
-    # Intra-monitoring namespace communication
-    # (Prometheus → Alertmanager, Grafana → Prometheus, etc.)
+    # Intra-monitoring: Prometheus→Alertmanager, Grafana→Prometheus, etc.
     - to:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: monitoring
 
-    # Alertmanager → Zoho SMTP for email alerts
+    # Alertmanager → Zoho SMTP for email alerts (implicit TLS port 465)
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0
@@ -51,12 +58,12 @@ spec:
               - 192.168.0.0/16
       ports:
         - protocol: TCP
-          port: 465   # Zoho SMTPS
+          port: 465
 
-    # Prometheus → Kubernetes API (for kubernetes_sd_configs)
+    # Prometheus → Kubernetes API (for kubernetes_sd_configs service discovery)
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0
       ports:
         - protocol: TCP
-          port: 6443   # Kubernetes API server
+          port: 6443

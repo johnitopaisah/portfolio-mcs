@@ -1,36 +1,136 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Sidebar from '@/components/Sidebar';
+import SidebarContent from '@/components/Sidebar';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [mobileOpen,  setMobileOpen]  = useState(false);
+  const [desktopOpen, setDesktopOpen] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
     if (!localStorage.getItem('admin_token')) router.replace('/login');
   }, [router]);
 
-  return (
-    <div className="flex min-h-screen bg-gray-950">
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+  function openSidebar() {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    setDesktopOpen(true);
+  }
 
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* ── Mobile top bar — hidden on desktop ─────────── */}
-        <div className="md:hidden flex items-center gap-3 px-4 py-3
-                        bg-gray-900 border-b border-gray-800 sticky top-0 z-30">
+  function closeSidebar() {
+    closeTimer.current = setTimeout(() => setDesktopOpen(false), 120);
+  }
+
+  return (
+    <div className="flex min-h-screen" style={{ background: 'var(--bg)' }}>
+
+      {/* ── Desktop: in-flow push sidebar ─────────────────────
+          4px peek when closed → 256px when triggered.
+          Content fills the remaining space naturally.        */}
+      <div
+        className="hidden md:flex flex-col shrink-0 overflow-hidden relative"
+        style={{
+          width:      desktopOpen ? '256px' : '4px',
+          minWidth:   desktopOpen ? '256px' : '4px',
+          transition: 'width 0.34s cubic-bezier(0.32,0.72,0,1), min-width 0.34s cubic-bezier(0.32,0.72,0,1)',
+          boxShadow:  desktopOpen ? '4px 0 40px rgba(0,0,0,0.45), 1px 0 0 rgba(124,58,237,0.12)' : 'none',
+        }}
+        onMouseEnter={openSidebar}
+        onMouseLeave={closeSidebar}
+      >
+        {/* Inner div always 256px — clips to container */}
+        <div className="h-full" style={{ width: '256px', minWidth: '256px' }}>
+          <SidebarContent onClose={() => {}} />
+        </div>
+      </div>
+
+      {/* ── Sidebar indicator tab ──────────────────────────────
+          Visible when sidebar is closed. Tells the user there
+          is a menu on the left. Has its own hover zone so
+          moving toward the indicator also opens the sidebar.  */}
+      <div
+        className="hidden md:block fixed z-20"
+        style={{
+          left:       desktopOpen ? '-32px' : '4px',
+          top:        '50%',
+          transform:  'translateY(-50%)',
+          transition: 'left 0.34s cubic-bezier(0.32,0.72,0,1), opacity 0.2s ease',
+          opacity:    desktopOpen ? 0 : 1,
+          pointerEvents: desktopOpen ? 'none' : 'auto',
+        }}
+        onMouseEnter={openSidebar}
+        onMouseLeave={closeSidebar}
+      >
+        <div
+          style={{
+            width:        '20px',
+            height:       '80px',
+            background:   'linear-gradient(180deg, rgba(124,58,237,0.35), rgba(124,58,237,0.72), rgba(124,58,237,0.35))',
+            borderRadius: '0 14px 14px 0',
+            display:      'flex',
+            alignItems:   'center',
+            justifyContent: 'center',
+            cursor:       'pointer',
+            boxShadow:    '3px 0 18px rgba(124,58,237,0.22)',
+            animation:    'tab-breathe 2.8s ease-in-out infinite',
+          }}
+        >
+          {/* Chevron right */}
+          <svg width="8" height="14" viewBox="0 0 8 14" fill="none">
+            <path d="M1 1l6 6-6 6" stroke="white" strokeWidth="1.8"
+              strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+      </div>
+
+      {/* ── Mobile: fixed drawer ───────────────────────────────── */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-40 md:hidden"
+          style={{ background: 'rgba(0,0,0,0.72)' }}
+          onClick={() => setMobileOpen(false)}
+          aria-hidden
+        />
+      )}
+      <div className={`fixed inset-y-0 left-0 z-50 md:hidden transform transition-transform duration-300 ease-in-out ${
+        mobileOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}>
+        <SidebarContent onClose={() => setMobileOpen(false)} />
+      </div>
+
+      {/* ── Main content — fills all remaining space ────────────
+          onMouseMove: open sidebar when mouse is within 128px
+          of the left edge (midway of the 256px sidebar space). */}
+      <div
+        className="flex-1 min-w-0 flex flex-col"
+        onMouseMove={e => { if (!desktopOpen && e.clientX < 128) openSidebar(); }}
+      >
+
+        {/* Mobile top bar */}
+        <div
+          className="md:hidden flex items-center gap-3 px-4 py-3 sticky top-0 z-30"
+          style={{
+            background:     'rgba(237,238,248,0.92)',
+            borderBottom:   '1px solid rgba(124,58,237,0.1)',
+            backdropFilter: 'blur(14px)',
+          }}
+        >
           <button
-            onClick={() => setSidebarOpen(true)}
-            className="w-9 h-9 flex items-center justify-center rounded-lg
-                       text-gray-400 hover:text-white hover:bg-gray-800 transition-colors
-                       text-lg font-light"
-            aria-label="Open menu">
-            ☰
+            onClick={() => setMobileOpen(true)}
+            className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors"
+            style={{ color: 'var(--text-2)', border: '1px solid var(--border)' }}
+            aria-label="Open menu"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <line x1="3" y1="6"  x2="21" y2="6"/>
+              <line x1="3" y1="12" x2="21" y2="12"/>
+              <line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
           </button>
-          <p className="text-white font-semibold text-sm">Portfolio Admin</p>
+          <p className="font-semibold text-sm" style={{ color: 'var(--text-1)' }}>Portfolio Admin</p>
         </div>
 
-        {/* ── Page content ────────────────────────────────── */}
         <main className="flex-1 overflow-auto">
           <div className="max-w-5xl mx-auto p-4 md:p-8">
             {children}

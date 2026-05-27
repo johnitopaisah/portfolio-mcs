@@ -1,8 +1,18 @@
-# Portfolio MCS — Kubernetes Manifests
+![Architecture Diagram](../architecture-diagram.svg)
 
-Production-grade K8s manifests for all 4 services.
-Configured for **Minikube** locally, with a production ingress
-ready for a real cluster.
+# Kubernetes Manifests
+
+Production-grade Kubernetes manifests for all Portfolio MCS workloads, managed via **ArgoCD GitOps**. Targets a 3-node Minikube cluster (dev) or any cloud K8s cluster (prod).
+
+---
+
+## Namespaces
+
+| Namespace | Purpose |
+|---|---|
+| `portfolio` | All application workloads (api, user-ui, admin-ui, db, jobs) |
+| `monitoring` | Prometheus, Grafana, Alertmanager, exporters |
+| `backup` | Backup CronJobs and RBAC |
 
 ---
 
@@ -10,113 +20,139 @@ ready for a real cluster.
 
 ```
 k8s/
-├── 00-namespace.yaml
-├── 01-configmap.yaml          Non-sensitive config (URLs, CORS origins)
+├── 00-namespace.yaml               portfolio namespace
+├── 01-configmap.yaml               Non-sensitive config (API URLs, CORS origins)
+├── 02-policies.yaml                Umbrella policy manifest
+├── 03-advanced.yaml                Advanced scheduling config
 │
-├── infisical/                 Secret management via Infisical operator
-│   ├── 01-machine-identity-secret.example.yaml   Manual one-time secret
-│   └── 02-infisical-secret.yaml                  Auto-creates portfolio-secrets
+├── argocd/                         ArgoCD Application CRDs (GitOps control plane)
+│   ├── project.yaml                ArgoCD project scoped to the portfolio namespace
+│   ├── root-app.yaml               App-of-Apps root — manages all child apps
+│   ├── app-db.yaml
+│   ├── app-api.yaml
+│   ├── app-user-ui.yaml
+│   ├── app-admin-ui.yaml
+│   ├── app-jobs.yaml
+│   ├── app-policies.yaml
+│   └── app-monitoring-root.yaml    Delegates monitoring stack to monitoring/argocd/
 │
-├── secrets/
-│   ├── 01-app-secret.example.yaml    Key reference (Infisical manages the real values)
+├── infisical/                      Secret management (Infisical operator)
+│   ├── 01-machine-identity-secret.example.yaml   Template — create this manually
+│   └── 02-infisical-secret.yaml                  InfisicalSecret CRD — syncs all app secrets
+│
+├── secrets/                        gitignored — real secrets never committed
+│   ├── 01-app-secret.example.yaml  Key reference template
 │   └── 02-ghcr-pull-secret.example.yaml
 │
 ├── db/
-│   ├── 01-pvc.yaml                storageClassName: standard (Minikube)
-│   ├── 02-service.yaml            Headless service
-│   ├── 03-configmap-schema.yaml   schema.sql init script
-│   ├── 04-configmap-seed.yaml     seed.sh init script
-│   └── 05-statefulset.yaml        postgres:16-alpine StatefulSet
+│   ├── pvc.yaml                    5Gi PVC for postgres data
+│   ├── service.yaml                Headless ClusterIP service
+│   └── statefulset.yaml            postgres:16-alpine StatefulSet
 │
 ├── api/
-│   ├── 01-serviceaccount.yaml
-│   ├── 02-service.yaml
-│   └── 03-deployment.yaml         image: …/api:v0.0.1-rc, 1 replica (Minikube)
+│   ├── serviceaccount.yaml
+│   ├── configmap.yaml              Non-secret API config
+│   ├── deployment.yaml             2 replicas, pulls from GHCR
+│   ├── service.yaml
+│   ├── hpa-api.yaml                HPA: min 2, max 6
+│   └── ingress-production.yaml     api.johnisah.com, TLS via cert-manager
 │
 ├── user-ui/
-│   ├── 01-serviceaccount.yaml
-│   ├── 02-service.yaml
-│   └── 03-deployment.yaml         image: …/user-ui:v0.0.1-rc, 1 replica
+│   ├── serviceaccount.yaml
+│   ├── configmap.yaml
+│   ├── deployment.yaml             2 replicas
+│   ├── service.yaml
+│   └── hpa-user-ui.yaml            HPA: min 2, max 6
 │
 ├── admin-ui/
-│   ├── 01-serviceaccount.yaml
-│   ├── 02-service.yaml
-│   └── 03-deployment.yaml         image: …/admin-ui:v0.0.1-rc, 1 replica
+│   ├── serviceaccount.yaml
+│   ├── configmap.yaml
+│   ├── deployment.yaml             1 replica
+│   ├── service.yaml
+│   └── hpa-admin-ui.yaml           HPA: min 1, max 2
 │
-├── ingress/
-│   ├── 00-cert-manager.yaml           ClusterIssuer (production only)
-│   ├── 01-ingress-minikube.yaml       HTTP, local hostnames, no TLS
-│   └── 02-ingress-production.yaml     HTTPS, real domains, TLS via cert-manager
+├── jobs/                           Automated background workers
+│   ├── 01-cronjob-ingestion.yaml   Job ingestion — runs every 15 min
+│   ├── 02-configmap-secrets.yaml   Worker config + job API keys
+│   ├── 03-cronjob-email.yaml       Gmail sync — hourly
+│   └── 04-cronjob-followup.yaml    Application follow-up check — daily
 │
 ├── policies/
-│   ├── 01-pdb-api.yaml
-│   ├── 02-pdb-user-ui.yaml
-│   ├── 03-pdb-admin-ui.yaml
-│   ├── 04-network-policy.yaml     NOTE: requires Calico CNI to enforce on Minikube
-│   ├── 05-resource-quota.yaml     Sized for Minikube (1 CPU / 3 GB)
-│   └── 06-limit-range.yaml
+│   ├── 01-pdb-api.yaml             PodDisruptionBudget — api (minAvailable: 1)
+│   ├── 02-pdb-user-ui.yaml         PodDisruptionBudget — user-ui (minAvailable: 1)
+│   ├── 03-pdb-admin-ui.yaml        PodDisruptionBudget — admin-ui
+│   ├── 04-network-policy.yaml      Ingress/egress rules (requires Calico CNI)
+│   ├── 05-resource-quota.yaml      Namespace resource quota
+│   └── 06-limit-range.yaml         Per-container default limits
 │
-├── hpa/
-│   ├── 01-hpa-api.yaml            min 1, max 4 (Minikube)
-│   ├── 02-hpa-user-ui.yaml        min 1, max 3 (Minikube)
-│   └── 03-hpa-admin-ui.yaml       min 1, max 2
+├── backup/                         Database + namespace backup strategy
+│   ├── README.md                   Full backup setup guide
+│   ├── 00-namespace.yaml
+│   ├── 01-rbac.yaml
+│   ├── 02-db-backup-configmap.yaml
+│   ├── 03-cronjob-db-backup.yaml   Nightly pg_dump to hostPath
+│   ├── 04-backup-all-ns.yaml
+│   └── 05-cronjob-monitoring-backup.yaml
 │
-└── deploy.sh                  Bootstrap script (--env local | prod)
+└── deploy.sh                       Bootstrap script (--env local | prod)
 ```
 
 ---
 
-## Minikube setup (first time)
+## ArgoCD GitOps
+
+The cluster is managed by ArgoCD using an **App-of-Apps** pattern. Every directory in `k8s/` has a corresponding ArgoCD `Application` CRD in `k8s/argocd/`. ArgoCD watches the `main` branch and automatically syncs any manifests pushed there.
+
+### Bootstrap ArgoCD (one-time)
 
 ```bash
-# Start Minikube with enough resources
-minikube start --cpus=4 --memory=4096
+# Install ArgoCD
+kubectl create namespace argocd
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
-# Enable required addons
-minikube addons enable ingress
-minikube addons enable metrics-server
+# Apply the root App-of-Apps
+kubectl apply -f k8s/argocd/project.yaml
+kubectl apply -f k8s/argocd/root-app.yaml
 
-# Add local DNS entries
-echo "$(minikube ip) portfolio.local api.portfolio.local admin.portfolio.local" | sudo tee -a /etc/hosts
+# ArgoCD will discover and sync all child apps automatically
+```
+
+### Trigger a manual sync
+
+```bash
+argocd app sync portfolio-root
+argocd app sync portfolio-api
 ```
 
 ---
 
-## Infisical setup (required before deploying)
+## Secrets management (Infisical)
 
-### 1. Install Infisical operator
+All sensitive values are stored in [Infisical](https://app.infisical.com) and synced into Kubernetes Secrets by the Infisical operator. No plaintext secrets are committed to git.
+
+### One-time setup
+
 ```bash
+# 1. Install the Infisical operator
 kubectl apply -f https://raw.githubusercontent.com/Infisical/infisical/main/k8-operator/config/install/install.yaml
-kubectl wait --for=condition=Available deployment --all -n infisical-operator-system --timeout=120s
-```
 
-### 2. Create Machine Identity in Infisical
-- Infisical dashboard → Your project → Access Control → Machine Identities
-- Add Identity → Universal Auth → copy **Client ID** and **Client Secret**
-
-### 3. Create the machine identity secret (once)
-```bash
-kubectl apply -f k8s/00-namespace.yaml   # namespace must exist first
-
+# 2. Create the machine identity secret (credentials from Infisical dashboard)
 kubectl create secret generic infisical-machine-identity \
   --namespace portfolio \
   --from-literal=clientId=YOUR_CLIENT_ID \
   --from-literal=clientSecret=YOUR_CLIENT_SECRET
+
+# 3. Apply the InfisicalSecret CRD (syncs all app secrets)
+kubectl apply -f k8s/infisical/02-infisical-secret.yaml
 ```
 
-### 4. Populate your Infisical project (env: prod)
-Add all keys from `k8s/secrets/01-app-secret.example.yaml` to your
-Infisical project. The operator will sync them automatically into
-the `portfolio-secrets` K8s Secret.
-
-### 5. Update `k8s/infisical/02-infisical-secret.yaml`
-Set your actual `projectSlug` and confirm `envSlug` is correct.
+The operator polls Infisical every 60 seconds and keeps the `portfolio-secrets` K8s Secret in sync automatically.
 
 ---
 
-## GHCR pull secret (required before deploying)
+## GHCR pull secret (one-time)
 
-Generate a GitHub PAT with `read:packages` scope at https://github.com/settings/tokens
+Images are published to GitHub Container Registry. Create a PAT with `read:packages` scope:
 
 ```bash
 kubectl create secret docker-registry ghcr-pull-secret \
@@ -129,62 +165,61 @@ kubectl create secret docker-registry ghcr-pull-secret \
 
 ---
 
-## Deploy
+## First deploy
 
 ```bash
 chmod +x k8s/deploy.sh
 
-# Minikube
+# Local (Minikube)
 ./k8s/deploy.sh --env local
 
-# Production (real cluster)
+# Production
 ./k8s/deploy.sh --env prod
 ```
+
+Or let ArgoCD handle it after bootstrapping the root app.
 
 ---
 
 ## Useful commands
 
 ```bash
-# Check all pods
+# All pods in the portfolio namespace
 kubectl get pods -n portfolio
 
 # Tail API logs
 kubectl logs -n portfolio -l component=api -f
 
-# Check Infisical sync status
-kubectl describe infisicalsecret -n portfolio
+# Check Infisical sync
+kubectl describe infisicalsecret portfolio-infisical-secret -n portfolio
 
-# Check portfolio-secrets was created
-kubectl get secret portfolio-secrets -n portfolio
+# Open a psql shell
+kubectl exec -it -n portfolio statefulset/portfolio-db -- \
+  psql -U portfolio_user -d portfolio_db
 
-# Open shell in DB pod
-kubectl exec -it -n portfolio statefulset/portfolio-db -- psql -U portfolio_user -d portfolio_db
-
-# Restart a deployment to pull new image
+# Rolling restart to pull a new image
 kubectl rollout restart deployment/portfolio-api -n portfolio
 
-# Enable NetworkPolicy enforcement on Minikube (requires cluster recreate)
-minikube delete && minikube start --cni=calico --cpus=4 --memory=4096
+# HPA status
+kubectl get hpa -n portfolio
 ```
 
 ---
 
-## Moving to production
+## Minikube quick start
 
-When ready to move beyond Minikube, the recommended path:
+```bash
+minikube start --cpus=4 --memory=6144
+minikube addons enable ingress
+minikube addons enable metrics-server
 
-| Option | Cost | Notes |
-|---|---|---|
-| **k3s on Hetzner VPS** | ~€4/mo | Closest to Minikube workflow, real LoadBalancer |
-| **DigitalOcean DOKS** | ~$12/mo | Managed control plane, simplest setup |
-| **AWS EKS** | ~$72/mo | Enterprise grade, most complex |
+# Add local DNS
+echo "$(minikube ip) johnisah.local api.johnisah.local admin.johnisah.local grafana.johnisah.local" \
+  | sudo tee -a /etc/hosts
+```
 
-Changes needed when moving to production:
-1. `db/01-pvc.yaml` — change `storageClassName: standard` to your cloud provider's class
-2. Deployment replicas — increase api and user-ui from 1 → 2
-3. ResourceQuota — increase limits in `policies/05-resource-quota.yaml`
-4. HPA maxReplicas — increase in `hpa/01-hpa-api.yaml` and `hpa/02-hpa-user-ui.yaml`
-5. Use `02-ingress-production.yaml` instead of `01-ingress-minikube.yaml`
-6. Point DNS A records at the cluster LoadBalancer IP
-7. Update `ADMIN_URL` in Infisical from `http://admin.portfolio.local` → `https://admin.johnisah.com`
+For NetworkPolicy enforcement on Minikube:
+
+```bash
+minikube delete && minikube start --cni=calico --cpus=4 --memory=6144
+```

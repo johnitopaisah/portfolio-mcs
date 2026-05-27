@@ -4,11 +4,10 @@ metadata:
   name: portfolio-admin-ui-pdb
   namespace: portfolio
   labels:
-    app: portfolio-mcs
-    component: admin-ui
+    app.kubernetes.io/part-of: portfolio-mcs
+    app.kubernetes.io/managed-by: argocd
 spec:
-  # admin-ui runs 1 replica — minAvailable: 0 allows maintenance without blocking
-  minAvailable: 0
+  minAvailable: 1
   selector:
     matchLabels:
       app: portfolio-mcs

@@ -2,16 +2,29 @@
 import { useEffect, useRef, useState } from 'react';
 import { adminApi } from '@/lib/api';
 
+interface Certification {
+  id: string;
+  name: string;
+  issuer: string;
+  has_image: boolean;
+}
+
 export default function ProfilePage() {
-  const [loading, setLoading]     = useState(true);
-  const [saving, setSaving]       = useState(false);
-  const [success, setSuccess]     = useState(false);
-  const [hasAvatar, setHasAvatar] = useState(false);
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [resumeFile, setResumeFile] = useState<File | null>(null);
-  const [heroTags, setHeroTags]   = useState<string[]>([]);
-  const [tagInput, setTagInput]   = useState('');
+  const [loading, setLoading]       = useState(true);
+  const [saving, setSaving]         = useState(false);
+  const [success, setSuccess]       = useState(false);
+  const [hasAvatar, setHasAvatar]   = useState(false);
+  const [hasResumeEn, setHasResumeEn] = useState(false);
+  const [hasResumeFr, setHasResumeFr] = useState(false);
+  const [avatarFile, setAvatarFile]   = useState<File | null>(null);
+  const [resumeEnFile, setResumeEnFile] = useState<File | null>(null);
+  const [resumeFrFile, setResumefrFile] = useState<File | null>(null);
+  const [heroTags, setHeroTags]     = useState<string[]>([]);
+  const [tagInput, setTagInput]     = useState('');
   const tagInputRef = useRef<HTMLInputElement>(null);
+  const [certs, setCerts]           = useState<Certification[]>([]);
+  const [orbitIds, setOrbitIds]     = useState<string[]>([]);
+  const [orbitSaving, setOrbitSaving] = useState(false);
 
   const [form, setForm] = useState({
     name: '', headline: '', bio: '', email: '',
@@ -29,8 +42,12 @@ export default function ProfilePage() {
         linkedin_url: p.linkedin_url || '',
       });
       setHasAvatar(p.has_avatar);
+      setHasResumeEn(p.has_resume_en ?? false);
+      setHasResumeFr(p.has_resume_fr ?? false);
       setHeroTags(Array.isArray(p.hero_tags) ? p.hero_tags : []);
+      setOrbitIds(Array.isArray(p.orbit_badge_ids) ? p.orbit_badge_ids : []);
     }).catch(() => {}).finally(() => setLoading(false));
+    adminApi.getCertifications().then((c: Certification[]) => setCerts(c)).catch(() => {});
   }, []);
 
   // Add a tag — called on Enter or comma
@@ -59,6 +76,22 @@ export default function ProfilePage() {
     }
   }
 
+  async function toggleOrbitBadge(id: string) {
+    const next = orbitIds.includes(id)
+      ? orbitIds.filter(x => x !== id)
+      : orbitIds.length >= 6 ? orbitIds : [...orbitIds, id];
+    const prev = orbitIds;
+    setOrbitIds(next);
+    setOrbitSaving(true);
+    try {
+      await adminApi.setOrbitBadges(next);
+    } catch {
+      setOrbitIds(prev);
+    } finally {
+      setOrbitSaving(false);
+    }
+  }
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
@@ -68,9 +101,12 @@ export default function ProfilePage() {
       Object.entries(form).forEach(([k, v]) => fd.append(k, v));
       // Send hero_tags as a JSON string so the API can parse it as TEXT[]
       fd.append('hero_tags', JSON.stringify(heroTags));
-      if (avatarFile) fd.append('avatar', avatarFile);
-      if (resumeFile) fd.append('resume', resumeFile);
-      await adminApi.updateProfile(fd);
+      if (avatarFile)   fd.append('avatar',    avatarFile);
+      if (resumeEnFile) fd.append('resume_en', resumeEnFile);
+      if (resumeFrFile) fd.append('resume_fr', resumeFrFile);
+      const saved = await adminApi.updateProfile(fd);
+      setHasResumeEn(saved?.has_resume_en ?? hasResumeEn);
+      setHasResumeFr(saved?.has_resume_fr ?? hasResumeFr);
       setSuccess(true);
     } catch (err: any) {
       alert(err.message);
@@ -167,13 +203,113 @@ export default function ProfilePage() {
           </p>
         </div>
 
-        {/* Resume */}
+        {/* Orbit badge picker */}
         <div>
-          <label className="label">Resume / CV (PDF)</label>
-          <input type="file" accept=".pdf" className="input py-1.5"
-            onChange={e => setResumeFile(e.target.files?.[0] ?? null)} />
-          <p className="text-gray-600 text-xs mt-1">Leave empty to keep existing resume</p>
+          <label className="label">Avatar orbit badges</label>
+          <p className="text-gray-600 text-xs mb-3">
+            Select up to <strong>6</strong> certification badges to orbit your profile photo on the public site.
+            Click a badge to toggle it. {orbitSaving && <span className="text-indigo-400">Saving…</span>}
+          </p>
+          {certs.length === 0 ? (
+            <p className="text-gray-600 text-xs italic">No certifications added yet — add them on the Certifications page first.</p>
+          ) : (
+            <div className="flex flex-wrap gap-3">
+              {certs.map(cert => {
+                const selected = orbitIds.includes(cert.id);
+                return (
+                  <button
+                    key={cert.id}
+                    type="button"
+                    onClick={() => toggleOrbitBadge(cert.id)}
+                    title={cert.name}
+                    disabled={!selected && orbitIds.length >= 6}
+                    style={{
+                      position: 'relative',
+                      width: '72px',
+                      height: '72px',
+                      borderRadius: '50%',
+                      border: selected
+                        ? '3px solid #7c3aed'
+                        : '2px solid rgba(124,58,237,0.2)',
+                      boxShadow: selected
+                        ? '0 0 16px rgba(124,58,237,0.5)'
+                        : 'none',
+                      overflow: 'visible',
+                      background: 'rgba(124,58,237,0.08)',
+                      cursor: (!selected && orbitIds.length >= 6) ? 'not-allowed' : 'pointer',
+                      opacity: (!selected && orbitIds.length >= 6) ? 0.4 : 1,
+                      transition: 'border-color 0.15s, box-shadow 0.15s, opacity 0.15s',
+                    }}
+                  >
+                    {cert.has_image ? (
+                      <img
+                        src={adminApi.certImg(cert.id)}
+                        alt={cert.name}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
+                      />
+                    ) : (
+                      <span style={{ fontSize: '11px', color: 'var(--text-3)', padding: '4px', display: 'block', lineHeight: 1.2, wordBreak: 'break-word' }}>
+                        {cert.name.slice(0, 18)}
+                      </span>
+                    )}
+                    {selected && (
+                      <span style={{
+                        position: 'absolute',
+                        bottom: '-2px',
+                        right: '-2px',
+                        width: '20px',
+                        height: '20px',
+                        borderRadius: '50%',
+                        background: '#7c3aed',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '11px',
+                        color: '#fff',
+                        fontWeight: 700,
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                      }}>✓</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <p className="text-gray-600 text-xs mt-2">
+            {orbitIds.length} of 6 selected — changes save instantly.
+          </p>
         </div>
+
+        {/* CV — English */}
+        <div>
+          <label className="label">CV — English (PDF)</label>
+          <div className="flex items-center gap-3 mb-1.5">
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${hasResumeEn ? 'bg-green-500/15 text-green-400 border border-green-500/30' : 'bg-gray-700 text-gray-500'}`}>
+              {hasResumeEn ? 'Uploaded' : 'Not uploaded — will auto-generate from base CV'}
+            </span>
+          </div>
+          <input type="file" accept=".pdf" className="input py-1.5"
+            onChange={e => setResumeEnFile(e.target.files?.[0] ?? null)} />
+          <p className="text-gray-600 text-xs mt-1">
+            Upload a hand-crafted English CV. If omitted, the public endpoint generates one from the active base CV record.
+          </p>
+        </div>
+
+        {/* CV — French */}
+        <div>
+          <label className="label">CV — Français (PDF)</label>
+          <div className="flex items-center gap-3 mb-1.5">
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${hasResumeFr ? 'bg-green-500/15 text-green-400 border border-green-500/30' : 'bg-gray-700 text-gray-500'}`}>
+              {hasResumeFr ? 'Uploaded' : 'Not uploaded — will auto-generate from base CV'}
+            </span>
+          </div>
+          <input type="file" accept=".pdf" className="input py-1.5"
+            onChange={e => setResumefrFile(e.target.files?.[0] ?? null)} />
+          <p className="text-gray-600 text-xs mt-1">
+            Upload a hand-crafted French CV. If omitted, the public endpoint generates one from the active base CV record.
+          </p>
+        </div>
+
 
         {success && <p className="text-green-400 text-sm">✓ Profile saved successfully</p>}
 

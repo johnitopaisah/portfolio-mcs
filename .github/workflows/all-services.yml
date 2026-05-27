@@ -32,8 +32,9 @@ on:
         type: string
 
 permissions:
-  contents: write   # create releases + git tags
-  packages: write   # push images to GHCR
+  contents: write          # create releases + git tags
+  packages: write          # push images to GHCR
+  security-events: write   # allow child workflows to upload Trivy SARIF
 
 jobs:
 
@@ -45,6 +46,8 @@ jobs:
       tag: ${{ inputs.tag }}
 
   # ── 1–4. Run all service pipelines in parallel ───────────
+  # Each child workflow builds its image AND updates its own manifest (except DB — see db.yml).
+  # Parallel pushes are safe because each touches a different file.
   db:
     name: DB
     needs: validate
@@ -161,11 +164,13 @@ jobs:
 
           echo "## All-services pipeline — $HEADER" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Service   | Result |" >> $GITHUB_STEP_SUMMARY
-          echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| db        | $(ok $DB) $DB |" >> $GITHUB_STEP_SUMMARY
-          echo "| api       | $(ok $API) $API |" >> $GITHUB_STEP_SUMMARY
-          echo "| user-ui   | $(ok $UI) $UI |" >> $GITHUB_STEP_SUMMARY
-          echo "| admin-ui  | $(ok $ADMIN) $ADMIN |" >> $GITHUB_STEP_SUMMARY
+          echo "| Service  | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| db       | $(ok $DB) $DB |" >> $GITHUB_STEP_SUMMARY
+          echo "| api      | $(ok $API) $API |" >> $GITHUB_STEP_SUMMARY
+          echo "| user-ui  | $(ok $UI) $UI |" >> $GITHUB_STEP_SUMMARY
+          echo "| admin-ui | $(ok $ADMIN) $ADMIN |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Images tagged: \`$TAG\` + \`latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "> api/admin-ui/user-ui manifests updated automatically — ArgoCD will auto-sync." >> $GITHUB_STEP_SUMMARY
+          echo "> ⚠️ DB manifest (\`k8s/db/statefulset.yaml\`) is **not** updated automatically. Edit it manually to apply the new DB image." >> $GITHUB_STEP_SUMMARY

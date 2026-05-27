@@ -4,7 +4,10 @@ metadata:
   name: alertmanager-config
   namespace: monitoring
   labels:
-    app: alertmanager
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/component: alerting
+    app.kubernetes.io/managed-by: argocd
 data:
   alertmanager.yml: |
     global:
@@ -12,11 +15,13 @@ data:
       smtp_smarthost: 'smtppro.zoho.eu:465'
       smtp_from:      'connect@johnisah.com'
       smtp_auth_username: 'connect@johnisah.com'
-      smtp_auth_password_file: /etc/alertmanager/smtp-password
+      smtp_auth_password_file: /etc/alertmanager-secrets/smtp-password
       smtp_require_tls: false   # Port 465 is implicit TLS (SMTPS), not STARTTLS
 
-      # How long to wait before re-sending a resolved notification
-      resolve_timeout: 5m
+      # How long the condition must be clear before sending a RESOLVED notification.
+      # 15m prevents brief recoveries (DB up for 5 min then back down) from
+      # generating a resolved email followed immediately by another firing email.
+      resolve_timeout: 15m
 
     # ── Routing tree ──────────────────────────────────────────
     route:
@@ -27,12 +32,12 @@ data:
       repeat_interval: 4h     # re-notify if still firing after 4 hours
 
       routes:
-        # Critical alerts — send immediately, repeat every 1 hour
+        # Critical alerts — send immediately, repeat every 2 hours
         - matchers:
             - severity = critical
           receiver: 'critical-email'
           group_wait:      10s
-          repeat_interval: 1h
+          repeat_interval: 2h
 
         # Warning alerts — batch, send every 2 hours
         - matchers:
@@ -46,7 +51,7 @@ data:
       - name: 'default-email'
         email_configs:
           - to: 'connect@johnisah.com'
-            send_resolved: true
+            send_resolved: false
             headers:
               Subject: '[Portfolio MCS] {{ .GroupLabels.alertname }} — {{ .Status | toUpper }}'
             html: |
@@ -84,7 +89,7 @@ data:
       - name: 'warning-email'
         email_configs:
           - to: 'connect@johnisah.com'
-            send_resolved: true
+            send_resolved: false
             headers:
               Subject: '🟡 [WARNING] Portfolio MCS — {{ .GroupLabels.alertname }}'
             html: |
