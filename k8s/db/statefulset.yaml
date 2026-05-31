@@ -12,6 +12,13 @@ metadata:
 spec:
   serviceName: portfolio-db   # must match the headless Service name
   replicas: 1
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      partition: 0
   selector:
     matchLabels:
       app: portfolio-mcs
