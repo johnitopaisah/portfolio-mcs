@@ -31,6 +31,10 @@ spec:
     spec:
       terminationGracePeriodSeconds: 60
 
+      # Pin to node 1 — hostpath PVC data lives on devops-minikube, not m02
+      nodeSelector:
+        kubernetes.io/hostname: devops-minikube
+
       # Allow the postgres process (uid 999) to write to the mounted PVC
       securityContext:
         fsGroup: 999
