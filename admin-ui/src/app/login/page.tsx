@@ -26,37 +26,43 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-white">Portfolio Admin</h1>
-          <p className="text-gray-500 text-sm mt-1">Sign in to manage your content</p>
+    <div className="login-root">
+      <div className="aurora-blob aurora-blob-1" />
+      <div className="aurora-blob aurora-blob-2" />
+      <div className="aurora-blob aurora-blob-3" />
+      <div className="aurora-blob aurora-blob-4" />
+
+      <div className="login-wrapper">
+        <div className="login-heading">
+          <h1>Portfolio Admin</h1>
+          <p>Sign in to manage your content</p>
         </div>
-        <form onSubmit={handleSubmit} className="card space-y-4">
-          <div>
-            <label className="label">Username</label>
+
+        <form onSubmit={handleSubmit} className="login-card">
+          <div className="login-field">
+            <label className="login-label">Username</label>
             <input
-              className="input" type="text" required autoFocus
+              className="login-input" type="text" required autoFocus
+              placeholder="Enter your username"
               value={creds.username}
               onChange={e => setCreds(p => ({ ...p, username: e.target.value }))}
             />
           </div>
-          <div>
-            <label className="label">Password</label>
+          <div className="login-field">
+            <label className="login-label">Password</label>
             <input
-              className="input" type="password" required
+              className="login-input" type="password" required
+              placeholder="••••••••"
               value={creds.password}
               onChange={e => setCreds(p => ({ ...p, password: e.target.value }))}
             />
           </div>
-          {error && <p className="text-red-400 text-sm">{error}</p>}
-          <button type="submit" disabled={loading} className="btn-primary w-full justify-center mt-2">
-            {loading ? 'Signing in…' : 'Sign in'}
+          {error && <p className="login-error">{error}</p>}
+          <button type="submit" disabled={loading} className="login-btn">
+            {loading ? <span className="login-spinner" /> : 'Sign in'}
           </button>
-          <p className="text-center text-sm text-gray-500 pt-1">
-            <Link href="/forgot-password" className="text-indigo-400 hover:text-indigo-300 transition-colors">
-              Forgot your password?
-            </Link>
+          <p className="login-footer">
+            <Link href="/forgot-password">Forgot your password?</Link>
           </p>
         </form>
       </div>
