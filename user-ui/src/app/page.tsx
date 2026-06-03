@@ -4,18 +4,22 @@ import HeroSection from '@/components/HeroSection';
 import ProjectsSection from '@/components/ProjectsSection';
 import SkillsSection from '@/components/SkillsSection';
 import ExperienceSection from '@/components/ExperienceSection';
+import EducationSection from '@/components/EducationSection';
 import CertificationsSection from '@/components/CertificationsSection';
+import RefereesSection from '@/components/RefereesSection';
 import ContactSection from '@/components/ContactSection';
 
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
-  const [profile, projects, skills, experiences, certifications, socialLinks] = await Promise.all([
+  const [profile, projects, skills, experiences, education, certifications, referees, socialLinks] = await Promise.all([
     api.getProfile().catch(() => null),
     api.getProjects().catch(() => []),
     api.getSkills().catch(() => []),
     api.getExperiences().catch(() => []),
+    api.getEducation().catch(() => []),
     api.getCertifications().catch(() => []),
+    api.getReferies().catch(() => []),
     api.getSocialLinks().catch(() => []),
   ]);
 
@@ -28,7 +32,9 @@ export default async function HomePage() {
         <ProjectsSection projects={projects} />
         <SkillsSection skills={skills} />
         <ExperienceSection experiences={experiences} />
+        <EducationSection education={education} />
         <CertificationsSection certifications={certifications} />
+        <RefereesSection referees={referees} />
         <ContactSection socialLinks={socialLinks} />
       </main>
 

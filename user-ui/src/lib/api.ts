@@ -35,6 +35,8 @@ export const api = {
   getExperiences:    () => get('/api/experiences'),
   getCertifications: () => get('/api/certifications'),
   getSocialLinks:    () => get('/api/social-links'),
+  getEducation:      () => get('/api/education'),
+  getReferies:       () => get('/api/referees'),
 
   // Binary asset URLs — relative paths, proxied through middleware (same-origin).
   // Never cross-origin from the browser's perspective.
@@ -44,4 +46,7 @@ export const api = {
   skillIconUrl:    (id: string) => `/api/skills/${id}/icon`,
   expLogoUrl:      (id: string) => `/api/experiences/${id}/logo`,
   certImageUrl:    (id: string) => `/api/certifications/${id}/image`,
+  educationLogoUrl: (id: string) => `/api/education/${id}/logo`,
+  refereePhotoUrl:  (id: string) => `/api/referees/${id}/photo`,
+  refereeOrgLogoUrl: (id: string) => `/api/referees/${id}/org-logo`,
 };

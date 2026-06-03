@@ -191,6 +191,18 @@ export const adminApi = {
     }),
   getJob: (id: string) => request(`/api/jobs/${id}`),
 
+  // Education
+  getEducation: () => request('/api/education'),
+  createEducation: (fd: FormData) => upload('/api/education', fd),
+  updateEducation: (id: string, fd: FormData) => upload(`/api/education/${id}`, fd, 'PUT'),
+  deleteEducation: (id: string) => request(`/api/education/${id}`, { method: 'DELETE' }),
+
+  // Referees
+  getReferees: () => request('/api/referees/all'),
+  createReferee: (fd: FormData) => upload('/api/referees', fd),
+  updateReferee: (id: string, fd: FormData) => upload(`/api/referees/${id}`, fd, 'PUT'),
+  deleteReferee: (id: string) => request(`/api/referees/${id}`, { method: 'DELETE' }),
+
   // Social links
   getSocialLinks: () => request('/api/social-links/all'),
   createSocialLink: (data: Record<string, unknown>) =>
@@ -212,4 +224,7 @@ export const adminApi = {
   skillIcon:       (id: string) => `/api/skills/${id}/icon`,
   expLogo:         (id: string) => `/api/experiences/${id}/logo`,
   certImg:         (id: string) => `/api/certifications/${id}/image`,
+  educationLogo:   (id: string) => `/api/education/${id}/logo`,
+  refereePhoto:    (id: string) => `/api/referees/${id}/photo`,
+  refereeOrgLogo:  (id: string) => `/api/referees/${id}/org-logo`,
 };
