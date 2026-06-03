@@ -94,8 +94,8 @@ export default function RefereeReadOnlyView({ token, referee: ref, expiresAt }: 
             <div className="flex items-start gap-4">
               {ref.has_photo && (
                 <img src={photoUrl} alt={ref.name}
-                  className="w-14 h-14 rounded-full object-cover flex-shrink-0 -mt-10 ring-2"
-                  style={{ ringColor: 'rgba(124,58,237,0.5)', border: '2px solid rgba(124,58,237,0.4)' }} />
+                  className="w-14 h-14 rounded-full object-cover flex-shrink-0 -mt-10"
+                  style={{ border: '2px solid rgba(124,58,237,0.4)', outline: '2px solid rgba(124,58,237,0.2)' }} />
               )}
               <div className={ref.has_photo ? '' : ''}>
                 <h2 className="text-xl font-bold text-white">{ref.name}</h2>
