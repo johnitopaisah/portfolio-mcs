@@ -116,8 +116,9 @@ app.use('/api/jobs',           require('./routes/jobs'));
 app.use('/api/admin/jobs',     require('./routes/admin/jobs'));
 app.use('/api/admin/ai',      require('./routes/admin/ai'));
 app.use('/api/applications', require('./routes/applications'));
-app.use('/api/education',    require('./routes/education'));
-app.use('/api/referees',     require('./routes/referees'));
+app.use('/api/education',             require('./routes/education'));
+app.use('/api/referees',              require('./routes/referees'));
+app.use('/api/referee-invitations',   require('./routes/refereeInvitations'));
 
 // ── 404 + Error handler ─────────────────────────────────────
 app.use((req, res) => res.status(404).json({ error: `${req.method} ${req.path} not found` }));

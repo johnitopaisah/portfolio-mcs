@@ -293,4 +293,209 @@ async function notify(data) {
   });
 }
 
-module.exports = { notify, sendPasswordResetEmail };
+// ── 6. Invitation email sent to referee ──────────────────────
+async function sendRefereeInvitationEmail({ to, link, expiresAt, isModify = false }) {
+  if (!process.env.NOTIFY_EMAIL_USER || !process.env.NOTIFY_EMAIL_PASS) {
+    console.warn('[notify] Email env vars not set — skipping referee invitation email');
+    return;
+  }
+
+  const expiryStr = new Date(expiresAt).toLocaleDateString('en-GB', {
+    day: 'numeric', month: 'long', year: 'numeric',
+  });
+
+  const subject = isModify
+    ? 'John Itopa ISAH has sent you a reference modification link'
+    : 'John Itopa ISAH has invited you to submit a professional reference';
+
+  const headingText = isModify
+    ? 'Reference Modification Request'
+    : 'Professional Reference Invitation';
+
+  const bodyText = isModify
+    ? 'John Itopa ISAH has invited you to review and update your professional reference on his portfolio. Use the button below to make your changes.'
+    : 'John Itopa ISAH has invited you to provide a professional reference for his portfolio. Please use the button below to fill in your details — it only takes a few minutes.';
+
+  const ctaText = isModify ? 'Update my reference →' : 'Submit my reference →';
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+      <div style="background:linear-gradient(135deg,#7c3aed,#4f46e5);padding:32px;border-radius:12px 12px 0 0;">
+        <h2 style="color:#fff;margin:0;font-size:22px;font-weight:700;">John Itopa ISAH</h2>
+        <p style="color:#c4b5fd;margin:6px 0 0;font-size:14px;">DevOps &amp; Cloud Engineer · johnisah.com</p>
+      </div>
+      <div style="background:#18181b;padding:36px 32px;border:1px solid #27272a;border-top:none;">
+        <p style="color:#71717a;font-size:11px;font-weight:600;letter-spacing:0.1em;
+                  text-transform:uppercase;margin:0 0 20px;">${headingText}</p>
+        <p style="color:#f4f4f5;font-size:15px;line-height:1.7;margin:0 0 28px;">
+          ${bodyText}
+        </p>
+        <div style="text-align:center;margin:32px 0;">
+          <a href="${link}"
+            style="display:inline-block;background:linear-gradient(135deg,#7c3aed,#4f46e5);
+                   color:#ffffff;padding:16px 36px;border-radius:10px;text-decoration:none;
+                   font-size:15px;font-weight:700;letter-spacing:0.02em;
+                   box-shadow:0 4px 20px rgba(124,58,237,0.4);">
+            ${ctaText}
+          </a>
+        </div>
+        <div style="background:#27272a;border-radius:8px;padding:16px 20px;margin-top:28px;">
+          <p style="color:#71717a;font-size:11px;font-weight:600;text-transform:uppercase;
+                    letter-spacing:0.06em;margin:0 0 10px;">Important</p>
+          <ul style="color:#a1a1aa;font-size:13px;margin:0;padding-left:18px;line-height:1.9;">
+            <li>This link expires on <strong style="color:#f4f4f5;">${expiryStr}</strong></li>
+            <li>It can only be used <strong style="color:#f4f4f5;">once</strong></li>
+            <li>Your reference will be published on his portfolio after submission</li>
+          </ul>
+        </div>
+        <p style="color:#52525b;font-size:12px;margin:24px 0 0;word-break:break-all;">
+          Or copy this link: <span style="color:#a78bfa;">${link}</span>
+        </p>
+      </div>
+      <div style="background:#09090b;padding:16px 32px;border:1px solid #27272a;
+                  border-top:none;border-radius:0 0 12px 12px;text-align:center;">
+        <p style="color:#3f3f46;font-size:12px;margin:0;">
+          You received this because John Itopa ISAH sent you a direct invitation.
+        </p>
+      </div>
+    </div>`;
+
+  await createTransport().sendMail({
+    from:    `"John Itopa ISAH" <${process.env.NOTIFY_EMAIL_USER}>`,
+    to,
+    subject,
+    html,
+    text: [
+      `${headingText}`,
+      ``,
+      bodyText,
+      ``,
+      `Submit your reference here: ${link}`,
+      ``,
+      `This link expires on ${expiryStr} and can only be used once.`,
+    ].join('\n'),
+  });
+
+  console.log(`[notify] Referee invitation email sent to: ${to}`);
+}
+
+// ── 7. Referee submitted (new or modification) ───────────────
+async function notifyRefereeEvent({ name, type, adminUrl }) {
+  const isModify = type === 'modify';
+  const heading  = isModify ? 'Reference Updated' : 'New Referee Submission';
+  const body     = isModify
+    ? `${name} has updated their reference on your portfolio.`
+    : `${name} has submitted a new reference and it is now live on your portfolio.`;
+
+  const results = await Promise.allSettled([
+    // Email
+    (async () => {
+      if (!process.env.NOTIFY_EMAIL_USER || !process.env.NOTIFY_EMAIL_PASS) return;
+      const html = `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+          <div style="background:#7c3aed;padding:24px 32px;border-radius:12px 12px 0 0;">
+            <h2 style="color:#fff;margin:0;font-size:20px;">Portfolio Notifications</h2>
+            <p style="color:#c4b5fd;margin:6px 0 0;font-size:14px;">${heading}</p>
+          </div>
+          <div style="background:#18181b;padding:32px;border:1px solid #27272a;border-top:none;">
+            <p style="color:#f4f4f5;font-size:15px;margin:0 0 16px;">${body}</p>
+            ${adminUrl ? `<a href="${adminUrl}" style="display:inline-block;background:#7c3aed;color:#fff;
+              padding:10px 20px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">
+              View in dashboard →</a>` : ''}
+          </div>
+          <div style="background:#09090b;padding:16px 32px;border:1px solid #27272a;
+                      border-top:none;border-radius:0 0 12px 12px;text-align:center;">
+            <p style="color:#3f3f46;font-size:12px;margin:0;">Portfolio Notifications · johnisah.com</p>
+          </div>
+        </div>`;
+      await createTransport().sendMail({
+        from:    `"Portfolio Notifications" <${process.env.NOTIFY_EMAIL_USER}>`,
+        to:      process.env.NOTIFY_EMAIL_TO || process.env.NOTIFY_EMAIL_USER,
+        subject: isModify
+          ? `[Portfolio] ${name} updated their reference`
+          : `[Portfolio] New referee submission from ${name}`,
+        html,
+        text: `${heading}\n\n${body}\n\n${adminUrl ? `View in dashboard: ${adminUrl}` : ''}`,
+      });
+      console.log(`[notify] Referee event email sent — ${type}: ${name}`);
+    })(),
+
+    // SMS
+    (async () => {
+      if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) return;
+      const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+      await client.messages.create({
+        body: isModify
+          ? `[Portfolio Notifications]\n${name} updated their reference.\nCheck dashboard.`
+          : `[Portfolio Notifications]\nNew reference from ${name}.\nNow live on your portfolio.`,
+        from: process.env.TWILIO_FROM,
+        to:   process.env.TWILIO_TO,
+      });
+      console.log(`[notify] Referee event SMS sent — ${type}: ${name}`);
+    })(),
+  ]);
+
+  results.forEach((r, i) => {
+    if (r.status === 'rejected')
+      console.error(`[notify] referee event ${['email','sms'][i]} failed:`, r.reason?.message || r.reason);
+  });
+}
+
+// ── 7. Referee requested modification ────────────────────────
+async function notifyModificationRequest({ name, adminUrl }) {
+  const results = await Promise.allSettled([
+    // Email
+    (async () => {
+      if (!process.env.NOTIFY_EMAIL_USER || !process.env.NOTIFY_EMAIL_PASS) return;
+      const html = `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+          <div style="background:#f59e0b;padding:24px 32px;border-radius:12px 12px 0 0;">
+            <h2 style="color:#fff;margin:0;font-size:20px;">Portfolio Notifications</h2>
+            <p style="color:#fef3c7;margin:6px 0 0;font-size:14px;">Modification Request</p>
+          </div>
+          <div style="background:#18181b;padding:32px;border:1px solid #27272a;border-top:none;">
+            <p style="color:#f4f4f5;font-size:15px;margin:0 0 8px;">
+              <strong>${name}</strong> has requested a modification to their reference.
+            </p>
+            <p style="color:#a1a1aa;font-size:14px;margin:0 0 24px;">
+              Generate a modification link from your admin dashboard and send it to them.
+            </p>
+            ${adminUrl ? `<a href="${adminUrl}" style="display:inline-block;background:#f59e0b;color:#fff;
+              padding:10px 20px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">
+              Go to dashboard →</a>` : ''}
+          </div>
+          <div style="background:#09090b;padding:16px 32px;border:1px solid #27272a;
+                      border-top:none;border-radius:0 0 12px 12px;text-align:center;">
+            <p style="color:#3f3f46;font-size:12px;margin:0;">Portfolio Notifications · johnisah.com</p>
+          </div>
+        </div>`;
+      await createTransport().sendMail({
+        from:    `"Portfolio Notifications" <${process.env.NOTIFY_EMAIL_USER}>`,
+        to:      process.env.NOTIFY_EMAIL_TO || process.env.NOTIFY_EMAIL_USER,
+        subject: `[Portfolio] ${name} requested a modification to their reference`,
+        html,
+        text: `Modification Request\n\n${name} has requested a modification to their reference.\n\nGenerate a modification link from your admin dashboard.\n\n${adminUrl || ''}`,
+      });
+      console.log(`[notify] Modification request email sent — referee: ${name}`);
+    })(),
+
+    // SMS
+    (async () => {
+      if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) return;
+      const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+      await client.messages.create({
+        body: `[Portfolio Notifications]\n${name} requested a modification to their reference.\nGenerate a mod link from your dashboard.`,
+        from: process.env.TWILIO_FROM,
+        to:   process.env.TWILIO_TO,
+      });
+      console.log(`[notify] Modification request SMS sent — referee: ${name}`);
+    })(),
+  ]);
+
+  results.forEach((r, i) => {
+    if (r.status === 'rejected')
+      console.error(`[notify] mod request ${['email','sms'][i]} failed:`, r.reason?.message || r.reason);
+  });
+}
+
+module.exports = { notify, sendPasswordResetEmail, notifyRefereeEvent, notifyModificationRequest, sendRefereeInvitationEmail };

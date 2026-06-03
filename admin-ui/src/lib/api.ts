@@ -191,6 +191,17 @@ export const adminApi = {
     }),
   getJob: (id: string) => request(`/api/jobs/${id}`),
 
+  // Referee invitations
+  getInvitations: () => request('/api/referee-invitations'),
+  createInvitation: (data: { note: string; days: number; referee_email?: string }) =>
+    request('/api/referee-invitations', { method: 'POST', body: JSON.stringify(data) }),
+  createModifyLink: (refereeId: string, data: { note?: string; days: number; referee_email?: string }) =>
+    request(`/api/referee-invitations/for-referee/${refereeId}`, { method: 'POST', body: JSON.stringify(data) }),
+  revokeInvitation: (id: string) =>
+    request(`/api/referee-invitations/${id}`, { method: 'DELETE' }),
+  toggleRefereeVisibility: (id: string, visible: boolean) =>
+    upload(`/api/referees/${id}`, (() => { const fd = new FormData(); fd.append('visible', String(visible)); return fd; })(), 'PUT'),
+
   // Education
   getEducation: () => request('/api/education'),
   createEducation: (fd: FormData) => upload('/api/education', fd),
