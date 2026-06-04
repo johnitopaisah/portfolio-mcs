@@ -109,6 +109,14 @@ api/
 | GET | `/api/skills` | Skills list |
 | GET | `/api/experiences` | Work experience |
 | GET | `/api/certifications` | Certifications |
+| GET | `/api/education` | Education history |
+| GET | `/api/social-links` | Social / contact links |
+| GET | `/api/referees` | Visible referees (email/phone hidden when available on request) |
+| GET | `/api/referees/:id/photo` | Referee headshot binary |
+| GET | `/api/referees/:id/org-logo` | Referee organisation logo binary |
+| GET | `/api/referee-invitations/validate` | Validate a one-time invitation token |
+| POST | `/api/referee-invitations/:token/submit` | Submit referee form (multipart, consumes token) |
+| POST | `/api/referee-invitations/:token/request-modification` | Flag a submitted reference for modification |
 | POST | `/api/contact` | Submit contact message |
 | GET | `/api/jobs` | AI-curated public job listings |
 | GET | `/api/docs` | Swagger UI |
@@ -132,8 +140,19 @@ api/
 | GET/POST/PUT/DELETE | `/api/skills` | CRUD skills |
 | GET/POST/PUT/DELETE | `/api/experiences` | CRUD experiences |
 | GET/POST/PUT/DELETE | `/api/certifications` | CRUD certifications |
+| GET/POST/PUT/DELETE | `/api/education` | CRUD education entries |
+| GET/POST/PUT/DELETE | `/api/social-links` | CRUD social/contact links |
 | GET/PATCH | `/api/contact` | View/mark-read contact messages |
 | GET/POST/PUT/DELETE | `/api/applications` | Job application CRM |
+| GET | `/api/referees/all` | All referees including hidden ones + star_config |
+| POST | `/api/referees` | Create referee (multipart) |
+| PUT | `/api/referees/:id` | Update referee fields and images (multipart) |
+| PUT | `/api/referees/:id/star-config` | Replace referee star animation config (JSON) |
+| DELETE | `/api/referees/:id` | Delete referee |
+| GET | `/api/referee-invitations` | List all invitation links |
+| POST | `/api/referee-invitations` | Create a new `create` invitation link |
+| POST | `/api/referee-invitations/for-referee/:id` | Create a `modify` link for an existing referee |
+| DELETE | `/api/referee-invitations/:id` | Revoke an unused invitation link |
 | GET | `/api/admin/jobs` | Browse ingested jobs + ingestion logs |
 | POST | `/api/admin/jobs/:id/feedback` | Thumbs up/down on a job |
 | GET/PUT | `/api/admin/ai` | AI pattern config (keywords, weights) |

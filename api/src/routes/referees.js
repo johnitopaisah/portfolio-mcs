@@ -9,7 +9,27 @@ const uploadFields = upload.fields([
   { name: 'org_logo', maxCount: 1 },
 ]);
 
-// Public: hide email/phone when available_on_request is true
+/**
+ * @swagger
+ * /api/referees:
+ *   get:
+ *     summary: List visible referees
+ *     description: >
+ *       Returns all referees where `visible = true`, ordered by `order_index` then
+ *       creation date. When `available_on_request` is true, `email` and `phone`
+ *       are omitted from the response. Each referee includes its `star_config`
+ *       (null means default animation settings apply).
+ *     tags: [Referees]
+ *     responses:
+ *       200:
+ *         description: Array of public referee records
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Referee'
+ */
 router.get('/', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
@@ -29,7 +49,36 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// Admin-only: full data including hidden contact details
+/**
+ * @swagger
+ * /api/referees/all:
+ *   get:
+ *     summary: List all referees (admin)
+ *     description: >
+ *       Returns all referees regardless of visibility, including full contact
+ *       details and `star_config`. Requires admin JWT.
+ *     tags: [Referees]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Array of full referee records
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 allOf:
+ *                   - $ref: '#/components/schemas/Referee'
+ *                   - type: object
+ *                     properties:
+ *                       visible:
+ *                         type: boolean
+ *                       modification_requested:
+ *                         type: boolean
+ *       401:
+ *         description: Unauthorised
+ */
 router.get('/all', requireAuth, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
@@ -45,6 +94,35 @@ router.get('/all', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/**
+ * @swagger
+ * /api/referees/{id}/photo:
+ *   get:
+ *     summary: Get referee photo
+ *     description: Returns the referee's headshot as raw binary. Cache-Control is set to 24 hours.
+ *     tags: [Referees]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Photo binary
+ *         content:
+ *           image/jpeg:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *           image/png:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       404:
+ *         description: Referee not found or no photo uploaded
+ */
 router.get('/:id/photo', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
@@ -57,6 +135,35 @@ router.get('/:id/photo', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/**
+ * @swagger
+ * /api/referees/{id}/org-logo:
+ *   get:
+ *     summary: Get referee organisation logo
+ *     description: Returns the organisation logo as raw binary. Cache-Control is set to 24 hours.
+ *     tags: [Referees]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Logo binary
+ *         content:
+ *           image/png:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *           image/jpeg:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       404:
+ *         description: Referee not found or no logo uploaded
+ */
 router.get('/:id/org-logo', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
@@ -69,6 +176,48 @@ router.get('/:id/org-logo', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/**
+ * @swagger
+ * /api/referees:
+ *   post:
+ *     summary: Create a referee (admin)
+ *     description: >
+ *       Accepts `multipart/form-data`. Maximum file size for photo and org_logo
+ *       is 3 MB each. Requires admin JWT.
+ *     tags: [Referees]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required: [name, title, organization, relationship]
+ *             properties:
+ *               name:                 { type: string, example: Mario Valdivia }
+ *               title:                { type: string, example: Software Engineering Lead }
+ *               organization:         { type: string, example: Quandela }
+ *               relationship:         { type: string, example: Team Lead }
+ *               review:               { type: string }
+ *               linkedin_url:         { type: string, format: uri }
+ *               email:                { type: string, format: email }
+ *               phone:                { type: string }
+ *               available_on_request: { type: boolean, default: true }
+ *               visible:              { type: boolean, default: true }
+ *               order_index:          { type: integer, default: 0 }
+ *               photo:                { type: string, format: binary }
+ *               org_logo:             { type: string, format: binary }
+ *     responses:
+ *       201:
+ *         description: Referee created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Referee'
+ *       401:
+ *         description: Unauthorised
+ */
 router.post('/', requireAuth, uploadFields, async (req, res, next) => {
   try {
     const {
@@ -101,6 +250,58 @@ router.post('/', requireAuth, uploadFields, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/**
+ * @swagger
+ * /api/referees/{id}:
+ *   put:
+ *     summary: Update a referee (admin)
+ *     description: >
+ *       Partial update via `multipart/form-data`. Only fields that are provided
+ *       are updated (COALESCE pattern). To update the photo or org logo supply
+ *       new files; omit them to keep the current ones. Maximum file size is 3 MB.
+ *       Does **not** update `star_config` — use `PUT /api/referees/{id}/star-config`
+ *       for that. Requires admin JWT.
+ *     tags: [Referees]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:                 { type: string }
+ *               title:                { type: string }
+ *               organization:         { type: string }
+ *               relationship:         { type: string }
+ *               review:               { type: string }
+ *               linkedin_url:         { type: string, format: uri }
+ *               email:                { type: string, format: email }
+ *               phone:                { type: string }
+ *               available_on_request: { type: boolean }
+ *               visible:              { type: boolean }
+ *               order_index:          { type: integer }
+ *               photo:                { type: string, format: binary }
+ *               org_logo:             { type: string, format: binary }
+ *     responses:
+ *       200:
+ *         description: Updated referee
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Referee'
+ *       401:
+ *         description: Unauthorised
+ *       404:
+ *         $ref: '#/components/schemas/Error'
+ */
 router.put('/:id', requireAuth, uploadFields, async (req, res, next) => {
   try {
     const {
@@ -149,6 +350,47 @@ router.put('/:id', requireAuth, uploadFields, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/**
+ * @swagger
+ * /api/referees/{id}/star-config:
+ *   put:
+ *     summary: Update star animation config (admin)
+ *     description: >
+ *       Replaces the `star_config` JSONB for a single referee. All fields in the
+ *       request body become the new config. This is the only endpoint that modifies
+ *       star animation settings — `PUT /api/referees/{id}` intentionally does not
+ *       touch `star_config`. Requires admin JWT.
+ *     tags: [Referees]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/StarConfig'
+ *     responses:
+ *       200:
+ *         description: Updated star config
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 id:          { type: string, format: uuid }
+ *                 star_config: { $ref: '#/components/schemas/StarConfig' }
+ *       401:
+ *         description: Unauthorised
+ *       404:
+ *         $ref: '#/components/schemas/Error'
+ */
 router.put('/:id/star-config', requireAuth, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
@@ -161,6 +403,30 @@ router.put('/:id/star-config', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/**
+ * @swagger
+ * /api/referees/{id}:
+ *   delete:
+ *     summary: Delete a referee (admin)
+ *     description: Permanently deletes the referee and all associated binary data. Requires admin JWT.
+ *     tags: [Referees]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       204:
+ *         description: Referee deleted
+ *       401:
+ *         description: Unauthorised
+ *       404:
+ *         $ref: '#/components/schemas/Error'
+ */
 router.delete('/:id', requireAuth, async (req, res, next) => {
   try {
     const { rowCount } = await pool.query('DELETE FROM referees WHERE id = $1', [req.params.id]);

@@ -5,6 +5,22 @@ const multer = require('multer');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
 
+/**
+ * @swagger
+ * /api/education:
+ *   get:
+ *     summary: List education entries
+ *     description: Returns all education records ordered by `order_index` then `start_date` descending.
+ *     tags: [Education]
+ *     responses:
+ *       200:
+ *         description: Array of education records
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items: { $ref: '#/components/schemas/Education' }
+ */
 router.get('/', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
@@ -18,6 +34,29 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/**
+ * @swagger
+ * /api/education/{id}/logo:
+ *   get:
+ *     summary: Get institution logo
+ *     description: Returns the institution logo as raw binary. Cache-Control is set to 24 hours.
+ *     tags: [Education]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Logo binary
+ *         content:
+ *           image/png:
+ *             schema: { type: string, format: binary }
+ *           image/jpeg:
+ *             schema: { type: string, format: binary }
+ *       404:
+ *         description: Education entry not found or no logo uploaded
+ */
 router.get('/:id/logo', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
@@ -30,6 +69,44 @@ router.get('/:id/logo', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/**
+ * @swagger
+ * /api/education:
+ *   post:
+ *     summary: Create an education entry (admin)
+ *     description: Accepts `multipart/form-data`. Maximum logo size is 2 MB. Requires admin JWT.
+ *     tags: [Education]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required: [institution, degree, field_of_study, start_date]
+ *             properties:
+ *               institution:     { type: string, example: École Polytechnique }
+ *               institution_url: { type: string, format: uri }
+ *               degree:          { type: string, example: Master of Science }
+ *               field_of_study:  { type: string, example: Computer Science }
+ *               description:     { type: string }
+ *               grade:           { type: string, example: 'First Class Honours' }
+ *               activities:      { type: string }
+ *               start_date:      { type: string, format: date }
+ *               end_date:        { type: string, format: date }
+ *               ongoing:         { type: boolean }
+ *               order_index:     { type: integer, default: 0 }
+ *               logo:            { type: string, format: binary }
+ *     responses:
+ *       201:
+ *         description: Education entry created
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Education' }
+ *       401:
+ *         description: Unauthorised
+ */
 router.post('/', requireAuth, upload.single('logo'), async (req, res, next) => {
   try {
     const {
@@ -56,6 +133,49 @@ router.post('/', requireAuth, upload.single('logo'), async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/**
+ * @swagger
+ * /api/education/{id}:
+ *   put:
+ *     summary: Update an education entry (admin)
+ *     description: Partial update via `multipart/form-data`. Only provided fields are updated. Requires admin JWT.
+ *     tags: [Education]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               institution:     { type: string }
+ *               institution_url: { type: string, format: uri }
+ *               degree:          { type: string }
+ *               field_of_study:  { type: string }
+ *               description:     { type: string }
+ *               grade:           { type: string }
+ *               activities:      { type: string }
+ *               start_date:      { type: string, format: date }
+ *               end_date:        { type: string, format: date }
+ *               ongoing:         { type: boolean }
+ *               order_index:     { type: integer }
+ *               logo:            { type: string, format: binary }
+ *     responses:
+ *       200:
+ *         description: Updated education entry
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Education' }
+ *       401:
+ *         description: Unauthorised
+ *       404:
+ *         $ref: '#/components/schemas/Error'
+ */
 router.put('/:id', requireAuth, upload.single('logo'), async (req, res, next) => {
   try {
     const {
@@ -95,6 +215,28 @@ router.put('/:id', requireAuth, upload.single('logo'), async (req, res, next) =>
   } catch (err) { next(err); }
 });
 
+/**
+ * @swagger
+ * /api/education/{id}:
+ *   delete:
+ *     summary: Delete an education entry (admin)
+ *     description: Permanently removes the education record and its logo. Requires admin JWT.
+ *     tags: [Education]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       204:
+ *         description: Deleted
+ *       401:
+ *         description: Unauthorised
+ *       404:
+ *         $ref: '#/components/schemas/Error'
+ */
 router.delete('/:id', requireAuth, async (req, res, next) => {
   try {
     const { rowCount } = await pool.query('DELETE FROM education WHERE id = $1', [req.params.id]);

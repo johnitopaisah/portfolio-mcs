@@ -21,6 +21,64 @@ function adminUrl() {
   return (process.env.ADMIN_URL || 'https://admin.johnisah.com').replace(/\/$/, '');
 }
 
+/**
+ * @swagger
+ * /api/referee-invitations/validate:
+ *   get:
+ *     summary: Validate an invitation token
+ *     description: >
+ *       Public endpoint used by the referee form page on load. Validates the
+ *       one-time token and returns the current state of the invitation.
+ *
+ *       Possible `valid: false` reasons:
+ *       - `used` — already submitted but link not yet expired (returns read-only referee data)
+ *       - `used_expired` — submitted and link has since expired
+ *       - `expired` — never used but has expired
+ *
+ *       For `modify` type invitations, the `existing` object is included so
+ *       the form can be pre-populated with the referee's current data.
+ *     tags: [Referee Invitations]
+ *     parameters:
+ *       - in: query
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The hex token from the invitation link
+ *     responses:
+ *       200:
+ *         description: Token validation result
+ *         content:
+ *           application/json:
+ *             schema:
+ *               oneOf:
+ *                 - type: object
+ *                   description: Valid token — form should be shown
+ *                   properties:
+ *                     valid:      { type: boolean, example: true }
+ *                     type:       { type: string, enum: [create, modify] }
+ *                     expiresAt:  { type: string, format: date-time }
+ *                     existing:
+ *                       description: Present only for `modify` type
+ *                       allOf:
+ *                         - $ref: '#/components/schemas/Referee'
+ *                         - type: object
+ *                           properties:
+ *                             referee_id: { type: string, format: uuid }
+ *                             star_config: { $ref: '#/components/schemas/StarConfig' }
+ *                 - type: object
+ *                   description: Invalid/used/expired token
+ *                   properties:
+ *                     valid:     { type: boolean, example: false }
+ *                     reason:    { type: string, enum: [used, used_expired, expired] }
+ *                     referee:
+ *                       description: Present only when reason is `used`
+ *                       $ref: '#/components/schemas/Referee'
+ *       400:
+ *         description: Token query parameter missing
+ *       404:
+ *         description: Token not found
+ */
 // ── GET /validate?token=xxx  (public) ────────────────────────
 router.get('/validate', async (req, res, next) => {
   try {
@@ -100,6 +158,30 @@ router.get('/validate', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/**
+ * @swagger
+ * /api/referee-invitations:
+ *   get:
+ *     summary: List all invitations (admin)
+ *     description: >
+ *       Returns all invitation links ordered by creation date descending.
+ *       Each record includes a computed `expired` boolean and the `link` URL.
+ *       Requires admin JWT.
+ *     tags: [Referee Invitations]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Array of invitation records
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/RefereeInvitation'
+ *       401:
+ *         description: Unauthorised
+ */
 // ── GET /  (admin) — list all invitations ────────────────────
 router.get('/', requireAuth, async (req, res, next) => {
   try {
@@ -118,6 +200,41 @@ router.get('/', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/**
+ * @swagger
+ * /api/referee-invitations:
+ *   post:
+ *     summary: Create a new invitation link (admin)
+ *     description: >
+ *       Generates a one-time `create` link for a new referee. If `referee_email`
+ *       is provided, an invitation email is sent automatically. Requires admin JWT.
+ *     tags: [Referee Invitations]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               note:          { type: string, example: 'For Mario Valdivia - Quandela' }
+ *               days:          { type: integer, minimum: 1, maximum: 365, default: 30, example: 14 }
+ *               referee_email: { type: string, format: email, description: 'If provided, sends the link by email automatically' }
+ *     responses:
+ *       201:
+ *         description: Invitation created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/RefereeInvitation'
+ *                 - type: object
+ *                   properties:
+ *                     email_sent: { type: boolean }
+ *       401:
+ *         description: Unauthorised
+ */
 // ── POST /  (admin) — create new 'create' invitation ─────────
 router.post('/', requireAuth, async (req, res, next) => {
   try {
@@ -143,6 +260,51 @@ router.post('/', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/**
+ * @swagger
+ * /api/referee-invitations/for-referee/{refereeId}:
+ *   post:
+ *     summary: Create a modification link for an existing referee (admin)
+ *     description: >
+ *       Generates a `modify` type link that pre-populates the referee form with
+ *       the referee's existing data. If `referee_email` is provided, the link is
+ *       emailed automatically. Requires admin JWT.
+ *     tags: [Referee Invitations]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: refereeId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               note:          { type: string }
+ *               days:          { type: integer, minimum: 1, maximum: 365, default: 14, example: 14 }
+ *               referee_email: { type: string, format: email }
+ *     responses:
+ *       201:
+ *         description: Modification link created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/RefereeInvitation'
+ *                 - type: object
+ *                   properties:
+ *                     email_sent: { type: boolean }
+ *       401:
+ *         description: Unauthorised
+ *       404:
+ *         $ref: '#/components/schemas/Error'
+ */
 // ── POST /for-referee/:refereeId  (admin) — 'modify' link ────
 router.post('/for-referee/:refereeId', requireAuth, async (req, res, next) => {
   try {
@@ -173,6 +335,32 @@ router.post('/for-referee/:refereeId', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/**
+ * @swagger
+ * /api/referee-invitations/{id}:
+ *   delete:
+ *     summary: Revoke an invitation link (admin)
+ *     description: >
+ *       Deletes an unused invitation. Returns 404 if the invitation has already
+ *       been used (used links cannot be revoked). Requires admin JWT.
+ *     tags: [Referee Invitations]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       204:
+ *         description: Invitation revoked
+ *       401:
+ *         description: Unauthorised
+ *       404:
+ *         description: Invitation not found or already used
+ */
 // ── DELETE /:id  (admin) — revoke invitation ─────────────────
 router.delete('/:id', requireAuth, async (req, res, next) => {
   try {
@@ -185,6 +373,71 @@ router.delete('/:id', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/**
+ * @swagger
+ * /api/referee-invitations/{token}/submit:
+ *   post:
+ *     summary: Submit referee form
+ *     description: >
+ *       Public endpoint called when a referee submits the invitation form.
+ *       Accepts `multipart/form-data` (to support photo and logo uploads).
+ *
+ *       - For `create` type invitations: inserts a new referee row.
+ *       - For `modify` type invitations: updates the existing referee row.
+ *
+ *       The optional `star_config` field must be a **JSON string** (serialised
+ *       with `JSON.stringify`) when included in the multipart body. It is
+ *       parsed server-side and stored as JSONB.
+ *
+ *       The token is consumed (marked `used = true`) on success. Subsequent
+ *       calls with the same token return 409.
+ *     tags: [Referee Invitations]
+ *     parameters:
+ *       - in: path
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 64-character hex token from the invitation link
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required: [name, title, organization, relationship]
+ *             properties:
+ *               name:                 { type: string }
+ *               title:                { type: string }
+ *               organization:         { type: string }
+ *               relationship:         { type: string }
+ *               review:               { type: string }
+ *               linkedin_url:         { type: string, format: uri }
+ *               email:                { type: string, format: email }
+ *               phone:                { type: string }
+ *               available_on_request: { type: boolean }
+ *               visible:              { type: boolean }
+ *               photo:                { type: string, format: binary }
+ *               org_logo:             { type: string, format: binary }
+ *               star_config:          { type: string, description: 'JSON-stringified StarConfig object' }
+ *     responses:
+ *       200:
+ *         description: Submission accepted
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean, example: true }
+ *                 name:    { type: string, example: Mario Valdivia }
+ *                 type:    { type: string, enum: [create, modify] }
+ *       404:
+ *         description: Token not found
+ *       409:
+ *         description: Token already used
+ *       410:
+ *         description: Token expired
+ */
 // ── POST /:token/submit  (public) — create or update referee ─
 router.post('/:token/submit', uploadFields, async (req, res, next) => {
   const client = await pool.connect();
@@ -301,6 +554,37 @@ router.post('/:token/submit', uploadFields, async (req, res, next) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/referee-invitations/{token}/request-modification:
+ *   post:
+ *     summary: Request a modification to a submitted reference
+ *     description: >
+ *       Called by a referee after they have already submitted their form (when
+ *       they notice a mistake). Sets `modification_requested = true` on the
+ *       referee row and notifies the admin. The admin can then generate a new
+ *       `modify` link and send it. This is best-effort — the response is 200
+ *       even if the notification email fails.
+ *     tags: [Referee Invitations]
+ *     parameters:
+ *       - in: path
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 64-character hex token from the original invitation link
+ *     responses:
+ *       200:
+ *         description: Modification request registered
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean, example: true }
+ *       404:
+ *         description: Token not found or not linked to a referee
+ */
 // ── POST /:token/request-modification  (public) ───────────────
 router.post('/:token/request-modification', async (req, res, next) => {
   try {
