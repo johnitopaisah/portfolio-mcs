@@ -19,7 +19,8 @@ router.get('/', async (req, res, next) => {
               CASE WHEN available_on_request THEN NULL ELSE phone END AS phone,
               photo_mime, org_logo_mime, order_index,
               (photo    IS NOT NULL) AS has_photo,
-              (org_logo IS NOT NULL) AS has_org_logo
+              (org_logo IS NOT NULL) AS has_org_logo,
+              star_config
        FROM referees
        WHERE visible = true
        ORDER BY order_index ASC, created_at ASC`
@@ -36,7 +37,8 @@ router.get('/all', requireAuth, async (req, res, next) => {
               linkedin_url, email, phone, available_on_request, visible,
               photo_mime, org_logo_mime, order_index,
               (photo    IS NOT NULL) AS has_photo,
-              (org_logo IS NOT NULL) AS has_org_logo
+              (org_logo IS NOT NULL) AS has_org_logo,
+              star_config
        FROM referees ORDER BY order_index ASC, created_at ASC`
     );
     res.json(rows);
@@ -141,6 +143,18 @@ router.put('/:id', requireAuth, uploadFields, async (req, res, next) => {
         order_index !== undefined ? parseInt(order_index) : null,
         req.params.id,
       ]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Referee not found' });
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+router.put('/:id/star-config', requireAuth, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `UPDATE referees SET star_config = $1 WHERE id = $2
+       RETURNING id, star_config`,
+      [JSON.stringify(req.body), req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Referee not found' });
     res.json(rows[0]);

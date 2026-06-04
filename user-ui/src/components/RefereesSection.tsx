@@ -1,6 +1,103 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
+
+// ── Star field animation ──────────────────────────────────────
+interface StarConfig {
+  enabled: boolean;
+  count: number;
+  size: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+  speed: 'slow' | 'normal' | 'fast';
+  sparkle_ratio: number;
+  mask_start: number;
+  colors: string[];
+}
+
+const DEFAULT_COLORS = ['#a78bfa', '#67e8f9', '#fcd34d', '#f9a8d4', '#ffffff', '#c4b5fd', '#86efac'];
+
+const DEFAULT_STAR_CONFIG: StarConfig = {
+  enabled: true, count: 32, size: 'md', speed: 'normal',
+  sparkle_ratio: 0.55, mask_start: 28, colors: DEFAULT_COLORS,
+};
+
+const SIZE_MAP: Record<string, [number, number]> = {
+  xs: [1.5, 3.5], sm: [2.5, 5], md: [3.5, 7], lg: [5, 9], xl: [7, 13],
+};
+
+const SPEED_MAP: Record<string, [number, number]> = {
+  slow: [3, 6], normal: [1.8, 4.2], fast: [0.8, 2],
+};
+
+interface Star {
+  id: number; x: number; y: number;
+  size: number; color: string;
+  duration: number; delay: number; type: 'dot' | 'sparkle';
+}
+
+function generateStars(cfg: StarConfig): Star[] {
+  const [minSz, maxSz]   = SIZE_MAP[cfg.size]   ?? SIZE_MAP.md;
+  const [minDur, maxDur] = SPEED_MAP[cfg.speed]  ?? SPEED_MAP.normal;
+  const colors = cfg.colors.length > 0 ? cfg.colors : DEFAULT_COLORS;
+  return Array.from({ length: cfg.count }, (_, i) => ({
+    id:       i,
+    x:        Math.random() * 100,
+    y:        Math.random() * 100,
+    size:     minSz + Math.random() * (maxSz - minSz),
+    color:    colors[Math.floor(Math.random() * colors.length)],
+    duration: minDur + Math.random() * (maxDur - minDur),
+    delay:    Math.random() * 3.5,
+    type:     Math.random() < cfg.sparkle_ratio ? 'sparkle' : 'dot',
+  }));
+}
+
+function StarField({ config = DEFAULT_STAR_CONFIG }: { config?: StarConfig | null }) {
+  const cfg = config ?? DEFAULT_STAR_CONFIG;
+  const [stars] = useState<Star[]>(() => generateStars(cfg));
+  const maskStyle = `radial-gradient(ellipse 52% 48% at 50% 50%, transparent ${cfg.mask_start}%, rgba(0,0,0,0.5) ${cfg.mask_start + 24}%, black ${cfg.mask_start + 47}%)`;
+
+  return (
+    <>
+      <style>{`
+        @keyframes twinkle-star {
+          0%,100% { opacity: 0; transform: translate(-50%,-50%) scale(0.3); }
+          50%      { opacity: 1; transform: translate(-50%,-50%) scale(1);   }
+        }
+      `}</style>
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{ zIndex: 2, maskImage: maskStyle, WebkitMaskImage: maskStyle }}
+      >
+        {stars.map(s => (
+          <div
+            key={s.id}
+            style={{
+              position:  'absolute',
+              left:      `${s.x}%`,
+              top:       `${s.y}%`,
+              transform: 'translate(-50%,-50%) scale(0.3)',
+              animation: `twinkle-star ${s.duration}s ease-in-out ${s.delay}s infinite`,
+              ...(s.type === 'dot' ? {
+                width:        `${s.size}px`,
+                height:       `${s.size}px`,
+                borderRadius: '50%',
+                background:   s.color,
+                boxShadow:    `0 0 ${s.size * 3}px ${s.size * 1.5}px ${s.color}`,
+              } : {
+                fontSize:   `${s.size * 5}px`,
+                lineHeight: 1,
+                color:      s.color,
+                textShadow: `0 0 ${s.size * 4}px ${s.color}, 0 0 ${s.size * 8}px ${s.color}`,
+                userSelect: 'none',
+              }),
+            }}
+          >
+            {s.type === 'sparkle' ? '✦' : null}
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
 
 interface Referee {
   id: string;
@@ -15,6 +112,7 @@ interface Referee {
   available_on_request: boolean;
   has_photo: boolean;
   has_org_logo: boolean;
+  star_config?: StarConfig | null;
 }
 
 const GRADIENTS = [
@@ -71,7 +169,7 @@ function RefereeModal({ ref: r, onClose }: { ref: Referee; onClose: () => void }
         onClick={e => e.stopPropagation()}>
 
         {/* Left — photo panel */}
-        <div className="w-full md:w-[42%] h-[40vh] md:h-full flex-shrink-0 flex items-center justify-center relative"
+        <div className="w-full md:w-[42%] h-[40vh] md:h-full flex-shrink-0 flex items-center justify-center relative overflow-hidden"
           style={{ background: 'rgba(10,10,20,0.98)' }}>
           {r.has_photo ? (
             <img src={api.refereePhotoUrl(r.id)} alt={r.name}
@@ -89,6 +187,12 @@ function RefereeModal({ ref: r, onClose }: { ref: Referee; onClose: () => void }
               </div>
             </div>
           )}
+
+          {/* Glittering star field — edges bright, fades to clear at center */}
+          {(r.star_config?.enabled !== false) && (
+            <StarField config={r.star_config} />
+          )}
+
           {/* Gradient overlay at bottom */}
           <div className="absolute inset-x-0 bottom-0 h-32 pointer-events-none md:hidden"
             style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)' }} />

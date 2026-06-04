@@ -23,6 +23,7 @@ interface TokenPayload {
     review?: string; linkedin_url?: string; email?: string; phone?: string;
     available_on_request: boolean; has_photo: boolean; has_org_logo: boolean;
     referee_id: string;
+    star_config?: any;
   };
 }
 

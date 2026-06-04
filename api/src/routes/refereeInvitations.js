@@ -30,7 +30,7 @@ router.get('/validate', async (req, res, next) => {
     const { rows } = await pool.query(
       `SELECT i.*, r.name, r.title, r.organization, r.relationship,
               r.review, r.linkedin_url, r.email, r.phone,
-              r.available_on_request, r.visible,
+              r.available_on_request, r.visible, r.star_config,
               (r.photo IS NOT NULL)    AS has_photo,
               (r.org_logo IS NOT NULL) AS has_org_logo
        FROM referee_invitations i
@@ -64,6 +64,7 @@ router.get('/validate', async (req, res, next) => {
           available_on_request: inv.available_on_request,
           has_photo:            inv.has_photo,
           has_org_logo:         inv.has_org_logo,
+          star_config:          inv.star_config,
         },
       });
     }
@@ -90,6 +91,7 @@ router.get('/validate', async (req, res, next) => {
         visible:              inv.visible,
         has_photo:            inv.has_photo,
         has_org_logo:         inv.has_org_logo,
+        star_config:          inv.star_config,
         referee_id:           inv.referee_id,
       };
     }
@@ -201,12 +203,17 @@ router.post('/:token/submit', uploadFields, async (req, res, next) => {
     const {
       name, title, organization, relationship, review,
       linkedin_url, email, phone, available_on_request, visible, order_index,
+      star_config: starConfigRaw,
     } = req.body;
 
     const photo    = req.files?.photo?.[0];
     const org_logo = req.files?.org_logo?.[0];
     const availReq = available_on_request === 'true' || available_on_request === true;
     const vis      = visible !== 'false' && visible !== false;
+    let starConfig = null;
+    if (starConfigRaw) {
+      try { starConfig = JSON.parse(starConfigRaw); } catch { /* ignore malformed */ }
+    }
 
     let refereeId;
 
@@ -215,8 +222,8 @@ router.post('/:token/submit', uploadFields, async (req, res, next) => {
         `INSERT INTO referees
            (name, title, organization, relationship, review, linkedin_url,
             email, phone, available_on_request, visible,
-            photo, photo_mime, org_logo, org_logo_mime, order_index)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+            photo, photo_mime, org_logo, org_logo_mime, order_index, star_config)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
          RETURNING id, name`,
         [
           name, title, organization, relationship,
@@ -225,6 +232,7 @@ router.post('/:token/submit', uploadFields, async (req, res, next) => {
           photo?.buffer || null, photo?.mimetype || null,
           org_logo?.buffer || null, org_logo?.mimetype || null,
           parseInt(order_index || '0'),
+          starConfig ? JSON.stringify(starConfig) : null,
         ]
       );
       refereeId = rows[0].id;
@@ -253,9 +261,10 @@ router.post('/:token/submit', uploadFields, async (req, res, next) => {
            photo_mime           = COALESCE($12, photo_mime),
            org_logo             = COALESCE($13, org_logo),
            org_logo_mime        = COALESCE($14, org_logo_mime),
+           star_config          = COALESCE($15, star_config),
            modification_requested    = false,
            modification_requested_at = NULL
-         WHERE id = $15`,
+         WHERE id = $16`,
         [
           name || null, title || null, organization || null, relationship || null,
           review || null, linkedin_url || null,
@@ -264,6 +273,7 @@ router.post('/:token/submit', uploadFields, async (req, res, next) => {
           visible !== undefined ? vis : null,
           photo?.buffer || null, photo?.mimetype || null,
           org_logo?.buffer || null, org_logo?.mimetype || null,
+          starConfig ? JSON.stringify(starConfig) : null,
           refereeId,
         ]
       );

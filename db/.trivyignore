@@ -1,18 +1,18 @@
 # ============================================================
 # Trivy ignore list for the DB image (postgres:16-alpine)
 #
-# All entries below are CVEs in the Go standard library (stdlib)
-# affecting the gosu v1.19 binary shipped by the official
-# postgres:16-alpine image (compiled with Go 1.24.6).
+# Section A — gosu stdlib CVEs
+# All entries affect the Go standard library (stdlib) inside the
+# gosu v1.19 binary shipped by postgres:16-alpine (Go 1.24.6).
 #
-# Root cause:  gosu has not yet released a build with Go >=1.24.13
+# Root cause:  gosu has not yet released a build with Go >=1.25.10
 #              (which contains the upstream fixes).  The postgres
 #              Docker image team ships whatever gosu version exists
 #              at image build time.
 #
 # Checked:     postgres:16-alpine AND postgres:17-alpine both carry
 #              gosu 1.19 / go1.24.6 — no fixed upstream image is
-#              available as of 2026-05-22.
+#              available as of 2026-06-04.
 #
 # Risk:        gosu is a privilege-dropping helper called once at
 #              container startup (it exec's postgres as the postgres
@@ -21,10 +21,21 @@
 #              runtime, so the attack surface for all crypto/tls,
 #              net/url, and net/http CVEs below is effectively zero.
 #
-# Action:      Remove this file when postgres:16-alpine ships with
-#              gosu >= 1.20 compiled against Go >= 1.24.13 / 1.25.8.
+# Action:      Remove section A when postgres:16-alpine ships with
+#              gosu >= 1.20 compiled against Go >= 1.25.10 / 1.26.3.
+#
+# Section B — libxml2 alpine CVE
+# CVE-2026-6732 affects libxml2 2.13.9-r0 in alpine 3.23.x.
+# Fix: 2.13.9-r1 (available in alpine edge as of 2026-06-04).
+# apk upgrade in the Dockerfile will install the fix once alpine
+# 3.23 ships the patched package.
+# Risk: libxml2 is a parse-only library used by postgres internals;
+# the affected XSD validation path is not reachable externally.
+# Action: Remove CVE-2026-6732 when postgres:16-alpine base ships
+#         with libxml2 >= 2.13.9-r1.
 # ============================================================
 
+# Section A — gosu / Go stdlib (no fixed gosu release available)
 CVE-2025-68121
 CVE-2025-61726
 CVE-2025-61729
@@ -35,5 +46,11 @@ CVE-2026-32283
 CVE-2026-33811
 CVE-2026-33814
 CVE-2026-39820
+CVE-2026-39823
+CVE-2026-39825
+CVE-2026-39826
 CVE-2026-39836
 CVE-2026-42499
+
+# Section B — libxml2 (fix in alpine 3.23, not yet in postgres base image)
+CVE-2026-6732

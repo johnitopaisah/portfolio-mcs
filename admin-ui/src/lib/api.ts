@@ -213,6 +213,8 @@ export const adminApi = {
   createReferee: (fd: FormData) => upload('/api/referees', fd),
   updateReferee: (id: string, fd: FormData) => upload(`/api/referees/${id}`, fd, 'PUT'),
   deleteReferee: (id: string) => request(`/api/referees/${id}`, { method: 'DELETE' }),
+  saveStarConfig: (id: string, config: Record<string, unknown>) =>
+    request(`/api/referees/${id}/star-config`, { method: 'PUT', body: JSON.stringify(config) }),
 
   // Social links
   getSocialLinks: () => request('/api/social-links/all'),
