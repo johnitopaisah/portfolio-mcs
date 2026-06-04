@@ -2,7 +2,22 @@ const router = require('express').Router();
 const pool   = require('../db/client');
 const { requireAuth } = require('../middleware/auth');
 
-// Public — returns only visible links ordered by order_index
+/**
+ * @swagger
+ * /api/social-links:
+ *   get:
+ *     summary: List visible social / contact links
+ *     description: Returns all links where `visible = true`, ordered by `order_index`.
+ *     tags: [Social Links]
+ *     responses:
+ *       200:
+ *         description: Array of social link records
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items: { $ref: '#/components/schemas/SocialLink' }
+ */
 router.get('/', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
@@ -15,7 +30,32 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// Admin — returns all links including hidden
+/**
+ * @swagger
+ * /api/social-links/all:
+ *   get:
+ *     summary: List all social links including hidden (admin)
+ *     description: Returns all links regardless of visibility. Requires admin JWT.
+ *     tags: [Social Links]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Array of all social link records
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 allOf:
+ *                   - $ref: '#/components/schemas/SocialLink'
+ *                   - type: object
+ *                     properties:
+ *                       visible:    { type: boolean }
+ *                       created_at: { type: string, format: date-time }
+ *       401:
+ *         description: Unauthorised
+ */
 router.get('/all', requireAuth, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
@@ -27,7 +67,39 @@ router.get('/all', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// Admin — create
+/**
+ * @swagger
+ * /api/social-links:
+ *   post:
+ *     summary: Create a social link (admin)
+ *     description: Requires admin JWT.
+ *     tags: [Social Links]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [platform, label, url]
+ *             properties:
+ *               platform:    { type: string, example: GitHub }
+ *               label:       { type: string, example: GitHub }
+ *               url:         { type: string, format: uri, example: 'https://github.com/johnitopaisah' }
+ *               order_index: { type: integer, default: 0 }
+ *               visible:     { type: boolean, default: true }
+ *     responses:
+ *       201:
+ *         description: Social link created
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/SocialLink' }
+ *       400:
+ *         $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorised
+ */
 router.post('/', requireAuth, async (req, res, next) => {
   try {
     const { platform, label, url, order_index = 0, visible = true } = req.body;
@@ -44,7 +116,42 @@ router.post('/', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// Admin — update
+/**
+ * @swagger
+ * /api/social-links/{id}:
+ *   put:
+ *     summary: Update a social link (admin)
+ *     description: Partial update — only provided fields are changed. Requires admin JWT.
+ *     tags: [Social Links]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               platform:    { type: string }
+ *               label:       { type: string }
+ *               url:         { type: string, format: uri }
+ *               order_index: { type: integer }
+ *               visible:     { type: boolean }
+ *     responses:
+ *       200:
+ *         description: Updated social link
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/SocialLink' }
+ *       401:
+ *         description: Unauthorised
+ *       404:
+ *         $ref: '#/components/schemas/Error'
+ */
 router.put('/:id', requireAuth, async (req, res, next) => {
   try {
     const { platform, label, url, order_index, visible } = req.body;
@@ -68,7 +175,28 @@ router.put('/:id', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// Admin — delete
+/**
+ * @swagger
+ * /api/social-links/{id}:
+ *   delete:
+ *     summary: Delete a social link (admin)
+ *     description: Permanently removes the social link. Requires admin JWT.
+ *     tags: [Social Links]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       204:
+ *         description: Deleted
+ *       401:
+ *         description: Unauthorised
+ *       404:
+ *         $ref: '#/components/schemas/Error'
+ */
 router.delete('/:id', requireAuth, async (req, res, next) => {
   try {
     const { rowCount } = await pool.query(

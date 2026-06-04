@@ -13,8 +13,33 @@ const VALID_STATUSES = new Set([
   'OFFER', 'REJECTED', 'NO_RESPONSE', 'ARCHIVED',
 ]);
 
-// ── GET /api/applications/cv-library ─────────────────────────
-// Must be defined before /:id to avoid Express matching 'cv-library' as an id.
+/**
+ * @swagger
+ * /api/applications/cv-library:
+ *   get:
+ *     summary: Browse the CV document library
+ *     description: >
+ *       Returns all generated CV/cover-letter documents across all applications,
+ *       newest first. Optionally filtered by `document_type`.
+ *     tags: [Applications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: type
+ *         schema: { type: string, enum: [cv, cover_letter] }
+ *         description: Filter by document type
+ *     responses:
+ *       200:
+ *         description: Array of document records
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items: { $ref: '#/components/schemas/ApplicationDocument' }
+ *       401:
+ *         description: Unauthorised
+ */
 router.get('/cv-library', requireAuth, async (req, res) => {
   try {
     const { type } = req.query;
@@ -44,8 +69,46 @@ router.get('/cv-library', requireAuth, async (req, res) => {
   }
 });
 
-// ── GET /api/applications/email-responses ─────────────────────
-// Must be before /:id to avoid Express treating 'email-responses' as an id.
+/**
+ * @swagger
+ * /api/applications/email-responses:
+ *   get:
+ *     summary: List tracked email responses
+ *     description: >
+ *       Returns paginated email responses classified by the AI worker.
+ *       Optionally filtered by `application_id` to show emails linked to a
+ *       specific application.
+ *     tags: [Applications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, default: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, default: 50 }
+ *       - in: query
+ *         name: application_id
+ *         schema: { type: integer }
+ *         description: Filter to emails linked to a specific application
+ *     responses:
+ *       200:
+ *         description: Paginated email responses
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 emails:
+ *                   type: array
+ *                   items: { type: object }
+ *                 total: { type: integer }
+ *                 page:  { type: integer }
+ *                 limit: { type: integer }
+ *       401:
+ *         description: Unauthorised
+ */
 router.get('/email-responses', requireAuth, async (req, res) => {
   try {
     const { page = 1, limit = 50, application_id } = req.query;
@@ -90,7 +153,42 @@ router.get('/email-responses', requireAuth, async (req, res) => {
   }
 });
 
-// ── PATCH /api/applications/email-responses/:id/link ──────────
+/**
+ * @swagger
+ * /api/applications/email-responses/{id}/link:
+ *   patch:
+ *     summary: Link an email response to an application
+ *     description: Associates an email response record with a specific application by ID.
+ *     tags: [Applications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [application_id]
+ *             properties:
+ *               application_id: { type: integer }
+ *     responses:
+ *       200:
+ *         description: Updated email response
+ *         content:
+ *           application/json:
+ *             schema: { type: object }
+ *       400:
+ *         $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorised
+ *       404:
+ *         $ref: '#/components/schemas/Error'
+ */
 router.patch('/email-responses/:id/link', requireAuth, async (req, res) => {
   try {
     const { application_id } = req.body;
@@ -106,7 +204,42 @@ router.patch('/email-responses/:id/link', requireAuth, async (req, res) => {
   }
 });
 
-// ── PATCH /api/applications/email-responses/:id/reclassify ────
+/**
+ * @swagger
+ * /api/applications/email-responses/{id}/reclassify:
+ *   patch:
+ *     summary: Override AI classification of an email response
+ *     description: Manually sets the `ai_classification` field on an email response record.
+ *     tags: [Applications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [classification]
+ *             properties:
+ *               classification:
+ *                 type: string
+ *                 enum: [INTERVIEW_INVITE, REJECTION, TECHNICAL_TEST, OFFER, FOLLOW_UP_NEEDED, GENERAL_RESPONSE, UNKNOWN]
+ *     responses:
+ *       200:
+ *         description: Updated email response
+ *         content:
+ *           application/json:
+ *             schema: { type: object }
+ *       400:
+ *         $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorised
+ */
 router.patch('/email-responses/:id/reclassify', requireAuth, async (req, res) => {
   try {
     const { classification } = req.body;
@@ -122,7 +255,44 @@ router.patch('/email-responses/:id/reclassify', requireAuth, async (req, res) =>
   }
 });
 
-// ── GET /api/applications ─────────────────────────────────────
+/**
+ * @swagger
+ * /api/applications:
+ *   get:
+ *     summary: List job applications
+ *     description: Returns all applications ordered by creation date. Supports filtering by status, platform, needs_action flag, and free-text search.
+ *     tags: [Applications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [DRAFT, CV_GENERATED, READY_TO_APPLY, APPLIED, EMAIL_RECEIVED, HR_CONTACTED, INTERVIEW_INVITE, TECHNICAL_TEST, INTERVIEW_SCHEDULED, FINAL_INTERVIEW, OFFER, REJECTED, NO_RESPONSE, ARCHIVED]
+ *       - in: query
+ *         name: platform
+ *         schema: { type: string }
+ *         description: Source platform filter (e.g. LinkedIn, joobleApi)
+ *       - in: query
+ *         name: needs_action
+ *         schema: { type: string, enum: ['true'] }
+ *         description: Set to "true" to show only applications needing action
+ *       - in: query
+ *         name: search
+ *         schema: { type: string }
+ *         description: Partial match on company name or job title
+ *     responses:
+ *       200:
+ *         description: Array of application records
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items: { $ref: '#/components/schemas/Application' }
+ *       401:
+ *         description: Unauthorised
+ */
 router.get('/', requireAuth, async (req, res) => {
   try {
     const { status, platform, needs_action, search } = req.query;
@@ -161,7 +331,40 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
-// ── POST /api/applications ────────────────────────────────────
+/**
+ * @swagger
+ * /api/applications:
+ *   post:
+ *     summary: Create an application from a pipeline job
+ *     description: >
+ *       Creates a new application in `DRAFT` status from a job in the pipeline.
+ *       Copies job metadata (title, company, apply URL, source, match score)
+ *       and logs an `APPLICATION_CREATED` event.
+ *     tags: [Applications]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [job_id]
+ *             properties:
+ *               job_id: { type: string, format: uuid }
+ *     responses:
+ *       201:
+ *         description: Application created
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Application' }
+ *       400:
+ *         $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorised
+ *       404:
+ *         $ref: '#/components/schemas/Error'
+ */
 router.post('/', requireAuth, async (req, res) => {
   try {
     const { job_id } = req.body;
@@ -195,7 +398,41 @@ router.post('/', requireAuth, async (req, res) => {
   }
 });
 
-// ── GET /api/applications/:id ─────────────────────────────────
+/**
+ * @swagger
+ * /api/applications/{id}:
+ *   get:
+ *     summary: Get a single application with full detail
+ *     description: Returns the application record together with its event timeline and all generated documents.
+ *     tags: [Applications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *     responses:
+ *       200:
+ *         description: Application detail
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/Application'
+ *                 - type: object
+ *                   properties:
+ *                     events:
+ *                       type: array
+ *                       items: { type: object }
+ *                     documents:
+ *                       type: array
+ *                       items: { $ref: '#/components/schemas/ApplicationDocument' }
+ *       401:
+ *         description: Unauthorised
+ *       404:
+ *         $ref: '#/components/schemas/Error'
+ */
 router.get('/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
@@ -224,7 +461,50 @@ router.get('/:id', requireAuth, async (req, res) => {
   }
 });
 
-// ── PATCH /api/applications/:id/status ───────────────────────
+/**
+ * @swagger
+ * /api/applications/{id}/status:
+ *   patch:
+ *     summary: Update application status
+ *     description: >
+ *       Advances the application through the CRM pipeline. Setting status to
+ *       `APPLIED` automatically stamps `applied_at`. Each status change is
+ *       logged as an `application_events` row.
+ *     tags: [Applications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [status]
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [DRAFT, CV_GENERATED, READY_TO_APPLY, APPLIED, EMAIL_RECEIVED, HR_CONTACTED, INTERVIEW_INVITE, TECHNICAL_TEST, INTERVIEW_SCHEDULED, FINAL_INTERVIEW, OFFER, REJECTED, NO_RESPONSE, ARCHIVED]
+ *               description:
+ *                 type: string
+ *                 description: Optional note logged with the status change event
+ *     responses:
+ *       200:
+ *         description: Updated application
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Application' }
+ *       400:
+ *         $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorised
+ *       404:
+ *         $ref: '#/components/schemas/Error'
+ */
 router.patch('/:id/status', requireAuth, async (req, res) => {
   try {
     const { id }                      = req.params;
@@ -257,7 +537,40 @@ router.patch('/:id/status', requireAuth, async (req, res) => {
   }
 });
 
-// ── POST /api/applications/:id/notes ─────────────────────────
+/**
+ * @swagger
+ * /api/applications/{id}/notes:
+ *   post:
+ *     summary: Add a note to an application
+ *     description: Saves a free-text note against the application and logs a `NOTE_ADDED` event.
+ *     tags: [Applications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [note]
+ *             properties:
+ *               note: { type: string, maxLength: 500 }
+ *     responses:
+ *       201:
+ *         description: Note event created
+ *         content:
+ *           application/json:
+ *             schema: { type: object }
+ *       400:
+ *         $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorised
+ */
 router.post('/:id/notes', requireAuth, async (req, res) => {
   try {
     const { id }   = req.params;
@@ -283,7 +596,40 @@ router.post('/:id/notes', requireAuth, async (req, res) => {
   }
 });
 
-// ── POST /api/applications/:id/generate-cv ───────────────────
+/**
+ * @swagger
+ * /api/applications/{id}/generate-cv:
+ *   post:
+ *     summary: Generate a tailored CV document
+ *     description: >
+ *       Triggers AI-assisted CV generation for the application. The resulting
+ *       document is stored in `application_documents` and can be downloaded via
+ *       `GET /api/applications/{id}/documents/{docId}/download`.
+ *     tags: [Applications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               force:    { type: boolean, default: false, description: Regenerate even if a document already exists }
+ *               language: { type: string, enum: [en, fr], default: en }
+ *     responses:
+ *       200:
+ *         description: Generated document record
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/ApplicationDocument' }
+ *       401:
+ *         description: Unauthorised
+ */
 router.post('/:id/generate-cv', requireAuth, async (req, res) => {
   try {
     const { force = false, language = 'en' } = req.body;
@@ -295,7 +641,31 @@ router.post('/:id/generate-cv', requireAuth, async (req, res) => {
   }
 });
 
-// ── GET /api/applications/:id/documents ──────────────────────
+/**
+ * @swagger
+ * /api/applications/{id}/documents:
+ *   get:
+ *     summary: List documents for an application
+ *     description: Returns all generated CV and cover-letter documents for the application, newest first.
+ *     tags: [Applications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *     responses:
+ *       200:
+ *         description: Array of document records
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items: { $ref: '#/components/schemas/ApplicationDocument' }
+ *       401:
+ *         description: Unauthorised
+ */
 router.get('/:id/documents', requireAuth, async (req, res) => {
   try {
     const result = await pool.query(
@@ -308,8 +678,42 @@ router.get('/:id/documents', requireAuth, async (req, res) => {
   }
 });
 
-// ── GET /api/applications/:id/documents/:docId/download ──────
-// Reads PDF bytes directly from the file_data BYTEA column — no external storage.
+/**
+ * @swagger
+ * /api/applications/{id}/documents/{docId}/download:
+ *   get:
+ *     summary: Download a generated CV/cover-letter PDF
+ *     description: >
+ *       Streams the PDF binary directly from the `file_data` BYTEA column.
+ *       The `Content-Disposition` header is set to `attachment` with a
+ *       descriptive filename.
+ *     tags: [Applications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *         description: Application ID
+ *       - in: path
+ *         name: docId
+ *         required: true
+ *         schema: { type: integer }
+ *         description: Document ID
+ *     responses:
+ *       200:
+ *         description: PDF binary
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       401:
+ *         description: Unauthorised
+ *       404:
+ *         $ref: '#/components/schemas/Error'
+ */
 router.get('/:id/documents/:docId/download', requireAuth, async (req, res) => {
   try {
     const result = await pool.query(
@@ -328,7 +732,35 @@ router.get('/:id/documents/:docId/download', requireAuth, async (req, res) => {
   }
 });
 
-// ── DELETE /api/applications/:id ──────────────────────────────
+/**
+ * @swagger
+ * /api/applications/{id}:
+ *   delete:
+ *     summary: Archive an application
+ *     description: >
+ *       Soft-deletes the application by setting its status to `ARCHIVED` and
+ *       logging an `APPLICATION_ARCHIVED` event. The record is retained in the
+ *       database.
+ *     tags: [Applications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *     responses:
+ *       200:
+ *         description: Application archived
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 archived: { type: boolean, example: true }
+ *       401:
+ *         description: Unauthorised
+ */
 router.delete('/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
