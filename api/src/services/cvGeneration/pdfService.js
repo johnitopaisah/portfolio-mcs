@@ -59,6 +59,10 @@ async function generate({ applicationId, version, aiOutput, language = 'en' }) {
       '--no-first-run',
       '--headless',
     ],
+    // Alpine Chromium derives the crashpad database path from $HOME, not --user-data-dir.
+    // With readOnlyRootFilesystem=true, $HOME (/home/nodeapp) is not writable, so
+    // crashpad launches without --database and crashes. Pinning HOME to /tmp (emptyDir) fixes it.
+    env: { ...process.env, HOME: '/tmp' },
   });
   const page = await browser.newPage();
   await page.setContent(html, { waitUntil: 'networkidle0' });
