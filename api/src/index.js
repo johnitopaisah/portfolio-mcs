@@ -9,8 +9,9 @@ const swaggerUi         = require('swagger-ui-express');
 const swaggerSpec       = require('./swagger');
 const { register }      = require('./metrics');
 const metricsMiddleware = require('./metricsMiddleware');
-const { startDailyDigest }    = require('./services/visitorDigest');
-const { startDailyJobDigest } = require('./services/jobIngestion/notificationService');
+const { startDailyDigest }         = require('./services/visitorDigest');
+const { startDailyJobDigest }      = require('./services/jobIngestion/notificationService');
+const { startConsentReminderWorker } = require('./workers/consentReminderWorker');
 
 const { errorHandler } = require('./middleware/errorHandler');
 
@@ -117,8 +118,9 @@ app.use('/api/admin/jobs',     require('./routes/admin/jobs'));
 app.use('/api/admin/ai',      require('./routes/admin/ai'));
 app.use('/api/applications', require('./routes/applications'));
 app.use('/api/education',             require('./routes/education'));
-app.use('/api/referees',              require('./routes/referees'));
-app.use('/api/referee-invitations',   require('./routes/refereeInvitations'));
+app.use('/api/referees',                  require('./routes/referees'));
+app.use('/api/referee-invitations',       require('./routes/refereeInvitations'));
+app.use('/api/referee-contact-requests',  require('./routes/refereeContactRequests'));
 
 // ── 404 + Error handler ─────────────────────────────────────
 app.use((req, res) => res.status(404).json({ error: `${req.method} ${req.path} not found` }));
@@ -136,4 +138,7 @@ app.listen(PORT, () => {
   } else {
     console.warn('[JobDigest] NOTIFY_EMAIL_USER not set — job digest disabled');
   }
+
+  // Consent reminder worker — checks every 24h for overdue consent requests
+  startConsentReminderWorker();
 });

@@ -459,10 +459,559 @@ function InviteModal({ refereeId, refereeName, onClose, onDone }: {
   );
 }
 
+// ── Types ─────────────────────────────────────────────────────
+interface ContactRequest {
+  id: string;
+  referee_id: string;
+  requester_name: string;
+  requester_email: string;
+  requester_email_verified: boolean;
+  requester_company?: string;
+  requester_linkedin_url?: string;
+  requester_purpose: string;
+  requester_message?: string;
+  status: string;
+  consent_resend_count: number;
+  consent_reminder_count: number;
+  consent_requested_at?: string;
+  consent_responded_at?: string;
+  admin_note?: string;
+  resend_note?: string;
+  fulfilled_at?: string;
+  declined_at?: string;
+  expires_at: string;
+  created_at: string;
+  // joined
+  referee_name: string;
+  referee_title: string;
+  referee_organization: string;
+  referee_has_photo: boolean;
+}
+
+// ── Progress tracker ─────────────────────────────────────────
+const STEPS = ['Submitted', 'Approved', 'Consent Sent', 'Consent Given', 'Fulfilled'] as const;
+
+function stepIndex(status: string): number {
+  switch (status) {
+    case 'submitted':         return 0;
+    case 'approved':          return 1;
+    case 'consent_requested': return 2;
+    case 'consent_given':     return 3;
+    case 'fulfilled':         return 4;
+    default:                  return -1; // declined / rejected / denied / expired
+  }
+}
+
+function ProgressTracker({ req }: { req: ContactRequest }) {
+  const current   = stepIndex(req.status);
+  const isDeclined = ['declined','rejected','expired'].includes(req.status);
+  const isDenied   = req.status === 'consent_denied';
+
+  const steps = isDenied
+    ? ['Submitted', 'Approved', 'Consent Sent', 'Consent Denied']
+    : STEPS;
+
+  const effectiveCurrent = isDenied ? 3 : current;
+
+  return (
+    <div className="py-4">
+      <div className="flex items-center">
+        {steps.map((label, i) => {
+          const done    = effectiveCurrent > i;
+          const active  = effectiveCurrent === i;
+          const isBad   = (isDenied && i === steps.length - 1) || (isDeclined && active);
+          const isLast  = i === steps.length - 1;
+
+          const dotColor = isBad
+            ? '#ef4444'
+            : done || active
+              ? active ? '#a78bfa' : '#22c55e'
+              : '#3f3f46';
+
+          const lineColor = done ? '#22c55e' : '#27272a';
+
+          return (
+            <div key={label} className="flex items-center flex-1 last:flex-none">
+              <div className="flex flex-col items-center gap-1.5">
+                <div
+                  className="w-5 h-5 rounded-full flex items-center justify-center text-xs flex-shrink-0"
+                  style={{
+                    background: `${dotColor}22`,
+                    border: `2px solid ${dotColor}`,
+                    color: dotColor,
+                    boxShadow: active ? `0 0 8px ${dotColor}88` : 'none',
+                  }}
+                >
+                  {isBad ? '✕' : done ? '✓' : ''}
+                </div>
+                <span className="text-xs text-center leading-tight" style={{ color: done || active ? '#d4d4d8' : '#52525b', maxWidth: '60px' }}>
+                  {label}
+                </span>
+              </div>
+              {!isLast && (
+                <div className="flex-1 h-px mx-1 mb-5" style={{ background: lineColor }} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Status badge ──────────────────────────────────────────────
+function StatusBadge({ status }: { status: string }) {
+  const styles: Record<string, { bg: string; color: string; label: string }> = {
+    submitted:         { bg: 'rgba(251,191,36,0.12)',  color: '#fbbf24', label: 'Pending Approval' },
+    approved:          { bg: 'rgba(124,58,237,0.12)',  color: '#a78bfa', label: 'Approved' },
+    consent_requested: { bg: 'rgba(6,182,212,0.12)',   color: '#67e8f9', label: 'Awaiting Consent' },
+    consent_given:     { bg: 'rgba(34,197,94,0.12)',   color: '#4ade80', label: 'Consent Given' },
+    consent_denied:    { bg: 'rgba(239,68,68,0.12)',   color: '#f87171', label: 'Consent Denied' },
+    fulfilled:         { bg: 'rgba(16,185,129,0.12)',  color: '#34d399', label: 'Fulfilled' },
+    declined:          { bg: 'rgba(107,114,128,0.12)', color: '#9ca3af', label: 'Declined' },
+    rejected:          { bg: 'rgba(107,114,128,0.12)', color: '#9ca3af', label: 'Rejected' },
+    expired:           { bg: 'rgba(107,114,128,0.12)', color: '#6b7280', label: 'Expired' },
+  };
+  const s = styles[status] ?? { bg: 'rgba(107,114,128,0.12)', color: '#9ca3af', label: status };
+  return (
+    <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+      style={{ background: s.bg, color: s.color }}>
+      {s.label}
+    </span>
+  );
+}
+
+// ── Activity log entry formatter ───────────────────────────────
+function activityLog(req: ContactRequest): Array<{ date: string; text: string }> {
+  const fmt = (d?: string | null) => d ? new Date(d).toLocaleString('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  }) : '';
+  const log = [{ date: fmt(req.created_at), text: `Request submitted by ${req.requester_name}` }];
+  if (req.requester_email_verified) log.push({ date: fmt(req.created_at), text: 'Email verified' });
+  if (req.status === 'approved' || stepIndex(req.status) > 1) log.push({ date: fmt(req.created_at), text: 'Approved by admin' });
+  if (req.consent_requested_at) log.push({ date: fmt(req.consent_requested_at), text: `Consent request sent to ${req.referee_name}` });
+  if (req.consent_reminder_count > 0) log.push({ date: '', text: `${req.consent_reminder_count} auto-reminder(s) sent` });
+  if (req.consent_responded_at && req.status === 'consent_given') log.push({ date: fmt(req.consent_responded_at), text: `${req.referee_name} gave consent` });
+  if (req.consent_responded_at && req.status === 'consent_denied') log.push({ date: fmt(req.consent_responded_at), text: `${req.referee_name} declined consent` });
+  if (req.consent_responded_at && req.status === 'consent_requested' && req.consent_resend_count > 0) log.push({ date: fmt(req.consent_requested_at), text: `Consent re-requested (${req.consent_resend_count}/2 resends used)` });
+  if (req.fulfilled_at) log.push({ date: fmt(req.fulfilled_at), text: `Contact details shared with ${req.requester_name}` });
+  if (req.declined_at) log.push({ date: fmt(req.declined_at), text: 'Request declined' });
+  return log;
+}
+
+// ── Contact Request Detail Pane ───────────────────────────────
+function ContactRequestDetail({
+  req, onUpdate, onDelete,
+}: {
+  req: ContactRequest;
+  onUpdate: (updated: ContactRequest) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [actionLoading, setActionLoading] = useState(false);
+  const [consentNote, setConsentNote]     = useState('');
+  const [resendNote, setResendNote]       = useState('');
+  const [fulfillNote, setFulfillNote]     = useState('');
+  const [expandConsent, setExpandConsent] = useState(false);
+  const [expandResend, setExpandResend]   = useState(false);
+  const [expandFulfill, setExpandFulfill] = useState(false);
+
+  async function act(fn: () => Promise<ContactRequest | null>) {
+    setActionLoading(true);
+    try {
+      const updated = await fn();
+      if (updated) onUpdate(updated);
+    } catch (e: any) { alert(e.message); }
+    finally { setActionLoading(false); }
+  }
+
+  const isTerminal = ['fulfilled','declined','rejected','expired'].includes(req.status);
+  const fmt = (d?: string | null) => d ? new Date(d).toLocaleString('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  }) : '—';
+
+  return (
+    <div className="card space-y-5 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 240px)' }}>
+      {/* Header */}
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="text-white font-semibold">{req.requester_name}</p>
+          <a href={`mailto:${req.requester_email}`} className="text-indigo-400 text-sm hover:underline">{req.requester_email}</a>
+          {req.requester_company && <p className="text-gray-500 text-xs mt-0.5">{req.requester_company}</p>}
+          <p className="text-gray-600 text-xs mt-1">{fmt(req.created_at)}</p>
+        </div>
+        <StatusBadge status={req.status} />
+      </div>
+
+      {/* Referee being requested */}
+      <div className="p-3 rounded-xl flex items-center gap-3" style={{ background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.2)' }}>
+        {req.referee_has_photo
+          ? <img src={adminApi.refereePhoto(req.referee_id)} alt={req.referee_name}
+              className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+          : <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-lg flex-shrink-0">👤</div>
+        }
+        <div className="min-w-0">
+          <p className="text-white text-sm font-semibold truncate">{req.referee_name}</p>
+          <p className="text-indigo-400 text-xs truncate">{req.referee_title}</p>
+          <p className="text-gray-500 text-xs truncate">{req.referee_organization}</p>
+        </div>
+        <span className="ml-auto text-xs px-2 py-0.5 rounded-full capitalize flex-shrink-0"
+          style={{ background: 'rgba(167,139,250,0.1)', color: '#a78bfa' }}>
+          {req.requester_purpose}
+        </span>
+      </div>
+
+      {/* Their message */}
+      {req.requester_message && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: '#6b7280' }}>Their message</p>
+          <p className="text-sm leading-relaxed italic" style={{ color: '#a1a1aa' }}>&ldquo;{req.requester_message}&rdquo;</p>
+        </div>
+      )}
+
+      {/* LinkedIn */}
+      {req.requester_linkedin_url && (
+        <a href={req.requester_linkedin_url} target="_blank" rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-xs text-blue-400 hover:underline">
+          LinkedIn ↗
+        </a>
+      )}
+
+      {/* Progress tracker */}
+      <div style={{ borderTop: '1px solid #27272a', paddingTop: '16px' }}>
+        <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: '#6b7280' }}>Progress</p>
+        <ProgressTracker req={req} />
+      </div>
+
+      {/* Activity log */}
+      <div style={{ borderTop: '1px solid #27272a', paddingTop: '16px' }}>
+        <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#6b7280' }}>Activity</p>
+        <div className="space-y-2">
+          {activityLog(req).map((e, i) => (
+            <div key={i} className="flex items-start gap-2">
+              <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: '#a78bfa' }} />
+              <div className="min-w-0">
+                <p className="text-gray-300 text-xs">{e.text}</p>
+                {e.date && <p className="text-gray-600 text-xs">{e.date}</p>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Actions ── */}
+      {!isTerminal && (
+        <div className="space-y-3 pt-2" style={{ borderTop: '1px solid #27272a' }}>
+          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#6b7280' }}>Actions</p>
+
+          {/* Approve */}
+          {req.status === 'submitted' && (
+            <div className="flex gap-2">
+              <button disabled={actionLoading || !req.requester_email_verified}
+                onClick={() => act(() => adminApi.approveContactRequest(req.id))}
+                className="btn-primary text-sm flex-1"
+                title={!req.requester_email_verified ? 'Waiting for email verification' : ''}>
+                {req.requester_email_verified ? 'Approve' : 'Awaiting email verification…'}
+              </button>
+              <button disabled={actionLoading}
+                onClick={() => act(() => adminApi.rejectContactRequest(req.id))}
+                className="btn-danger text-sm">
+                Reject
+              </button>
+            </div>
+          )}
+
+          {/* Request consent */}
+          {req.status === 'approved' && (
+            <>
+              {!expandConsent ? (
+                <div className="flex gap-2">
+                  <button onClick={() => setExpandConsent(true)} className="btn-primary text-sm flex-1">
+                    Request Referee Consent
+                  </button>
+                  <button disabled={actionLoading} onClick={() => act(() => adminApi.declineContactRequest(req.id))} className="btn-danger text-sm">
+                    Decline
+                  </button>
+                </div>
+              ) : (
+                <div className="p-4 rounded-xl space-y-3" style={{ background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.2)' }}>
+                  <p className="text-white text-sm font-medium">Request consent from {req.referee_name}</p>
+                  <div>
+                    <label className="label text-xs">Note to referee (optional)</label>
+                    <textarea className="input min-h-[72px] resize-none text-sm"
+                      placeholder="Additional context for the referee..."
+                      value={consentNote} onChange={e => setConsentNote(e.target.value)} />
+                  </div>
+                  <div className="flex gap-2">
+                    <button disabled={actionLoading}
+                      onClick={() => act(async () => {
+                        const r = await adminApi.requestConsent(req.id, { admin_note: consentNote || undefined });
+                        setExpandConsent(false); setConsentNote('');
+                        return r;
+                      })}
+                      className="btn-primary text-sm flex-1">
+                      {actionLoading ? 'Sending…' : 'Send Consent Request'}
+                    </button>
+                    <button onClick={() => { setExpandConsent(false); setConsentNote(''); }} className="btn-ghost text-sm">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Awaiting consent */}
+          {req.status === 'consent_requested' && (
+            <div>
+              <div className="flex items-center gap-2 p-3 rounded-xl mb-3"
+                style={{ background: 'rgba(6,182,212,0.08)', border: '1px solid rgba(6,182,212,0.2)' }}>
+                <span className="text-cyan-400 text-sm">◐</span>
+                <p className="text-cyan-300 text-sm">
+                  Awaiting {req.referee_name}&apos;s response
+                  {req.consent_reminder_count > 0 && ` · ${req.consent_reminder_count} reminder(s) sent`}
+                </p>
+              </div>
+              <button disabled={actionLoading} onClick={() => act(() => adminApi.declineContactRequest(req.id))}
+                className="btn-danger text-sm w-full">
+                Decline Request
+              </button>
+            </div>
+          )}
+
+          {/* Consent given — SHARE */}
+          {req.status === 'consent_given' && (
+            <>
+              <div className="flex items-center gap-2 p-3 rounded-xl mb-3"
+                style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)' }}>
+                <span className="text-green-400">✓</span>
+                <p className="text-green-300 text-sm">{req.referee_name} gave consent — ready to share</p>
+              </div>
+              {!expandFulfill ? (
+                <div className="flex gap-2">
+                  <button onClick={() => setExpandFulfill(true)} className="btn-primary text-sm flex-1">
+                    Share Contact →
+                  </button>
+                  <button disabled={actionLoading} onClick={() => act(() => adminApi.declineContactRequest(req.id))} className="btn-danger text-sm">
+                    Decline
+                  </button>
+                </div>
+              ) : (
+                <div className="p-4 rounded-xl space-y-3" style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)' }}>
+                  <p className="text-white text-sm font-medium">Share {req.referee_name}&apos;s contact with {req.requester_name}</p>
+                  <div>
+                    <label className="label text-xs">Personal note (optional)</label>
+                    <textarea className="input min-h-[72px] resize-none text-sm"
+                      placeholder="e.g. Happy to connect! Feel free to reach out directly."
+                      value={fulfillNote} onChange={e => setFulfillNote(e.target.value)} />
+                  </div>
+                  <div className="flex gap-2">
+                    <button disabled={actionLoading}
+                      onClick={() => act(async () => {
+                        const r = await adminApi.fulfillContactRequest(req.id, { admin_note: fulfillNote || undefined });
+                        setExpandFulfill(false); setFulfillNote('');
+                        return r;
+                      })}
+                      className="btn-primary text-sm flex-1">
+                      {actionLoading ? 'Sending…' : 'Send & Mark Fulfilled'}
+                    </button>
+                    <button onClick={() => { setExpandFulfill(false); setFulfillNote(''); }} className="btn-ghost text-sm">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Consent denied — locked + optional resend */}
+          {req.status === 'consent_denied' && (
+            <div className="space-y-3">
+              <div className="flex items-start gap-2 p-3 rounded-xl"
+                style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                <span className="text-red-400 mt-0.5">✕</span>
+                <div>
+                  <p className="text-red-300 text-sm font-medium">{req.referee_name} declined — contact is locked</p>
+                  <p className="text-red-400/60 text-xs mt-0.5">Contact details cannot be shared without consent</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button disabled={actionLoading} onClick={() => act(() => adminApi.declineContactRequest(req.id))}
+                  className="btn-danger text-sm flex-1">
+                  Decline Request
+                </button>
+                {req.consent_resend_count < 2 && (
+                  <button onClick={() => setExpandResend(!expandResend)} className="btn-ghost text-sm">
+                    Resend ({2 - req.consent_resend_count} left)
+                  </button>
+                )}
+              </div>
+              {expandResend && (
+                <div className="p-4 rounded-xl space-y-3" style={{ background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.2)' }}>
+                  <p className="text-yellow-400 text-sm font-medium">Resend consent to {req.referee_name}</p>
+                  <p className="text-yellow-300/60 text-xs">Explain why you&apos;re asking again (required)</p>
+                  <textarea className="input min-h-[72px] resize-none text-sm"
+                    placeholder="e.g. Spoke with Aditya — he's happy to reconsider after our call."
+                    value={resendNote} onChange={e => setResendNote(e.target.value)} />
+                  <div className="flex gap-2">
+                    <button disabled={actionLoading || !resendNote.trim()}
+                      onClick={() => act(async () => {
+                        const r = await adminApi.resendConsent(req.id, { resend_note: resendNote });
+                        setExpandResend(false); setResendNote('');
+                        return r;
+                      })}
+                      className="btn-primary text-sm flex-1">
+                      {actionLoading ? 'Sending…' : 'Send'}
+                    </button>
+                    <button onClick={() => { setExpandResend(false); setResendNote(''); }} className="btn-ghost text-sm">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Terminal states */}
+      {req.status === 'fulfilled' && (
+        <div className="p-3 rounded-xl" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)' }}>
+          <p className="text-emerald-400 text-sm font-medium">✓ Contact shared on {fmt(req.fulfilled_at)}</p>
+          {req.admin_note && <p className="text-emerald-300/70 text-xs mt-1">Note sent: &ldquo;{req.admin_note}&rdquo;</p>}
+        </div>
+      )}
+
+      {/* Delete */}
+      <div className="pt-2 flex justify-end">
+        <button onClick={() => {
+          if (!confirm('Delete this request permanently?')) return;
+          adminApi.deleteContactRequest(req.id).then(() => onDelete(req.id)).catch((e: any) => alert(e.message));
+        }} className="text-xs text-red-400 hover:text-red-300">
+          Delete request
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Contact Requests Tab ──────────────────────────────────────
+function ContactRequestsTab({ refereeFilterId }: { refereeFilterId?: string }) {
+  const [requests, setRequests]   = useState<ContactRequest[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [selected, setSelected]   = useState<ContactRequest | null>(null);
+  const [filter, setFilter]       = useState<string>('all');
+
+  async function load() {
+    setLoading(true);
+    try { setRequests(await adminApi.getContactRequests()); }
+    catch { }
+    finally { setLoading(false); }
+  }
+  useEffect(() => { load(); }, []);
+
+  // Apply filters
+  const displayed = requests.filter(r => {
+    if (refereeFilterId && r.referee_id !== refereeFilterId) return false;
+    if (filter === 'all') return true;
+    if (filter === 'pending') return r.status === 'submitted';
+    if (filter === 'in_progress') return ['approved','consent_requested','consent_given','consent_denied'].includes(r.status);
+    if (filter === 'fulfilled') return r.status === 'fulfilled';
+    if (filter === 'declined') return ['declined','rejected','expired'].includes(r.status);
+    return true;
+  });
+
+  const counts = {
+    all:         requests.length,
+    pending:     requests.filter(r => r.status === 'submitted').length,
+    in_progress: requests.filter(r => ['approved','consent_requested','consent_given','consent_denied'].includes(r.status)).length,
+    fulfilled:   requests.filter(r => r.status === 'fulfilled').length,
+    declined:    requests.filter(r => ['declined','rejected','expired'].includes(r.status)).length,
+  };
+
+  const fmt = (d: string) => new Date(d).toLocaleString('en-GB', {
+    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+  });
+
+  if (loading) return <p className="text-gray-500 text-sm py-8">Loading…</p>;
+
+  return (
+    <div>
+      {/* Stats bar */}
+      <div className="grid grid-cols-5 gap-3 mb-5">
+        {([
+          { key: 'all',         label: 'Total',           color: '#a78bfa' },
+          { key: 'pending',     label: 'Pending Approval', color: '#fbbf24' },
+          { key: 'in_progress', label: 'In Progress',     color: '#67e8f9' },
+          { key: 'fulfilled',   label: 'Fulfilled',       color: '#34d399' },
+          { key: 'declined',    label: 'Declined',        color: '#6b7280' },
+        ] as const).map(({ key, label, color }) => (
+          <button key={key} onClick={() => setFilter(key)}
+            className="p-3 rounded-xl text-center transition-all"
+            style={{
+              background: filter === key ? `${color}18` : 'rgba(255,255,255,0.03)',
+              border: filter === key ? `1px solid ${color}44` : '1px solid rgba(255,255,255,0.06)',
+            }}>
+            <p className="text-xl font-bold" style={{ color }}>{counts[key]}</p>
+            <p className="text-xs mt-0.5" style={{ color: filter === key ? color : '#6b7280' }}>{label}</p>
+          </button>
+        ))}
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-4">
+        {/* List */}
+        <div className="space-y-2">
+          {displayed.map(r => (
+            <button key={r.id} onClick={() => setSelected(r)}
+              className={`w-full text-left card transition-all ${selected?.id === r.id ? 'border-indigo-500' : ''}`}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <p className="text-sm font-medium text-white truncate">{r.requester_name}</p>
+                    <StatusBadge status={r.status} />
+                  </div>
+                  <p className="text-xs text-gray-500 truncate">→ {r.referee_name}</p>
+                  {r.requester_company && <p className="text-xs text-gray-600 truncate">{r.requester_company}</p>}
+                </div>
+                <p className="text-xs text-gray-600 flex-shrink-0">{fmt(r.created_at)}</p>
+              </div>
+            </button>
+          ))}
+          {!displayed.length && (
+            <p className="text-gray-500 text-sm text-center py-12">
+              {filter === 'all' ? 'No contact requests yet.' : `No ${filter} requests.`}
+            </p>
+          )}
+        </div>
+
+        {/* Detail pane */}
+        {selected ? (
+          <ContactRequestDetail
+            key={selected.id}
+            req={requests.find(r => r.id === selected.id) ?? selected}
+            onUpdate={updated => {
+              setRequests(prev => prev.map(r => r.id === updated.id ? updated : r));
+              setSelected(updated);
+            }}
+            onDelete={id => {
+              setRequests(prev => prev.filter(r => r.id !== id));
+              setSelected(null);
+            }}
+          />
+        ) : (
+          <div className="card flex items-center justify-center text-gray-600 text-sm">
+            Select a request to view details
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function RefereesPage() {
-  const [tab, setTab]         = useState<'referees' | 'invitations'>('referees');
+  const [tab, setTab]         = useState<'referees' | 'invitations' | 'contact-requests'>('referees');
   const [items, setItems]     = useState<Referee[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
+  const [contactRequestCounts, setContactRequestCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm]   = useState(false);
   const [editing, setEditing]     = useState<Referee | null>(null);
@@ -472,6 +1021,7 @@ export default function RefereesPage() {
   const [saving, setSaving]   = useState(false);
   const [inviteModal, setInviteModal] = useState<{ refereeId?: string; refereeName?: string } | null>(null);
   const [starsModal, setStarsModal] = useState<Referee | null>(null);
+  const [contactFilterId, setContactFilterId] = useState<string | undefined>();
 
   function onStarPublished(id: string, cfg: StarConfig) {
     setItems(prev => prev.map(r => r.id === id ? { ...r, star_config: cfg } : r));
@@ -485,9 +1035,21 @@ export default function RefereesPage() {
     try { setInvitations(await adminApi.getInvitations()); }
     catch { }
   }
+  async function loadContactRequestCounts() {
+    try {
+      const all: ContactRequest[] = await adminApi.getContactRequests();
+      const counts: Record<string, number> = {};
+      all.forEach(r => {
+        if (!['fulfilled','declined','rejected','expired'].includes(r.status)) {
+          counts[r.referee_id] = (counts[r.referee_id] || 0) + 1;
+        }
+      });
+      setContactRequestCounts(counts);
+    } catch { }
+  }
   async function load() {
     setLoading(true);
-    await Promise.all([loadReferees(), loadInvitations()]);
+    await Promise.all([loadReferees(), loadInvitations(), loadContactRequestCounts()]);
     setLoading(false);
   }
   useEffect(() => { load(); }, []);
@@ -552,7 +1114,14 @@ export default function RefereesPage() {
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-white">Referees</h1>
-          <p className="text-gray-500 text-sm mt-0.5">{items.length} total · {invitations.filter(i => !i.used && !i.expired).length} active links</p>
+          <p className="text-gray-500 text-sm mt-0.5">
+            {items.length} total · {invitations.filter(i => !i.used && !i.expired).length} active links
+            {Object.values(contactRequestCounts).reduce((a, b) => a + b, 0) > 0 && (
+              <span className="ml-2 text-yellow-400">
+                · {Object.values(contactRequestCounts).reduce((a, b) => a + b, 0)} active contact request(s)
+              </span>
+            )}
+          </p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <button onClick={() => setInviteModal({})} className="btn-ghost text-sm">
@@ -579,13 +1148,17 @@ export default function RefereesPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6 p-1 rounded-xl w-fit" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-        {(['referees', 'invitations'] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)}
-            className="px-4 py-2 rounded-lg text-sm font-medium capitalize transition-colors"
-            style={tab === t
+        {([
+          { key: 'referees',         label: 'Referees' },
+          { key: 'invitations',      label: `Invitations (${invitations.length})` },
+          { key: 'contact-requests', label: `Contact Requests${Object.values(contactRequestCounts).reduce((a,b)=>a+b,0) > 0 ? ` (${Object.values(contactRequestCounts).reduce((a,b)=>a+b,0)})` : ''}` },
+        ] as const).map(({ key, label }) => (
+          <button key={key} onClick={() => { setTab(key); if (key !== 'contact-requests') setContactFilterId(undefined); }}
+            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            style={tab === key
               ? { background: 'rgba(124,58,237,0.25)', color: '#a78bfa' }
               : { color: '#6b7280' }}>
-            {t} {t === 'invitations' && `(${invitations.length})`}
+            {label}
           </button>
         ))}
       </div>
@@ -638,9 +1211,17 @@ export default function RefereesPage() {
                 </button>
                 <button
                   onClick={() => setInviteModal({ refereeId: r.id, refereeName: r.name })}
-                  className="text-xs text-yellow-400 hover:text-yellow-300 ml-auto">
+                  className="text-xs text-yellow-400 hover:text-yellow-300">
                   Generate mod link
                 </button>
+                {(contactRequestCounts[r.id] ?? 0) > 0 && (
+                  <button
+                    onClick={() => { setContactFilterId(r.id); setTab('contact-requests'); }}
+                    className="text-xs ml-auto"
+                    style={{ color: '#fbbf24' }}>
+                    📩 {contactRequestCounts[r.id]} request(s) →
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -701,6 +1282,11 @@ export default function RefereesPage() {
             <p className="text-gray-500 text-sm text-center py-12">No invitations yet.</p>
           )}
         </div>
+      )}
+
+      {/* ── Contact Requests Tab ────────────────────────────── */}
+      {tab === 'contact-requests' && (
+        <ContactRequestsTab refereeFilterId={contactFilterId} />
       )}
 
       {/* ── Referee edit/create modal ─────────────────────────── */}

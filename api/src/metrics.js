@@ -161,6 +161,21 @@ const visitorBotsFiltered = new client.Counter({
   registers: [register],
 });
 
+// ── Referee contact requests ──────────────────────────────────
+const refereeContactRequestsTotal = new client.Counter({
+  name: 'portfolio_referee_contact_requests_total',
+  help: 'Referee contact requests by status transition',
+  labelNames: ['status'],
+  registers: [register],
+});
+
+const refereeConsentResponsesTotal = new client.Counter({
+  name: 'portfolio_referee_consent_responses_total',
+  help: 'Referee consent responses by decision',
+  labelNames: ['decision'],
+  registers: [register],
+});
+
 module.exports = {
   register,
   httpRequestsTotal,
@@ -185,4 +200,6 @@ module.exports = {
   visitorsByReferrer,
   visitorsByBrowser,
   visitorBotsFiltered,
+  refereeContactRequestsTotal,
+  refereeConsentResponsesTotal,
 };

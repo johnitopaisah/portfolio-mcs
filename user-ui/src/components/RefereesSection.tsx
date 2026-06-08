@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 
 // ── Star field animation ──────────────────────────────────────
@@ -149,6 +149,219 @@ function ReviewText({ text }: { text: string }) {
   );
 }
 
+// ── Contact request inline form ───────────────────────────────
+type RequestState = 'idle' | 'open' | 'submitting' | 'success' | 'error';
+
+const PURPOSES = [
+  { value: 'recruiting',    label: 'Recruiting' },
+  { value: 'collaboration', label: 'Collaboration' },
+  { value: 'other',         label: 'Other' },
+];
+
+function ContactRequestForm({ refereeId, refereeName }: { refereeId: string; refereeName: string }) {
+  const [state, setState]   = useState<RequestState>('idle');
+  const [errorMsg, setError] = useState('');
+  const [form, setForm]     = useState({
+    requester_name:        '',
+    requester_email:       '',
+    requester_company:     '',
+    requester_linkedin_url: '',
+    requester_purpose:     'recruiting',
+    requester_message:     '',
+  });
+
+  const formRef = useRef<HTMLDivElement>(null);
+
+  function set(k: string, v: string) { setForm(p => ({ ...p, [k]: v })); }
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.requester_name.trim() || !form.requester_email.trim()) return;
+    setState('submitting');
+    setError('');
+    try {
+      const res = await fetch('/api/referee-contact-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ referee_id: refereeId, ...form }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setState('success');
+    } catch (err: any) {
+      setError(err.message || 'Something went wrong. Please try again.');
+      setState('error');
+    }
+  }
+
+  if (state === 'success') {
+    return (
+      <div className="flex flex-col items-center gap-3 py-4 px-2 text-center">
+        <div className="w-12 h-12 rounded-full flex items-center justify-center text-2xl"
+          style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)' }}>
+          ✓
+        </div>
+        <p className="font-semibold" style={{ color: '#34d399' }}>Request submitted!</p>
+        <p className="text-sm leading-relaxed" style={{ color: 'var(--text-2)' }}>
+          Check your email to verify the request. John will review it and be in touch.
+        </p>
+      </div>
+    );
+  }
+
+  if (state === 'idle') {
+    return (
+      <button
+        onClick={() => setState('open')}
+        className="inline-flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-xl transition-all"
+        style={{
+          background: 'rgba(251,191,36,0.08)',
+          border: '1px solid rgba(251,191,36,0.25)',
+          color: '#fcd34d',
+          cursor: 'pointer',
+        }}
+        onMouseEnter={e => {
+          (e.currentTarget as HTMLElement).style.background = 'rgba(251,191,36,0.15)';
+          (e.currentTarget as HTMLElement).style.borderColor = 'rgba(251,191,36,0.45)';
+        }}
+        onMouseLeave={e => {
+          (e.currentTarget as HTMLElement).style.background = 'rgba(251,191,36,0.08)';
+          (e.currentTarget as HTMLElement).style.borderColor = 'rgba(251,191,36,0.25)';
+        }}>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+        Request Contact
+      </button>
+    );
+  }
+
+  return (
+    <div ref={formRef} className="w-full rounded-xl overflow-hidden"
+      style={{ background: 'rgba(251,191,36,0.04)', border: '1px solid rgba(251,191,36,0.2)' }}>
+      {/* Form header */}
+      <div className="flex items-center justify-between px-4 py-3"
+        style={{ borderBottom: '1px solid rgba(251,191,36,0.1)' }}>
+        <p className="text-sm font-semibold" style={{ color: '#fcd34d' }}>
+          Request contact for {refereeName}
+        </p>
+        <button onClick={() => setState('idle')}
+          className="text-xs w-6 h-6 rounded-full flex items-center justify-center transition-colors"
+          style={{ color: 'var(--text-3)' }}
+          onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-1)')}
+          onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-3)')}>
+          ✕
+        </button>
+      </div>
+
+      <form onSubmit={submit} className="p-4 space-y-3">
+        {/* Name + Email */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs mb-1" style={{ color: 'var(--text-3)' }}>
+              Your name <span style={{ color: '#ef4444' }}>*</span>
+            </label>
+            <input
+              type="text" required value={form.requester_name}
+              onChange={e => set('requester_name', e.target.value)}
+              placeholder="Jane Smith"
+              className="w-full rounded-lg px-3 py-2 text-sm outline-none transition-colors"
+              style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
+            />
+          </div>
+          <div>
+            <label className="block text-xs mb-1" style={{ color: 'var(--text-3)' }}>
+              Email <span style={{ color: '#ef4444' }}>*</span>
+            </label>
+            <input
+              type="email" required value={form.requester_email}
+              onChange={e => set('requester_email', e.target.value)}
+              placeholder="jane@company.com"
+              className="w-full rounded-lg px-3 py-2 text-sm outline-none transition-colors"
+              style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
+            />
+          </div>
+        </div>
+
+        {/* Company + Purpose */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs mb-1" style={{ color: 'var(--text-3)' }}>Company</label>
+            <input
+              type="text" value={form.requester_company}
+              onChange={e => set('requester_company', e.target.value)}
+              placeholder="TechCorp (optional)"
+              className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+              style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
+            />
+          </div>
+          <div>
+            <label className="block text-xs mb-1" style={{ color: 'var(--text-3)' }}>Purpose</label>
+            <select value={form.requester_purpose} onChange={e => set('requester_purpose', e.target.value)}
+              className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+              style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-1)' }}>
+              {PURPOSES.map(p => (
+                <option key={p.value} value={p.value}>{p.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* LinkedIn */}
+        <div>
+          <label className="block text-xs mb-1" style={{ color: 'var(--text-3)' }}>Your LinkedIn URL (optional)</label>
+          <input
+            type="url" value={form.requester_linkedin_url}
+            onChange={e => set('requester_linkedin_url', e.target.value)}
+            placeholder="https://linkedin.com/in/..."
+            className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
+          />
+        </div>
+
+        {/* Message */}
+        <div>
+          <label className="block text-xs mb-1" style={{ color: 'var(--text-3)' }}>
+            Message (optional · {form.requester_message.length}/500)
+          </label>
+          <textarea
+            value={form.requester_message} maxLength={500}
+            onChange={e => set('requester_message', e.target.value)}
+            placeholder="Brief context about why you'd like to connect..."
+            rows={3}
+            className="w-full rounded-lg px-3 py-2 text-sm outline-none resize-none"
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
+          />
+        </div>
+
+        {state === 'error' && (
+          <p className="text-xs px-3 py-2 rounded-lg" style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171' }}>
+            {errorMsg}
+          </p>
+        )}
+
+        <div className="flex gap-2 pt-1">
+          <button type="submit" disabled={state === 'submitting'}
+            className="flex-1 py-2 rounded-xl text-sm font-semibold transition-all"
+            style={{
+              background: state === 'submitting' ? 'rgba(251,191,36,0.1)' : 'rgba(251,191,36,0.15)',
+              border: '1px solid rgba(251,191,36,0.35)',
+              color: '#fcd34d',
+            }}>
+            {state === 'submitting' ? 'Sending…' : 'Submit Request →'}
+          </button>
+          <button type="button" onClick={() => setState('idle')}
+            className="px-4 py-2 rounded-xl text-sm transition-colors"
+            style={{ color: 'var(--text-3)' }}>
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 // ── Full-screen modal (mirrors ProjectModal) ───────────────────
 function RefereeModal({ ref: r, onClose }: { ref: Referee; onClose: () => void }) {
   useEffect(() => {
@@ -279,10 +492,7 @@ function RefereeModal({ ref: r, onClose }: { ref: Referee; onClose: () => void }
                   </a>
                 )}
                 {r.available_on_request ? (
-                  <span className="inline-flex items-center text-sm px-4 py-2 rounded-xl"
-                    style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)', color: '#fcd34d' }}>
-                    Contact available on request
-                  </span>
+                  <ContactRequestForm refereeId={r.id} refereeName={r.name} />
                 ) : (
                   <>
                     {r.email && (

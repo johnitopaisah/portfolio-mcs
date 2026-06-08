@@ -230,6 +230,23 @@ export const adminApi = {
   markRead: (id: string) => request(`/api/contact/${id}/read`, { method: 'PATCH' }),
   deleteMessage: (id: string) => request(`/api/contact/${id}`, { method: 'DELETE' }),
 
+  // Referee contact requests
+  getContactRequests: () => request('/api/referee-contact-requests'),
+  approveContactRequest: (id: string) =>
+    request(`/api/referee-contact-requests/${id}/approve`, { method: 'POST' }),
+  rejectContactRequest: (id: string) =>
+    request(`/api/referee-contact-requests/${id}/reject`, { method: 'POST' }),
+  requestConsent: (id: string, data: { admin_note?: string; expires_days?: number }) =>
+    request(`/api/referee-contact-requests/${id}/request-consent`, { method: 'POST', body: JSON.stringify(data) }),
+  resendConsent: (id: string, data: { resend_note: string; expires_days?: number }) =>
+    request(`/api/referee-contact-requests/${id}/resend-consent`, { method: 'POST', body: JSON.stringify(data) }),
+  fulfillContactRequest: (id: string, data: { admin_note?: string }) =>
+    request(`/api/referee-contact-requests/${id}/fulfill`, { method: 'POST', body: JSON.stringify(data) }),
+  declineContactRequest: (id: string) =>
+    request(`/api/referee-contact-requests/${id}/decline`, { method: 'POST' }),
+  deleteContactRequest: (id: string) =>
+    request(`/api/referee-contact-requests/${id}`, { method: 'DELETE' }),
+
   // Binary asset URLs — RELATIVE paths, proxied through Next.js (same-origin).
   avatarUrl:       '/api/profile/avatar',
   projectImg:      (id: string) => `/api/projects/${id}/image`,
