@@ -29,12 +29,15 @@ const submitLimiter = rateLimit({
   },
 });
 
-function apiUrl() {
-  return (process.env.API_URL || 'http://localhost:4000').replace(/\/$/, '');
+// SITE_URL = public-facing site root (e.g. https://johnisah.com).
+// All /api/* links go through the user-ui reverse proxy, so SITE_URL is the
+// right base — same pattern used by refereeInvitations.js.
+function siteUrl() {
+  return (process.env.SITE_URL || 'https://johnisah.com').replace(/\/$/, '');
 }
 
 function adminUrl() {
-  return (process.env.ADMIN_URL || 'http://localhost:3001').replace(/\/$/, '');
+  return (process.env.ADMIN_URL || 'https://admin.johnisah.com').replace(/\/$/, '');
 }
 
 // Simple inline HTML page for referee consent responses (served directly by API)
@@ -134,7 +137,7 @@ router.post('/', submitLimiter, async (req, res, next) => {
 
     refereeContactRequestsTotal.inc({ status: 'submitted' });
 
-    const verificationLink = `${apiUrl()}/api/referee-contact-requests/verify-email?token=${rows[0].verification_token}`;
+    const verificationLink = `${siteUrl()}/api/referee-contact-requests/verify-email?token=${rows[0].verification_token}`;
 
     sendContactRequestSubmittedToRequester({
       name:             requester_name.trim(),
@@ -409,7 +412,7 @@ router.post('/:id/request-consent', requireAuth, async (req, res, next) => {
 
     refereeContactRequestsTotal.inc({ status: 'consent_requested' });
 
-    const base        = apiUrl();
+    const base        = siteUrl();
     const acceptLink  = `${base}/api/referee-contact-requests/consent/accept?token=${consentToken}`;
     const declineLink = `${base}/api/referee-contact-requests/consent/decline?token=${consentToken}`;
 
@@ -480,7 +483,7 @@ router.post('/:id/resend-consent', requireAuth, async (req, res, next) => {
 
     refereeContactRequestsTotal.inc({ status: 'consent_resent' });
 
-    const base        = apiUrl();
+    const base        = siteUrl();
     const acceptLink  = `${base}/api/referee-contact-requests/consent/accept?token=${consentToken}`;
     const declineLink = `${base}/api/referee-contact-requests/consent/decline?token=${consentToken}`;
 

@@ -68,7 +68,7 @@ async function runConsentReminderJob() {
           continue;
         }
 
-        const base        = (process.env.API_URL || 'http://localhost:4000').replace(/\/$/, '');
+        const base        = (process.env.SITE_URL || 'https://johnisah.com').replace(/\/$/, '');
         const acceptLink  = `${base}/api/referee-contact-requests/consent/accept?token=${row.consent_token}`;
         const declineLink = `${base}/api/referee-contact-requests/consent/decline?token=${row.consent_token}`;
         const reminderNum = row.consent_reminder_count + 1;

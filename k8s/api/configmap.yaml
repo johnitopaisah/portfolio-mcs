@@ -7,3 +7,5 @@ data:
   NODE_ENV: "production"
   PORT: "4000"
   ALLOWED_ORIGINS: "https://johnisah.com,https://admin.johnisah.com"
+  SITE_URL: "https://johnisah.com"
+  ADMIN_URL: "https://admin.johnisah.com"
