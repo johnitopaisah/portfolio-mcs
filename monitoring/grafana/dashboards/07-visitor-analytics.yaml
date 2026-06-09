@@ -60,8 +60,8 @@ data:
         {
           "id": 2,
           "type": "stat",
-          "title": "Unique Visitors (24h)",
-          "description": "Count of unique visitor sessions in the last 24 hours",
+          "title": "Visitors (7d)",
+          "description": "Total real visitor count over the last 7 days",
           "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
           "options": { "colorMode": "value", "graphMode": "sparkline", "orientation": "auto" },
           "fieldConfig": {
@@ -71,15 +71,15 @@ data:
             }
           },
           "targets": [
-            { "expr": "count(count by (session_id) (increase(portfolio_visitors_total[24h])))", "legendFormat": "Unique" }
+            { "expr": "sum(increase(portfolio_visitors_total[7d]))", "legendFormat": "7d Total" }
           ]
         },
 
         {
           "id": 3,
           "type": "stat",
-          "title": "Repeat Visitor Rate",
-          "description": "Percentage of visitors who have visited before",
+          "title": "Bot Rate (24h)",
+          "description": "Fraction of all traffic (visitors + bots) that was bot traffic in the last 24 hours",
           "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
           "options": { "colorMode": "value", "graphMode": "sparkline", "orientation": "auto" },
           "fieldConfig": {
@@ -88,68 +88,55 @@ data:
               "color": { "mode": "thresholds" },
               "thresholds": {
                 "steps": [
-                  { "color": "red", "value": null },
-                  { "color": "orange", "value": 0.1 },
-                  { "color": "yellow", "value": 0.2 },
-                  { "color": "light-green", "value": 0.3 }
+                  { "color": "light-green", "value": null },
+                  { "color": "yellow", "value": 0.5 },
+                  { "color": "orange", "value": 0.9 },
+                  { "color": "red", "value": 0.99 }
                 ]
               }
             }
           },
           "targets": [
-            { "expr": "1 - (count(count by (session_id) (increase(portfolio_visitors_total[24h]))) / sum(increase(portfolio_visitors_total[24h])))", "legendFormat": "Repeat %" }
+            {
+              "expr": "sum(increase(portfolio_visitor_bots_filtered_total[24h])) / clamp_min(sum(increase(portfolio_visitors_total[24h])) + sum(increase(portfolio_visitor_bots_filtered_total[24h])), 1)",
+              "legendFormat": "Bot Rate"
+            }
           ]
         },
 
         {
           "id": 4,
           "type": "stat",
-          "title": "Avg Session Duration",
-          "description": "Average time spent per visitor session",
+          "title": "Bots Blocked (24h)",
+          "description": "Total bot requests detected and filtered in the last 24 hours",
           "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
           "options": { "colorMode": "value", "graphMode": "sparkline", "orientation": "auto" },
           "fieldConfig": {
             "defaults": {
-              "unit": "s",
-              "color": { "mode": "thresholds" },
-              "thresholds": {
-                "steps": [
-                  { "color": "red", "value": null },
-                  { "color": "orange", "value": 30 },
-                  { "color": "yellow", "value": 60 },
-                  { "color": "light-green", "value": 120 }
-                ]
-              }
+              "unit": "short",
+              "color": { "mode": "fixed", "fixedColor": "red" }
             }
           },
           "targets": [
-            { "expr": "avg(rate(portfolio_visitors_total[24h])) * 60", "legendFormat": "Duration" }
+            { "expr": "sum(increase(portfolio_visitor_bots_filtered_total[24h]))", "legendFormat": "Bots Blocked" }
           ]
         },
 
         {
           "id": 5,
           "type": "stat",
-          "title": "Bounce Rate (24h)",
-          "description": "% of visitors who left after viewing only 1 page",
+          "title": "Avg Visitors/Day (7d)",
+          "description": "Daily average of real visitors over the last 7 days",
           "gridPos": { "x": 16, "y": 0, "w": 4, "h": 4 },
           "options": { "colorMode": "value", "graphMode": "sparkline", "orientation": "auto" },
           "fieldConfig": {
             "defaults": {
-              "unit": "percentunit",
-              "color": { "mode": "thresholds" },
-              "thresholds": {
-                "steps": [
-                  { "color": "light-green", "value": null },
-                  { "color": "yellow", "value": 0.3 },
-                  { "color": "orange", "value": 0.5 },
-                  { "color": "red", "value": 0.7 }
-                ]
-              }
+              "unit": "short",
+              "color": { "mode": "fixed", "fixedColor": "yellow" }
             }
           },
           "targets": [
-            { "expr": "0.35", "legendFormat": "Rate" }
+            { "expr": "sum(increase(portfolio_visitors_total[7d])) / 7", "legendFormat": "Daily Avg" }
           ]
         },
 
@@ -201,25 +188,29 @@ data:
 
         {
           "id": 8,
-          "type": "heatmap",
-          "title": "Traffic Heatmap — Hourly Distribution",
-          "description": "Shows peak visitor times. Darker = more traffic. Use to optimize deployment times and marketing campaigns",
+          "type": "barchart",
+          "title": "Browsers (7d)",
+          "description": "Visitor distribution by browser over the last 7 days",
           "gridPos": { "x": 16, "y": 4, "w": 8, "h": 8 },
+          "options": {
+            "barRadius": 0.5,
+            "groupWidth": 0.7,
+            "orientation": "horizontal",
+            "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+            "tooltipDisplayMode": "single",
+            "xTickLabelRotation": 0
+          },
           "fieldConfig": {
             "defaults": {
-              "color": { "scheme": "Greens" }
+              "custom": { "lineWidth": 1, "fillOpacity": 80 },
+              "color": { "mode": "scheme", "scheme": "Set2" }
             }
           },
-          "options": {
-            "calculate": false,
-            "cellRadius": 2,
-            "cellSize": "auto",
-            "exemplars": { "color": "rgba(255,0,255,0.7)" },
-            "filterValues": { "le": 1e-9 },
-            "legend": { "show": true }
-          },
           "targets": [
-            { "expr": "sum(rate(portfolio_visitors_total[1h]))", "format": "heatmap", "legendFormat": "{{le}}" }
+            {
+              "expr": "sort_desc(sum by (browser) (increase(portfolio_visitors_by_browser_total[7d])))",
+              "legendFormat": "{{ browser }}"
+            }
           ]
         },
 
@@ -277,8 +268,8 @@ data:
         {
           "id": 12,
           "type": "stat",
-          "title": "Peak Traffic Hour (24h)",
-          "description": "Hour with highest visitor activity",
+          "title": "Top Browser",
+          "description": "Most common browser used by visitors in the last 24 hours",
           "gridPos": { "x": 18, "y": 12, "w": 6, "h": 4 },
           "options": { "colorMode": "background", "graphMode": "none", "textMode": "value_and_name", "orientation": "auto" },
           "fieldConfig": {
@@ -288,7 +279,10 @@ data:
             }
           },
           "targets": [
-            { "expr": "topk(1, sum by (hour) (increase(portfolio_visitors_total[24h])))", "legendFormat": "{{ hour }}:00 UTC" }
+            {
+              "expr": "topk(1, sort_desc(sum by (browser) (increase(portfolio_visitors_by_browser_total[24h]))))",
+              "legendFormat": "{{ browser }}"
+            }
           ]
         },
 
@@ -402,31 +396,30 @@ data:
         {
           "id": 15,
           "type": "barchart",
-          "title": "Device & Browser Performance",
-          "description": "Traffic distribution by device type and browser. Helps identify compatibility issues and optimization priorities",
+          "title": "Device Breakdown (7d)",
+          "description": "Traffic distribution by device type over the last 7 days",
           "gridPos": { "x": 0, "y": 32, "w": 12, "h": 10 },
           "options": {
             "barRadius": 0.5,
             "fullHighlight": false,
             "groupWidth": 0.7,
-            "legend": { "calcs": ["value", "percent"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+            "legend": { "calcs": ["value"], "displayMode": "table", "placement": "bottom", "showLegend": true },
             "orientation": "auto",
-            "showDataPoints": "false",
-            "stacking": "percent",
-            "tooltipDisplayMode": "multi",
-            "xTickLabelRotation": -45,
+            "stacking": "none",
+            "tooltipDisplayMode": "single",
+            "xTickLabelRotation": 0,
             "xTickLabelSpacing": 0
           },
           "fieldConfig": {
             "defaults": {
-              "custom": { "lineWidth": 1, "fillOpacity": 85, "gradientMode": "none", "hideFrom": { "tooltip": false, "viz": false, "legend": false } },
+              "custom": { "lineWidth": 1, "fillOpacity": 85, "gradientMode": "none" },
               "color": { "mode": "scheme", "scheme": "Set2" }
             }
           },
           "targets": [
             {
-              "expr": "topk(15, sum by (device, browser) (increase(portfolio_visitors_by_device_total[7d])))",
-              "legendFormat": "{{ device }} - {{ browser }}"
+              "expr": "sort_desc(sum by (device) (increase(portfolio_visitors_by_device_total[7d])))",
+              "legendFormat": "{{ device }}"
             }
           ]
         },
@@ -493,5 +486,5 @@ data:
       ],
 
       "schemaVersion": 38,
-      "version": 2
+      "version": 3
     }
