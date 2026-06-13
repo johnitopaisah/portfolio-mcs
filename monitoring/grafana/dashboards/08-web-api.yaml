@@ -225,7 +225,7 @@ data:
 
         {
           "id": 7,
-          "type": "timeseries",
+          "type": "barchart",
           "title": "Total Requests per Minute — by Route",
           "description": "Stacked view of request volume per route, grouped by HTTP method × route",
           "gridPos": { "x": 0, "y": 3, "w": 24, "h": 7 },
@@ -249,7 +249,7 @@ data:
 
         {
           "id": 8,
-          "type": "timeseries",
+          "type": "barchart",
           "title": "Errors per Second — 5xx by Route",
           "gridPos": { "x": 0, "y": 10, "w": 12, "h": 7 },
           "fieldConfig": {
