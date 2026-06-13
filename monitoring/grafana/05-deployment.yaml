@@ -142,6 +142,10 @@ spec:
             - name: dashboard-07
               mountPath: /var/lib/grafana/dashboards/07-visitor-analytics.json
               subPath: 07-visitor-analytics.json
+            # ── Web API dashboard (08) ─────────────────────────
+            - name: dashboard-08
+              mountPath: /var/lib/grafana/dashboards/08-web-api-dashboard.json
+              subPath: 08-web-api-dashboard.json
 
       volumes:
         - name: grafana-data
@@ -175,3 +179,7 @@ spec:
         - name: dashboard-07
           configMap:
             name: grafana-dashboard-07-visitors
+        # ── Web API dashboard (08) ─────────────────────────────
+        - name: dashboard-08
+          configMap:
+            name: grafana-dashboard-08-web-api

@@ -1,0 +1,657 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-08-web-api
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/component: visualization
+    app.kubernetes.io/managed-by: argocd
+    dashboard: web-api
+
+data:
+  08-web-api-dashboard.json: |
+    {
+      "uid": "web-api-dashboard",
+      "title": "Web API — Node.js Runtime & Business Metrics",
+      "description": "Node.js API runtime health (heap, event-loop, GC, FDs), per-route HTTP breakdown with pod/namespace selector, DB pool, and business KPIs. Complements the API Performance dashboard.",
+      "tags": ["portfolio-mcs", "api", "nodejs", "web-api"],
+      "timezone": "browser",
+      "refresh": "15s",
+      "time": { "from": "now-1h", "to": "now" },
+      "schemaVersion": 38,
+      "version": 1,
+
+      "templating": {
+        "list": [
+          {
+            "name": "datasource",
+            "type": "datasource",
+            "query": "prometheus",
+            "hide": 0,
+            "includeAll": false,
+            "multi": false,
+            "refresh": 1,
+            "skipUrlSync": false
+          },
+          {
+            "name": "namespace",
+            "type": "query",
+            "label": "Namespace",
+            "datasource": { "type": "prometheus", "uid": "$datasource" },
+            "definition": "label_values(portfolio_http_requests_total{job=\"portfolio-api\"}, namespace)",
+            "query": {
+              "query": "label_values(portfolio_http_requests_total{job=\"portfolio-api\"}, namespace)",
+              "refId": "StandardVariableQuery"
+            },
+            "hide": 0,
+            "includeAll": false,
+            "multi": false,
+            "refresh": 2,
+            "sort": 1,
+            "skipUrlSync": false
+          },
+          {
+            "name": "pod",
+            "type": "query",
+            "label": "Pod",
+            "datasource": { "type": "prometheus", "uid": "$datasource" },
+            "definition": "label_values(portfolio_http_requests_total{job=\"portfolio-api\", namespace=~\"$namespace\"}, pod)",
+            "query": {
+              "query": "label_values(portfolio_http_requests_total{job=\"portfolio-api\", namespace=~\"$namespace\"}, pod)",
+              "refId": "StandardVariableQuery"
+            },
+            "hide": 0,
+            "includeAll": true,
+            "multi": false,
+            "refresh": 2,
+            "sort": 2,
+            "skipUrlSync": false
+          }
+        ]
+      },
+
+      "panels": [
+
+        {
+          "id": 1,
+          "type": "stat",
+          "title": "Requests / sec",
+          "gridPos": { "x": 0, "y": 0, "w": 4, "h": 3 },
+          "options": { "colorMode": "value", "graphMode": "sparkline", "orientation": "auto" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps",
+              "color": { "mode": "fixed", "fixedColor": "blue" }
+            }
+          },
+          "targets": [{
+            "datasource": { "uid": "$datasource" },
+            "expr": "sum(rate(portfolio_http_requests_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[2m]))",
+            "legendFormat": "req/s"
+          }]
+        },
+
+        {
+          "id": 2,
+          "type": "stat",
+          "title": "Error Rate (5xx)",
+          "gridPos": { "x": 4, "y": 0, "w": 4, "h": 3 },
+          "options": { "colorMode": "value", "graphMode": "sparkline", "orientation": "auto" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 0.01 },
+                  { "color": "red", "value": 0.05 }
+                ]
+              }
+            }
+          },
+          "targets": [{
+            "datasource": { "uid": "$datasource" },
+            "expr": "sum(rate(portfolio_http_requests_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\", status_code=~\"5..\"}[5m])) / clamp_min(sum(rate(portfolio_http_requests_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m])), 1)",
+            "legendFormat": "5xx rate"
+          }]
+        },
+
+        {
+          "id": 3,
+          "type": "stat",
+          "title": "p95 Latency",
+          "gridPos": { "x": 8, "y": 0, "w": 4, "h": 3 },
+          "options": { "colorMode": "value", "graphMode": "sparkline", "orientation": "auto" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 0.5 },
+                  { "color": "red", "value": 1 }
+                ]
+              }
+            }
+          },
+          "targets": [{
+            "datasource": { "uid": "$datasource" },
+            "expr": "histogram_quantile(0.95, sum(rate(portfolio_http_request_duration_seconds_bucket{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m])) by (le))",
+            "legendFormat": "p95"
+          }]
+        },
+
+        {
+          "id": 4,
+          "type": "stat",
+          "title": "In-Flight Requests",
+          "gridPos": { "x": 12, "y": 0, "w": 4, "h": 3 },
+          "options": { "colorMode": "value", "graphMode": "sparkline", "orientation": "auto" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 20 },
+                  { "color": "red", "value": 50 }
+                ]
+              }
+            }
+          },
+          "targets": [{
+            "datasource": { "uid": "$datasource" },
+            "expr": "sum(portfolio_http_requests_in_flight{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"})",
+            "legendFormat": "in-flight"
+          }]
+        },
+
+        {
+          "id": 5,
+          "type": "stat",
+          "title": "Heap Used",
+          "gridPos": { "x": 16, "y": 0, "w": 4, "h": 3 },
+          "options": { "colorMode": "value", "graphMode": "sparkline", "orientation": "auto" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "decmbytes",
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 300 },
+                  { "color": "red", "value": 450 }
+                ]
+              }
+            }
+          },
+          "targets": [{
+            "datasource": { "uid": "$datasource" },
+            "expr": "sum(portfolio_process_heap_used_bytes{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}) / 1024 / 1024",
+            "legendFormat": "heap"
+          }]
+        },
+
+        {
+          "id": 6,
+          "type": "stat",
+          "title": "Event Loop Lag",
+          "gridPos": { "x": 20, "y": 0, "w": 4, "h": 3 },
+          "options": { "colorMode": "value", "graphMode": "sparkline", "orientation": "auto" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 0.1 },
+                  { "color": "red", "value": 0.5 }
+                ]
+              }
+            }
+          },
+          "targets": [{
+            "datasource": { "uid": "$datasource" },
+            "expr": "portfolio_nodejs_event_loop_lag_seconds{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}",
+            "legendFormat": "lag"
+          }]
+        },
+
+        {
+          "id": 7,
+          "type": "timeseries",
+          "title": "Total Requests per Minute — by Route",
+          "description": "Stacked view of request volume per route, grouped by HTTP method × route",
+          "gridPos": { "x": 0, "y": 3, "w": 24, "h": 7 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "custom": { "lineWidth": 1, "fillOpacity": 20 },
+              "color": { "mode": "palette-classic" }
+            }
+          },
+          "options": {
+            "tooltip": { "mode": "multi" },
+            "legend": { "calcs": ["last", "mean", "max"], "displayMode": "table", "placement": "bottom" }
+          },
+          "targets": [{
+            "datasource": { "uid": "$datasource" },
+            "expr": "sum by (method, route) (increase(portfolio_http_requests_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[1m]))",
+            "legendFormat": "{{method}} {{route}}"
+          }]
+        },
+
+        {
+          "id": 8,
+          "type": "timeseries",
+          "title": "Errors per Second — 5xx by Route",
+          "gridPos": { "x": 0, "y": 10, "w": 12, "h": 7 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps",
+              "custom": { "lineWidth": 2, "fillOpacity": 10 },
+              "color": { "mode": "palette-classic" }
+            }
+          },
+          "options": {
+            "legend": { "displayMode": "table", "placement": "bottom" }
+          },
+          "targets": [{
+            "datasource": { "uid": "$datasource" },
+            "expr": "sum by (route) (rate(portfolio_http_requests_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\", status_code=~\"5..\"}[2m]))",
+            "legendFormat": "{{route}}"
+          }]
+        },
+
+        {
+          "id": 9,
+          "type": "timeseries",
+          "title": "Average Response Time — by Route",
+          "gridPos": { "x": 12, "y": 10, "w": 12, "h": 7 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "custom": { "lineWidth": 2, "fillOpacity": 10 },
+              "color": { "mode": "palette-classic" }
+            }
+          },
+          "options": {
+            "legend": { "calcs": ["last", "mean"], "displayMode": "table", "placement": "bottom" }
+          },
+          "targets": [{
+            "datasource": { "uid": "$datasource" },
+            "expr": "sum by (route) (rate(portfolio_http_request_duration_seconds_sum{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\", status_code=\"200\"}[1m])) / sum by (route) (rate(portfolio_http_request_duration_seconds_count{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\", status_code=\"200\"}[1m]))",
+            "legendFormat": "{{route}}"
+          }]
+        },
+
+        {
+          "id": 10,
+          "type": "timeseries",
+          "title": "p95 Latency — by Route",
+          "gridPos": { "x": 0, "y": 17, "w": 12, "h": 7 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "custom": { "lineWidth": 2, "fillOpacity": 5 },
+              "color": { "mode": "palette-classic" }
+            }
+          },
+          "options": {
+            "legend": { "calcs": ["last", "max"], "displayMode": "table", "placement": "bottom" }
+          },
+          "targets": [{
+            "datasource": { "uid": "$datasource" },
+            "expr": "histogram_quantile(0.95, sum by (route, le) (rate(portfolio_http_request_duration_seconds_bucket{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\", status_code=\"200\"}[5m])))",
+            "legendFormat": "{{route}}"
+          }]
+        },
+
+        {
+          "id": 11,
+          "type": "timeseries",
+          "title": "Requests Completed Under 250ms — by Route",
+          "gridPos": { "x": 12, "y": 17, "w": 12, "h": 7 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "min": 0, "max": 1,
+              "custom": { "lineWidth": 2, "fillOpacity": 10 },
+              "color": { "mode": "palette-classic" }
+            }
+          },
+          "options": {
+            "legend": { "calcs": ["last", "mean"], "displayMode": "table", "placement": "bottom" }
+          },
+          "targets": [{
+            "datasource": { "uid": "$datasource" },
+            "expr": "sum by (route) (increase(portfolio_http_request_duration_seconds_bucket{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\", status_code=\"200\", le=\"0.25\"}[1m])) / ignoring(le) sum by (route) (increase(portfolio_http_request_duration_seconds_count{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\", status_code=\"200\"}[1m]))",
+            "legendFormat": "{{route}}"
+          }]
+        },
+
+        {
+          "id": 12,
+          "type": "timeseries",
+          "title": "Node.js Heap — Used vs Total",
+          "gridPos": { "x": 0, "y": 24, "w": 12, "h": 6 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "decmbytes",
+              "custom": { "lineWidth": 2, "fillOpacity": 15 },
+              "color": { "mode": "palette-classic" }
+            }
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" }
+          },
+          "targets": [
+            {
+              "datasource": { "uid": "$datasource" },
+              "expr": "sum(portfolio_process_heap_used_bytes{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}) / 1024 / 1024",
+              "legendFormat": "heap used (MB)"
+            },
+            {
+              "datasource": { "uid": "$datasource" },
+              "expr": "sum(portfolio_process_heap_size_bytes{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}) / 1024 / 1024",
+              "legendFormat": "heap total (MB)"
+            },
+            {
+              "datasource": { "uid": "$datasource" },
+              "expr": "sum(portfolio_process_resident_memory_bytes{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}) / 1024 / 1024",
+              "legendFormat": "RSS (MB)"
+            }
+          ]
+        },
+
+        {
+          "id": 13,
+          "type": "timeseries",
+          "title": "Event Loop Lag",
+          "gridPos": { "x": 12, "y": 24, "w": 6, "h": 6 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "custom": { "lineWidth": 2, "fillOpacity": 10 },
+              "color": { "mode": "fixed", "fixedColor": "orange" },
+              "thresholds": {
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 0.1 },
+                  { "color": "red", "value": 0.5 }
+                ]
+              }
+            }
+          },
+          "targets": [{
+            "datasource": { "uid": "$datasource" },
+            "expr": "portfolio_nodejs_event_loop_lag_seconds{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}",
+            "legendFormat": "lag ({{pod}})"
+          }]
+        },
+
+        {
+          "id": 14,
+          "type": "timeseries",
+          "title": "Open File Descriptors",
+          "gridPos": { "x": 18, "y": 24, "w": 6, "h": 6 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "custom": { "lineWidth": 2, "fillOpacity": 10 },
+              "color": { "mode": "fixed", "fixedColor": "purple" }
+            }
+          },
+          "targets": [{
+            "datasource": { "uid": "$datasource" },
+            "expr": "portfolio_process_open_fds{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}",
+            "legendFormat": "open FDs ({{pod}})"
+          }]
+        },
+
+        {
+          "id": 15,
+          "type": "timeseries",
+          "title": "GC Duration by Kind",
+          "gridPos": { "x": 0, "y": 30, "w": 12, "h": 6 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "custom": { "lineWidth": 1, "fillOpacity": 10 },
+              "color": { "mode": "palette-classic" }
+            }
+          },
+          "options": {
+            "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" }
+          },
+          "targets": [{
+            "datasource": { "uid": "$datasource" },
+            "expr": "sum by (kind) (rate(portfolio_nodejs_gc_duration_seconds_sum{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[2m]))",
+            "legendFormat": "{{kind}}"
+          }]
+        },
+
+        {
+          "id": 16,
+          "type": "timeseries",
+          "title": "DB Pool — Active vs Idle Connections",
+          "gridPos": { "x": 12, "y": 30, "w": 12, "h": 6 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "custom": { "lineWidth": 2, "fillOpacity": 15 },
+              "color": { "mode": "palette-classic" }
+            }
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" }
+          },
+          "targets": [
+            {
+              "datasource": { "uid": "$datasource" },
+              "expr": "sum(portfolio_db_pool_connections_active{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"})",
+              "legendFormat": "active"
+            },
+            {
+              "datasource": { "uid": "$datasource" },
+              "expr": "sum(portfolio_db_pool_connections_idle{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"})",
+              "legendFormat": "idle"
+            }
+          ]
+        },
+
+        {
+          "id": 17,
+          "type": "timeseries",
+          "title": "DB Errors",
+          "gridPos": { "x": 0, "y": 36, "w": 12, "h": 6 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "custom": { "lineWidth": 2, "fillOpacity": 10 },
+              "color": { "mode": "palette-classic" }
+            }
+          },
+          "options": {
+            "legend": { "displayMode": "table", "placement": "bottom" }
+          },
+          "targets": [{
+            "datasource": { "uid": "$datasource" },
+            "expr": "sum by (type) (rate(portfolio_db_errors_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m]))",
+            "legendFormat": "{{type}}"
+          }]
+        },
+
+        {
+          "id": 18,
+          "type": "timeseries",
+          "title": "p50 / p95 / p99 DB Query Duration — by Operation",
+          "gridPos": { "x": 12, "y": 36, "w": 12, "h": 6 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "custom": { "lineWidth": 2, "fillOpacity": 5 },
+              "color": { "mode": "palette-classic" }
+            }
+          },
+          "options": {
+            "legend": { "calcs": ["last", "mean"], "displayMode": "table", "placement": "bottom" }
+          },
+          "targets": [
+            {
+              "datasource": { "uid": "$datasource" },
+              "expr": "histogram_quantile(0.50, sum by (operation, le) (rate(portfolio_db_query_duration_seconds_bucket{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m])))",
+              "legendFormat": "p50 {{operation}}"
+            },
+            {
+              "datasource": { "uid": "$datasource" },
+              "expr": "histogram_quantile(0.95, sum by (operation, le) (rate(portfolio_db_query_duration_seconds_bucket{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m])))",
+              "legendFormat": "p95 {{operation}}"
+            }
+          ]
+        },
+
+        {
+          "id": 19,
+          "type": "timeseries",
+          "title": "Contact Submissions — by Status",
+          "gridPos": { "x": 0, "y": 42, "w": 8, "h": 6 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "custom": { "lineWidth": 2, "fillOpacity": 15 },
+              "color": { "mode": "palette-classic" }
+            }
+          },
+          "options": {
+            "legend": { "displayMode": "table", "placement": "bottom" }
+          },
+          "targets": [{
+            "datasource": { "uid": "$datasource" },
+            "expr": "sum by (status) (rate(portfolio_contact_submissions_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m]))",
+            "legendFormat": "{{status}}"
+          }]
+        },
+
+        {
+          "id": 20,
+          "type": "timeseries",
+          "title": "Auth Attempts — by Result",
+          "gridPos": { "x": 8, "y": 42, "w": 8, "h": 6 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "custom": { "lineWidth": 2, "fillOpacity": 15 },
+              "color": { "mode": "palette-classic" }
+            }
+          },
+          "options": {
+            "legend": { "displayMode": "table", "placement": "bottom" }
+          },
+          "targets": [{
+            "datasource": { "uid": "$datasource" },
+            "expr": "sum by (result) (rate(portfolio_auth_attempts_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m]))",
+            "legendFormat": "{{result}}"
+          }]
+        },
+
+        {
+          "id": 21,
+          "type": "timeseries",
+          "title": "Content CRUD Operations — by Type",
+          "gridPos": { "x": 16, "y": 42, "w": 8, "h": 6 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "custom": { "lineWidth": 2, "fillOpacity": 10 },
+              "color": { "mode": "palette-classic" }
+            }
+          },
+          "options": {
+            "legend": { "displayMode": "table", "placement": "bottom" }
+          },
+          "targets": [
+            {
+              "datasource": { "uid": "$datasource" },
+              "expr": "sum by (type) (rate(portfolio_content_created_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m]))",
+              "legendFormat": "created {{type}}"
+            },
+            {
+              "datasource": { "uid": "$datasource" },
+              "expr": "sum by (type) (rate(portfolio_content_updated_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m]))",
+              "legendFormat": "updated {{type}}"
+            },
+            {
+              "datasource": { "uid": "$datasource" },
+              "expr": "sum by (type) (rate(portfolio_content_deleted_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m]))",
+              "legendFormat": "deleted {{type}}"
+            }
+          ]
+        },
+
+        {
+          "id": 22,
+          "type": "timeseries",
+          "title": "Referee — Contact Requests & Consent Responses",
+          "gridPos": { "x": 0, "y": 48, "w": 12, "h": 6 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "custom": { "lineWidth": 2, "fillOpacity": 10 },
+              "color": { "mode": "palette-classic" }
+            }
+          },
+          "options": {
+            "legend": { "displayMode": "table", "placement": "bottom" }
+          },
+          "targets": [
+            {
+              "datasource": { "uid": "$datasource" },
+              "expr": "sum by (status) (rate(portfolio_referee_contact_requests_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m]))",
+              "legendFormat": "contact {{status}}"
+            },
+            {
+              "datasource": { "uid": "$datasource" },
+              "expr": "sum by (decision) (rate(portfolio_referee_consent_responses_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m]))",
+              "legendFormat": "consent {{decision}}"
+            }
+          ]
+        },
+
+        {
+          "id": 23,
+          "type": "timeseries",
+          "title": "CPU Time — User vs System",
+          "gridPos": { "x": 12, "y": 48, "w": 12, "h": 6 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "custom": { "lineWidth": 2, "fillOpacity": 10 },
+              "color": { "mode": "palette-classic" }
+            }
+          },
+          "options": {
+            "legend": { "displayMode": "list", "placement": "bottom" }
+          },
+          "targets": [
+            {
+              "datasource": { "uid": "$datasource" },
+              "expr": "rate(portfolio_process_cpu_user_seconds_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[2m])",
+              "legendFormat": "user CPU"
+            },
+            {
+              "datasource": { "uid": "$datasource" },
+              "expr": "rate(portfolio_process_cpu_system_seconds_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[2m])",
+              "legendFormat": "system CPU"
+            }
+          ]
+        }
+
+      ]
+    }
