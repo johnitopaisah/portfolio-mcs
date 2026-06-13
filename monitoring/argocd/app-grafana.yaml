@@ -28,6 +28,7 @@ spec:
     path: monitoring/grafana
     directory:
       recurse: true
+      exclude: '{dashboards/json-files/**,dashboards/job-aggregation-system.json}'
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
