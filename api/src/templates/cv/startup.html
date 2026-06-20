@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>CV — {{NAME}}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Arial, Helvetica, sans-serif;
+    font-size: 10pt;
+    color: #111;
+    background: #fff;
+    max-width: 820px;
+    margin: 0 auto;
+    line-height: 1.5;
+  }
+  /* Startup: bold, energetic, impactful header with color block */
+  .header {
+    background: {{ACCENT_COLOR}};
+    padding: 30px 36px;
+    margin-bottom: 0;
+  }
+  .header h1 {
+    font-size: 28pt; font-weight: 900; color: #fff;
+    letter-spacing: -1px; margin-bottom: 5px;
+  }
+  .header .headline { font-size: 13pt; color: rgba(255,255,255,0.85); font-weight: 500; margin-bottom: 14px; }
+  .header .contacts { display: flex; flex-wrap: wrap; gap: 6px 20px; }
+  .contact-chip {
+    font-size: 9pt; background: rgba(255,255,255,0.2);
+    color: #fff; padding: 3px 10px; border-radius: 20px;
+  }
+  .contact-chip a { color: #fff; text-decoration: none; }
+  .body { padding: 24px 36px; }
+  .section { margin-bottom: 18px; }
+  .section-title {
+    font-size: 10pt; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px;
+    color: {{ACCENT_COLOR}}; margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section-title::after { content: ''; flex: 1; height: 2px; background: {{ACCENT_LIGHT}}; }
+  .summary-text { font-size: 10.5pt; color: #222; line-height: 1.65; }
+  .skills-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
+  .skill-tag {
+    font-size: 9pt; padding: 3px 11px; border-radius: 16px;
+    background: {{ACCENT_LIGHT}}; color: {{ACCENT_COLOR}};
+    font-weight: 700; letter-spacing: 0.2px;
+  }
+  .exp-entry { margin-bottom: 14px; padding: 10px 14px; border-radius: 6px; background: #fafafa; border: 1px solid #f0f0f0; }
+  .exp-entry:last-child { margin-bottom: 0; }
+  .exp-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2px; }
+  .exp-role { font-size: 10.5pt; font-weight: 800; color: #000; }
+  .exp-badge { font-size: 8.5pt; background: {{ACCENT_COLOR}}; color: #fff; padding: 2px 8px; border-radius: 10px; font-weight: 700; }
+  .exp-company { font-size: 10pt; color: {{ACCENT_COLOR}}; font-weight: 600; margin-bottom: 5px; }
+  .exp-entry ul { margin: 0 0 0 16px; }
+  .exp-entry ul li { font-size: 9.5pt; color: #333; margin-bottom: 2px; line-height: 1.5; }
+  .edu-entry { margin-bottom: 9px; }
+  .edu-top { display: flex; justify-content: space-between; }
+  .edu-degree { font-size: 10.5pt; font-weight: 700; color: #000; }
+  .edu-dates { font-size: 9pt; color: #888; }
+  .edu-institution { font-size: 10pt; color: {{ACCENT_COLOR}}; font-weight: 600; }
+  .edu-detail { font-size: 9.5pt; color: #555; margin-top: 2px; }
+  .cert-list { list-style: none; margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  .cert-list li { font-size: 9pt; padding: 3px 10px; border: 1.5px solid {{ACCENT_COLOR}}; border-radius: 12px; color: {{ACCENT_COLOR}}; font-weight: 600; }
+  .proj-entry { margin-bottom: 10px; padding: 8px 12px; border-left: 3px solid {{ACCENT_COLOR}}; background: #fafafa; }
+  .proj-title { font-size: 10.5pt; font-weight: 800; color: #000; }
+  .proj-tech { font-size: 8.5pt; color: {{ACCENT_COLOR}}; font-weight: 700; margin-top: 1px; }
+  .proj-desc { font-size: 9.5pt; color: #333; margin-top: 3px; line-height: 1.5; }
+  .ref-entry { margin-bottom: 8px; }
+  .ref-name { font-weight: 700; font-size: 10.5pt; color: #000; }
+  .ref-detail { font-size: 9.5pt; color: #555; }
+  @media print { body {} a { color: inherit !important; } }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>{{NAME}}</h1>
+  <div class="headline">{{HEADLINE}}</div>
+  <div class="contacts">
+    <span class="contact-chip"><a href="mailto:{{EMAIL}}">{{EMAIL}}</a></span>
+    {{PHONE_CHIP}}
+    {{LOCATION_CHIP}}
+    <span class="contact-chip"><a href="{{GITHUB_URL}}" target="_blank">GitHub</a></span>
+    <span class="contact-chip"><a href="{{LINKEDIN_URL}}" target="_blank">LinkedIn</a></span>
+  </div>
+</div>
+<div class="body">
+{{SECTION_SUMMARY}}
+{{SECTION_SKILLS}}
+{{SECTION_EXPERIENCE}}
+{{SECTION_EDUCATION}}
+{{SECTION_CERTIFICATIONS}}
+{{SECTION_PROJECTS}}
+{{SECTION_REFERENCES}}
+</div>
+</body>
+</html>

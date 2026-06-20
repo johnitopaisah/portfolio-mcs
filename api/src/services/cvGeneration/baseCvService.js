@@ -20,8 +20,11 @@ async function getActiveBaseCv() {
 }
 
 async function refreshBaseCv() {
-  const [profileRes, expRes, skillsRes, certRes] = await Promise.all([
-    pool.query('SELECT name, headline, bio, email, github_url, linkedin_url, hero_tags FROM profile LIMIT 1'),
+  const [profileRes, expRes, skillsRes, certRes, eduRes, projectsRes, refereesRes] = await Promise.all([
+    pool.query(`
+      SELECT name, headline, bio, email, github_url, linkedin_url, hero_tags
+      FROM profile LIMIT 1
+    `),
     pool.query(`
       SELECT jsonb_agg(jsonb_build_object(
         'company',    company,
@@ -52,21 +55,64 @@ async function refreshBaseCv() {
       ) ORDER BY issue_date DESC) AS data
       FROM certifications
     `),
+    pool.query(`
+      SELECT jsonb_agg(jsonb_build_object(
+        'institution',   institution,
+        'degree',        degree,
+        'field',         field_of_study,
+        'start_date',    start_date,
+        'end_date',      end_date,
+        'ongoing',       ongoing,
+        'grade',         grade,
+        'description',   description
+      ) ORDER BY order_index) AS data
+      FROM education
+    `),
+    pool.query(`
+      SELECT jsonb_agg(jsonb_build_object(
+        'title',       title,
+        'description', description,
+        'tech_stack',  tech_stack,
+        'live_url',    live_url,
+        'repo_url',    repo_url,
+        'start_date',  start_date,
+        'end_date',    end_date,
+        'ongoing',     ongoing
+      ) ORDER BY order_index) AS data
+      FROM projects
+      WHERE published = TRUE
+    `),
+    pool.query(`
+      SELECT jsonb_agg(jsonb_build_object(
+        'name',         name,
+        'title',        title,
+        'organisation', organization,
+        'email',        email,
+        'relationship', relationship
+      )) AS data
+      FROM referees
+      WHERE visible = TRUE
+    `).catch(() => ({ rows: [{ data: [] }] })),
   ]);
 
   const p = profileRes.rows[0] || {};
 
   const contentJson = {
-    name:         p.name,
-    headline:     p.headline,
-    bio:          p.bio,
-    email:        p.email,
-    github_url:   p.github_url,
-    linkedin_url: p.linkedin_url,
-    hero_tags:    p.hero_tags,
-    experiences:  expRes.rows[0]?.data   || [],
-    skills:       skillsRes.rows[0]?.data || [],
-    certifications: certRes.rows[0]?.data || [],
+    name:           p.name,
+    headline:       p.headline,
+    bio:            p.bio,
+    email:          p.email,
+    phone:          '',
+    location:       '',
+    github_url:     p.github_url,
+    linkedin_url:   p.linkedin_url,
+    hero_tags:      p.hero_tags,
+    experiences:    expRes.rows[0]?.data     || [],
+    skills:         skillsRes.rows[0]?.data  || [],
+    certifications: certRes.rows[0]?.data    || [],
+    education:      eduRes.rows[0]?.data     || [],
+    projects:       projectsRes.rows[0]?.data || [],
+    references:     refereesRes.rows[0]?.data || [],
   };
 
   const client = await pool.connect();

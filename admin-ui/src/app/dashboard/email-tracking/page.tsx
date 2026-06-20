@@ -34,13 +34,13 @@ const CLASSIFICATIONS = [
 // ── Helpers ───────────────────────────────────────────────────
 function classBadge(cls: string): { label: string; bg: string } {
   const map: Record<string, { label: string; bg: string }> = {
-    INTERVIEW_INVITE: { label: 'Interview Invite', bg: 'bg-green-100 text-green-700'    },
-    OFFER:            { label: 'Offer',            bg: 'bg-emerald-100 text-emerald-700' },
-    TECHNICAL_TEST:   { label: 'Technical Test',   bg: 'bg-blue-100 text-blue-700'      },
-    REJECTION:        { label: 'Rejection',        bg: 'bg-red-100 text-red-600'         },
-    FOLLOW_UP_NEEDED: { label: 'Follow Up Needed', bg: 'bg-yellow-100 text-yellow-700'  },
-    GENERAL_RESPONSE: { label: 'General Response', bg: 'bg-gray-100 text-gray-600'      },
-    UNKNOWN:          { label: 'Unknown',          bg: 'bg-gray-200 text-gray-500'       },
+    INTERVIEW_INVITE: { label: 'Interview Invite', bg: 'bg-green-900/40 text-green-400 border border-green-700/40'     },
+    OFFER:            { label: 'Offer',            bg: 'bg-emerald-900/40 text-emerald-400 border border-emerald-700/40' },
+    TECHNICAL_TEST:   { label: 'Technical Test',   bg: 'bg-blue-900/40 text-blue-400 border border-blue-700/40'        },
+    REJECTION:        { label: 'Rejection',        bg: 'bg-red-900/40 text-red-400 border border-red-700/40'           },
+    FOLLOW_UP_NEEDED: { label: 'Follow Up Needed', bg: 'bg-yellow-900/40 text-yellow-400 border border-yellow-700/40'  },
+    GENERAL_RESPONSE: { label: 'General Response', bg: 'bg-gray-800 text-gray-400 border border-gray-700/50'           },
+    UNKNOWN:          { label: 'Unknown',          bg: 'bg-gray-800 text-gray-500 border border-gray-700/40'           },
   };
   return map[cls] ?? map['UNKNOWN'];
 }

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Cover Letter — {{NAME}}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Times New Roman', Times, Georgia, serif;
+    font-size: 11pt;
+    color: #000;
+    background: #fff;
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 32px 40px;
+    line-height: 1.6;
+  }
+  .sender-block { margin-bottom: 22px; }
+  .sender-block .name { font-size: 14pt; font-weight: 700; color: #000; margin-bottom: 4px; }
+  .sender-block .headline { font-size: 10.5pt; color: #333; margin-bottom: 6px; }
+  .sender-block .contacts { font-size: 9.5pt; color: #444; display: flex; flex-wrap: wrap; gap: 3px 16px; }
+  .sender-block .contacts a { color: #333; text-decoration: none; }
+  .rule { border: none; border-top: 1.5px solid #000; margin: 14px 0; }
+  .date { font-size: 10.5pt; color: #333; margin-bottom: 18px; }
+  .recipient-block { margin-bottom: 18px; }
+  .recipient-block .company { font-size: 11pt; font-weight: 700; }
+  .recipient-block .role-line { font-size: 10.5pt; color: #333; font-style: italic; }
+  .salutation { font-size: 11pt; margin-bottom: 14px; }
+  .subject { font-size: 11pt; font-weight: 700; text-decoration: underline; margin-bottom: 16px; }
+  .cl-para { font-size: 11pt; color: #111; margin-bottom: 14px; line-height: 1.65; text-align: justify; }
+  .ps-line { font-size: 10.5pt; color: #333; font-style: italic; margin-top: 14px; }
+  .signature-block { margin-top: 20px; }
+  .closing { font-size: 11pt; margin-bottom: 24px; }
+  .sig-name { font-size: 12pt; font-weight: 700; }
+  @media print { body { padding: 0; } a { color: #333 !important; } }
+</style>
+</head>
+<body>
+<div class="sender-block">
+  <div class="name">{{NAME}}</div>
+  <div class="headline">{{HEADLINE}}</div>
+  <div class="contacts">
+    <a href="mailto:{{EMAIL}}">{{EMAIL}}</a>
+    {{PHONE_ITEM}}
+    {{LOCATION_ITEM}}
+    <a href="{{LINKEDIN_URL}}" target="_blank">LinkedIn</a>
+  </div>
+</div>
+<hr class="rule" />
+<div class="date">{{DATE}}</div>
+<div class="recipient-block">
+  <div class="company">{{COMPANY_NAME}} — Hiring Team</div>
+  <div class="role-line">Application for: {{ROLE_TITLE}}</div>
+</div>
+<div class="salutation">Dear Hiring Manager,</div>
+<div class="subject">Re: {{SUBJECT_LINE}}</div>
+<p class="cl-para">{{OPENING_HOOK}}</p>
+<p class="cl-para">{{WHY_YOU}}</p>
+<p class="cl-para">{{WHY_THEM}}</p>
+<p class="cl-para">{{WHY_NOW}}</p>
+<p class="cl-para">{{CALL_TO_ACTION}}</p>
+{{PS_LINE}}
+<div class="signature-block">
+  <div class="closing">Yours sincerely,</div>
+  <div class="sig-name">{{NAME}}</div>
+</div>
+</body>
+</html>

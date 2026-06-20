@@ -80,29 +80,33 @@ router.post('/', visitorLimiter, async (req, res) => {
       visitorsByCountry.inc({ country });
     }
 
-    await pool.query(
-      `INSERT INTO visitor_logs
-        (ip_address, country_code, country, city, region, latitude, longitude,
-         browser, os, device_type, referer_raw, referer_label, language, is_bot, session_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
-      [
-        ip            || null,
-        cfCountryCode || null,
-        country       || null,
-        geo.city      || null,
-        geo.region    || null,
-        geo.lat       || null,
-        geo.lon       || null,
-        browser       || null,
-        os            || null,
-        device,
-        refererRaw    || null,
-        refLabel,
-        language      || null,
-        bot,
-        sessionId,
-      ]
-    );
+    // Bots are counted in Prometheus but never stored in the DB —
+    // they'd be filtered out of every analytics query anyway and
+    // just consume space (was 1M+ rows / 350 MB before cleanup).
+    if (!bot) {
+      await pool.query(
+        `INSERT INTO visitor_logs
+          (ip_address, country_code, country, city, region, latitude, longitude,
+           browser, os, device_type, referer_raw, referer_label, language, session_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+        [
+          ip            || null,
+          cfCountryCode || null,
+          country       || null,
+          geo.city      || null,
+          geo.region    || null,
+          geo.lat       || null,
+          geo.lon       || null,
+          browser       || null,
+          os            || null,
+          device,
+          refererRaw    || null,
+          refLabel,
+          language      || null,
+          sessionId,
+        ]
+      );
+    }
   } catch (err) {
     // Never crash — analytics is non-critical
     console.error('[visitors] Insert error:', err.message);

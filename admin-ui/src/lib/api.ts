@@ -147,11 +147,143 @@ export const adminApi = {
       method: 'POST',
       body: JSON.stringify({ note }),
     }),
-  generateCv: (id: number | string, body: { force: boolean; language: string }) =>
+  generateCv: (id: number | string, body: {
+    force?:       boolean;
+    language?:    string;
+    sections?:    string[];
+    userHints?:   string;
+    hintChips?:   string[];
+    intensity?:   string;
+    templateId?:  string;
+    colorScheme?: string;
+    accentColor?: string;
+    fontFamily?:  string;
+    fontSize?:    string;
+    lineDensity?: string;
+  }) =>
     request(`/api/applications/${id}/generate-cv`, {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+
+  generateCoverLetter: (id: number | string, body: {
+    language?:           string;
+    tone?:               string;
+    length?:             string;
+    format?:             string;
+    userHints?:          string;
+    accentColor?:        string;
+    colorScheme?:        string;
+    linkedCvDocumentId?: number | null;
+  }) =>
+    request(`/api/applications/${id}/generate-cover-letter`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  getCvTemplates: (jd?: string) => {
+    const qs = jd ? `?jd=${encodeURIComponent(jd.slice(0, 500))}` : '';
+    return request(`/api/applications/cv-templates${qs}`);
+  },
+
+  getProfileSectionsStatus: (): Promise<Record<string, boolean>> =>
+    request('/api/applications/profile-sections-status'),
+
+  refreshBaseCv: () =>
+    request('/api/admin/ai/refresh-base-cv', { method: 'POST' }),
+
+  reformatDocument: async (
+    appId: number | string,
+    docId: number,
+    config: {
+      templateId?: string; colorScheme?: string; accentColor?: string;
+      fontFamily?: string; fontSize?: string; lineDensity?: string; sections?: string[];
+    }
+  ): Promise<string> => {
+    const token = getToken();
+    const res = await fetch(
+      `${getApiBase()}/api/applications/${appId}/documents/${docId}/reformat`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(config),
+      }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const html = await res.text();
+    const blob = new Blob([html], { type: 'text/html' });
+    return URL.createObjectURL(blob);
+  },
+  deleteDocument: (appId: number | string, docId: number) =>
+    request(`/api/applications/${appId}/documents/${docId}`, { method: 'DELETE' }),
+
+  generateBundle: (id: number | string, body: {
+    force?: boolean; language?: string; sections?: string[]; userHints?: string;
+    hintChips?: string[]; intensity?: string; templateId?: string; colorScheme?: string;
+    accentColor?: string; fontFamily?: string; fontSize?: string; lineDensity?: string;
+    tone?: string; clLength?: string; clFormat?: string; generateCl?: boolean;
+  }) =>
+    request(`/api/applications/${id}/generate-bundle`, { method: 'POST', body: JSON.stringify(body) }),
+
+  // Events
+  getEvents: (appId: number | string) =>
+    request(`/api/applications/${appId}/events`),
+  addEvent: (appId: number | string, body: { event_type?: string; description: string; event_date?: string }) =>
+    request(`/api/applications/${appId}/events`, { method: 'POST', body: JSON.stringify(body) }),
+
+  // Contacts
+  getContacts: (appId: number | string) =>
+    request(`/api/applications/${appId}/contacts`),
+  addContact: (appId: number | string, data: { name: string; title?: string; email?: string; linkedin_url?: string; role?: string; notes?: string }) =>
+    request(`/api/applications/${appId}/contacts`, { method: 'POST', body: JSON.stringify(data) }),
+  updateContact: (appId: number | string, cid: number, data: Record<string, unknown>) =>
+    request(`/api/applications/${appId}/contacts/${cid}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteContact: (appId: number | string, cid: number) =>
+    request(`/api/applications/${appId}/contacts/${cid}`, { method: 'DELETE' }),
+
+  // Reminders
+  getReminders: (appId: number | string) =>
+    request(`/api/applications/${appId}/reminders`),
+  addReminder: (appId: number | string, data: { title: string; remind_at: string; reminder_type?: string }) =>
+    request(`/api/applications/${appId}/reminders`, { method: 'POST', body: JSON.stringify(data) }),
+  patchReminder: (appId: number | string, rid: number, data: { is_done?: boolean; title?: string; remind_at?: string }) =>
+    request(`/api/applications/${appId}/reminders/${rid}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteReminder: (appId: number | string, rid: number) =>
+    request(`/api/applications/${appId}/reminders/${rid}`, { method: 'DELETE' }),
+  getDueReminders: () =>
+    request('/api/applications/reminders/due'),
+
+  // Submitted doc + interview prep
+  setSubmittedDoc: (appId: number | string, docId: number | null) =>
+    request(`/api/applications/${appId}/submitted-doc`, { method: 'PATCH', body: JSON.stringify({ doc_id: docId }) }),
+  updateInterviewPrep: (appId: number | string, prep: Record<string, unknown>) =>
+    request(`/api/applications/${appId}/interview-prep`, { method: 'PATCH', body: JSON.stringify({ interview_prep: prep }) }),
+
+  // Analytics
+  getApplicationAnalytics: () =>
+    request('/api/applications/analytics/funnel'),
+
+  previewDocument: async (appId: number | string, docId: number): Promise<string> => {
+    const token = getToken();
+    const res = await fetch(
+      `${getApiBase()}/api/applications/${appId}/documents/${docId}/preview`,
+      { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const html = await res.text();
+    const blob = new Blob([html], { type: 'text/html' });
+    return URL.createObjectURL(blob);
+  },
+
+  refineDocument: (appId: number | string, docId: number, refinementHints: string) =>
+    request(`/api/applications/${appId}/documents/${docId}/refine`, {
+      method: 'POST',
+      body: JSON.stringify({ refinementHints }),
+    }),
+
   downloadCvDocument: async (appId: number | string, docId: number, filename: string): Promise<void> => {
     const token = getToken();
     const res = await fetch(
@@ -190,6 +322,19 @@ export const adminApi = {
       body: JSON.stringify({ classification }),
     }),
   getJob: (id: string) => request(`/api/jobs/${id}`),
+
+  // Manual job import
+  parseJob: (rawText: string, sourceUrl?: string) =>
+    request('/api/jobs/parse', { method: 'POST', body: JSON.stringify({ rawText, sourceUrl }) }),
+
+  importJob: (body: {
+    job: Record<string, unknown>;
+    sourcePlatform?: string;
+    sourceUrl?: string;
+    entryMethod?: string;
+    createApplication?: boolean;
+    referralFrom?: string;
+  }) => request('/api/jobs/import', { method: 'POST', body: JSON.stringify(body) }),
 
   // Referee invitations
   getInvitations: () => request('/api/referee-invitations'),
@@ -246,6 +391,98 @@ export const adminApi = {
     request(`/api/referee-contact-requests/${id}/decline`, { method: 'POST' }),
   deleteContactRequest: (id: string) =>
     request(`/api/referee-contact-requests/${id}`, { method: 'DELETE' }),
+
+  // ── User Settings & Automation ──────────────────────────────
+  getUserSettings: () => request('/api/user-settings'),
+  updateUserSettings: (data: Record<string, unknown>) =>
+    request('/api/user-settings', { method: 'PATCH', body: JSON.stringify(data) }),
+  getAutomationRules: () => request('/api/user-settings/automation-rules'),
+  toggleAutomationRule: (key: string, is_enabled: boolean) =>
+    request(`/api/user-settings/automation-rules/${key}`, { method: 'PATCH', body: JSON.stringify({ is_enabled }) }),
+  runAutomation: () => request('/api/dashboard/run-automation', { method: 'POST' }),
+
+  // ── Dashboard ────────────────────────────────────────────────
+  getDashboardStats: () => request('/api/dashboard/stats'),
+
+  // ── CV Identity ──────────────────────────────────────────────
+  getCvIdentity: () => request('/api/cv-identity'),
+  updateCvIdentity: (data: Record<string, unknown>) =>
+    request('/api/cv-identity', { method: 'PATCH', body: JSON.stringify(data) }),
+  buildContactFields: () => request('/api/cv-identity/build-contact-fields', { method: 'POST' }),
+
+  // ── Portfolio Items ──────────────────────────────────────────
+  getPortfolioItems: () => request('/api/portfolio-items'),
+  createPortfolioItem: (data: Record<string, unknown>) =>
+    request('/api/portfolio-items', { method: 'POST', body: JSON.stringify(data) }),
+  updatePortfolioItem: (id: number, data: Record<string, unknown>) =>
+    request(`/api/portfolio-items/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deletePortfolioItem: (id: number) =>
+    request(`/api/portfolio-items/${id}`, { method: 'DELETE' }),
+  getAppPortfolio: (appId: number) => request(`/api/portfolio-items/application/${appId}`),
+  linkPortfolioItem: (appId: number, portfolioItemId: number, note?: string) =>
+    request(`/api/portfolio-items/application/${appId}`, { method: 'POST', body: JSON.stringify({ portfolio_item_id: portfolioItemId, note }) }),
+  unlinkPortfolioItem: (appId: number, linkId: number) =>
+    request(`/api/portfolio-items/application/${appId}/${linkId}`, { method: 'DELETE' }),
+
+  // ── Company Research ─────────────────────────────────────────
+  getCompanyResearch: (appId: number) => request(`/api/company-research/${appId}`),
+  saveCompanyResearch: (appId: number, data: Record<string, unknown>) =>
+    request(`/api/company-research/${appId}`, { method: 'PUT', body: JSON.stringify(data) }),
+  getAppReferences: (appId: number) => request(`/api/company-research/${appId}/references`),
+  addAppReference: (appId: number, data: Record<string, unknown>) =>
+    request(`/api/company-research/${appId}/references`, { method: 'POST', body: JSON.stringify(data) }),
+  updateAppReference: (appId: number, id: number, data: Record<string, unknown>) =>
+    request(`/api/company-research/${appId}/references/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteAppReference: (appId: number, id: number) =>
+    request(`/api/company-research/${appId}/references/${id}`, { method: 'DELETE' }),
+
+  // ── STAR Stories ─────────────────────────────────────────────
+  getStarStories: () => request('/api/star-stories'),
+  getStarStoriesForApp: (appId: number) => request(`/api/star-stories/for-application/${appId}`),
+  createStarStory: (data: Record<string, unknown>) =>
+    request('/api/star-stories', { method: 'POST', body: JSON.stringify(data) }),
+  updateStarStory: (id: number, data: Record<string, unknown>) =>
+    request(`/api/star-stories/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteStarStory: (id: number) =>
+    request(`/api/star-stories/${id}`, { method: 'DELETE' }),
+
+  // ── Interview Prep ───────────────────────────────────────────
+  getInterviewQuestions: (appId: number) => request(`/api/interview-prep/${appId}/questions`),
+  generateInterviewQuestions: (appId: number) =>
+    request(`/api/interview-prep/${appId}/generate`, { method: 'POST' }),
+  updateInterviewQuestion: (appId: number, qId: number, data: Record<string, unknown>) =>
+    request(`/api/interview-prep/${appId}/questions/${qId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteInterviewQuestion: (appId: number, qId: number) =>
+    request(`/api/interview-prep/${appId}/questions/${qId}`, { method: 'DELETE' }),
+  saveInterviewDebrief: (appId: number, data: Record<string, unknown>) =>
+    request(`/api/interview-prep/${appId}/debrief`, { method: 'PATCH', body: JSON.stringify(data) }),
+
+  // ── Email Templates ──────────────────────────────────────────
+  getEmailTemplates: (category?: string) =>
+    request(category ? `/api/email-templates?category=${category}` : '/api/email-templates'),
+  getEmailTemplate: (id: number) => request(`/api/email-templates/${id}`),
+  createEmailTemplate: (data: Record<string, unknown>) =>
+    request('/api/email-templates', { method: 'POST', body: JSON.stringify(data) }),
+  updateEmailTemplate: (id: number, data: Record<string, unknown>) =>
+    request(`/api/email-templates/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteEmailTemplate: (id: number) =>
+    request(`/api/email-templates/${id}`, { method: 'DELETE' }),
+  duplicateEmailTemplate: (id: number) =>
+    request(`/api/email-templates/${id}/duplicate`, { method: 'POST' }),
+  generateEmailDraft: (templateId: number, applicationId: number) =>
+    request(`/api/email-templates/${templateId}/draft?application=${applicationId}`, { method: 'POST' }),
+
+  // ── Application Communications ───────────────────────────────
+  getAppCommunications: (appId: number) => request(`/api/email-templates/communications/${appId}`),
+  addAppCommunication: (appId: number, data: Record<string, unknown>) =>
+    request(`/api/email-templates/communications/${appId}`, { method: 'POST', body: JSON.stringify(data) }),
+  getLinkedInOutreach: (appId: number) => request(`/api/email-templates/linkedin/${appId}`),
+  addLinkedInOutreach: (appId: number, data: Record<string, unknown>) =>
+    request(`/api/email-templates/linkedin/${appId}`, { method: 'POST', body: JSON.stringify(data) }),
+  updateLinkedInOutreach: (appId: number, id: number, data: Record<string, unknown>) =>
+    request(`/api/email-templates/linkedin/${appId}/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteLinkedInOutreach: (appId: number, id: number) =>
+    request(`/api/email-templates/linkedin/${appId}/${id}`, { method: 'DELETE' }),
 
   // Binary asset URLs — RELATIVE paths, proxied through Next.js (same-origin).
   avatarUrl:       '/api/profile/avatar',

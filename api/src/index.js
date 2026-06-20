@@ -9,9 +9,10 @@ const swaggerUi         = require('swagger-ui-express');
 const swaggerSpec       = require('./swagger');
 const { register }      = require('./metrics');
 const metricsMiddleware = require('./metricsMiddleware');
-const { startDailyDigest }         = require('./services/visitorDigest');
-const { startDailyJobDigest }      = require('./services/jobIngestion/notificationService');
+const { startDailyDigest }           = require('./services/visitorDigest');
+const { startDailyJobDigest }        = require('./services/jobIngestion/notificationService');
 const { startConsentReminderWorker } = require('./workers/consentReminderWorker');
+const { runAllRules, captureWeeklySnapshot } = require('./services/automationService');
 
 const { errorHandler } = require('./middleware/errorHandler');
 
@@ -122,6 +123,16 @@ app.use('/api/referees',                  require('./routes/referees'));
 app.use('/api/referee-invitations',       require('./routes/refereeInvitations'));
 app.use('/api/referee-contact-requests',  require('./routes/refereeContactRequests'));
 
+// ── Feature expansion routes ─────────────────────────────────
+app.use('/api/user-settings',    require('./routes/userSettings'));
+app.use('/api/cv-identity',      require('./routes/cvIdentity'));
+app.use('/api/portfolio-items',  require('./routes/portfolioItems'));
+app.use('/api/company-research', require('./routes/companyResearch'));
+app.use('/api/star-stories',     require('./routes/starStories'));
+app.use('/api/email-templates',  require('./routes/emailTemplates'));
+app.use('/api/interview-prep',   require('./routes/interviewPrep'));
+app.use('/api/dashboard',        require('./routes/dashboard'));
+
 // ── 404 + Error handler ─────────────────────────────────────
 app.use((req, res) => res.status(404).json({ error: `${req.method} ${req.path} not found` }));
 app.use(errorHandler);
@@ -141,4 +152,28 @@ app.listen(PORT, () => {
 
   // Consent reminder worker — checks every 24h for overdue consent requests
   startConsentReminderWorker();
+
+  // Automation rules — run every hour
+  setInterval(() => {
+    runAllRules().catch(e => console.error('[Automation] Hourly run failed:', e));
+  }, 60 * 60 * 1000);
+  // Run once on startup (deferred 10s to let DB settle)
+  setTimeout(() => {
+    runAllRules().catch(e => console.error('[Automation] Startup run failed:', e));
+  }, 10_000);
+
+  // Weekly snapshot — every Sunday at 23:55
+  function scheduleWeeklySnapshot() {
+    const now  = new Date();
+    const next = new Date();
+    next.setDate(now.getDate() + ((7 - now.getDay()) % 7 || 7));
+    next.setHours(23, 55, 0, 0);
+    const delay = next - now;
+    setTimeout(async () => {
+      try { await captureWeeklySnapshot(); } catch (e) { console.error('[Snapshot]', e); }
+      scheduleWeeklySnapshot(); // schedule next
+    }, delay);
+    console.log(`[Snapshot] Next weekly snapshot in ${Math.round(delay / 3600000)}h`);
+  }
+  scheduleWeeklySnapshot();
 });

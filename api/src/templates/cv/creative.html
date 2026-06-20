@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>CV — {{NAME}}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Arial, Helvetica, sans-serif;
+    font-size: 10pt;
+    color: #1a1a2e;
+    background: #fff;
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 0;
+    line-height: 1.55;
+  }
+  /* Creative: distinctive typographic layout, bold hierarchy */
+  .header { padding: 32px 40px 24px; border-left: 6px solid {{ACCENT_COLOR}}; margin-bottom: 4px; }
+  .header h1 {
+    font-size: 30pt; font-weight: 900; color: #000;
+    letter-spacing: -1.5px; line-height: 1; margin-bottom: 6px;
+  }
+  .header h1 span { color: {{ACCENT_COLOR}}; }
+  .header .headline { font-size: 12pt; color: #444; font-weight: 400; margin-bottom: 12px; }
+  .header .contacts { display: flex; flex-wrap: wrap; gap: 6px 0; font-size: 9pt; }
+  .header .contacts .c-item {
+    padding: 3px 12px; border-right: 1px solid #ddd; color: #555;
+  }
+  .header .contacts .c-item:last-child { border-right: none; }
+  .header .contacts .c-item a { color: #333; text-decoration: none; }
+  .header .contacts .c-item:first-child { padding-left: 0; }
+  .body-wrap { padding: 10px 40px 30px; }
+  .section { margin-bottom: 20px; }
+  .section-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .section-num { font-size: 28pt; font-weight: 900; color: {{ACCENT_LIGHT}}; line-height: 1; min-width: 40px; }
+  .section-title { font-size: 11pt; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; color: #000; }
+  .section-line { flex: 1; height: 1px; background: {{ACCENT_LIGHT}}; }
+  .summary-text { font-size: 10.5pt; color: #222; line-height: 1.7; }
+  .skills-wrap { display: flex; flex-wrap: wrap; gap: 7px; }
+  .skill-tag {
+    font-size: 9pt; padding: 4px 12px; border-radius: 0;
+    border: 1.5px solid {{ACCENT_COLOR}}; color: {{ACCENT_COLOR}};
+    font-weight: 700; letter-spacing: 0.3px;
+    transition: all 0.2s;
+  }
+  .exp-entry { margin-bottom: 15px; display: flex; gap: 16px; }
+  .exp-entry:last-child { margin-bottom: 0; }
+  .exp-timeline { display: flex; flex-direction: column; align-items: center; }
+  .exp-dot { width: 10px; height: 10px; border-radius: 50%; background: {{ACCENT_COLOR}}; margin-top: 4px; flex-shrink: 0; }
+  .exp-line { flex: 1; width: 1px; background: {{ACCENT_LIGHT}}; margin: 4px 0; }
+  .exp-body { flex: 1; }
+  .exp-role { font-size: 11pt; font-weight: 800; color: #000; }
+  .exp-meta { display: flex; gap: 10px; align-items: center; margin-bottom: 4px; }
+  .exp-company { font-size: 10pt; color: {{ACCENT_COLOR}}; font-weight: 600; }
+  .exp-dates { font-size: 8.5pt; color: #888; background: #f5f5f5; padding: 1px 7px; border-radius: 8px; }
+  .exp-body ul { margin: 4px 0 0 14px; }
+  .exp-body ul li { font-size: 9.5pt; color: #333; margin-bottom: 2px; line-height: 1.5; }
+  .edu-entry { margin-bottom: 10px; }
+  .edu-top { display: flex; justify-content: space-between; }
+  .edu-degree { font-size: 10.5pt; font-weight: 800; color: #000; }
+  .edu-dates { font-size: 8.5pt; color: #888; }
+  .edu-institution { font-size: 10pt; color: {{ACCENT_COLOR}}; font-weight: 600; }
+  .edu-detail { font-size: 9.5pt; color: #555; margin-top: 2px; }
+  .cert-list { list-style: none; margin: 0; display: flex; flex-direction: column; gap: 5px; }
+  .cert-list li { font-size: 9.5pt; color: #222; padding-left: 16px; position: relative; }
+  .cert-list li::before { content: '▪'; color: {{ACCENT_COLOR}}; position: absolute; left: 0; font-size: 12pt; line-height: 0.8; }
+  .proj-entry { margin-bottom: 12px; padding: 10px 14px; border: 1.5px solid {{ACCENT_LIGHT}}; border-left: 4px solid {{ACCENT_COLOR}}; }
+  .proj-title { font-size: 10.5pt; font-weight: 800; color: #000; }
+  .proj-tech { font-size: 8.5pt; color: {{ACCENT_COLOR}}; font-weight: 700; margin-top: 2px; }
+  .proj-desc { font-size: 9.5pt; color: #333; margin-top: 4px; line-height: 1.5; }
+  .ref-entry { margin-bottom: 8px; }
+  .ref-name { font-weight: 800; font-size: 10.5pt; color: #000; }
+  .ref-detail { font-size: 9.5pt; color: #555; }
+  @media print { body {} a { color: inherit !important; } }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>{{FIRST_NAME}} <span>{{LAST_NAME}}</span></h1>
+  <div class="headline">{{HEADLINE}}</div>
+  <div class="contacts">
+    <div class="c-item"><a href="mailto:{{EMAIL}}">{{EMAIL}}</a></div>
+    {{PHONE_CITEM}}
+    {{LOCATION_CITEM}}
+    <div class="c-item"><a href="{{GITHUB_URL}}" target="_blank">GitHub</a></div>
+    <div class="c-item"><a href="{{LINKEDIN_URL}}" target="_blank">LinkedIn</a></div>
+  </div>
+</div>
+<div class="body-wrap">
+{{SECTION_SUMMARY}}
+{{SECTION_SKILLS}}
+{{SECTION_EXPERIENCE}}
+{{SECTION_EDUCATION}}
+{{SECTION_CERTIFICATIONS}}
+{{SECTION_PROJECTS}}
+{{SECTION_REFERENCES}}
+</div>
+</body>
+</html>

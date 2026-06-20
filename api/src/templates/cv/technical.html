@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>CV — {{NAME}}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 10pt;
+    color: #1a1a1a;
+    background: #fff;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 28px 36px;
+    line-height: 1.5;
+  }
+  /* Technical/Dev: monospace aesthetic with subtle code feel */
+  .header { margin-bottom: 22px; padding-bottom: 14px; }
+  .header h1 {
+    font-size: 20pt; font-weight: 700; color: #000;
+    font-family: Arial, sans-serif; letter-spacing: -0.5px; margin-bottom: 3px;
+  }
+  .header .headline {
+    font-size: 10pt; color: {{ACCENT_COLOR}}; margin-bottom: 8px;
+    font-family: 'Courier New', monospace;
+  }
+  .header .headline::before { content: '// '; color: #999; }
+  .header .contacts {
+    font-size: 9pt; color: #555; display: flex; flex-wrap: wrap; gap: 4px 0;
+  }
+  .header .contacts .sep { margin: 0 8px; color: {{ACCENT_COLOR}}; }
+  .header .contacts a { color: #333; text-decoration: none; }
+  .header-rule { border: none; border-top: 2px solid {{ACCENT_COLOR}}; margin-top: 12px; }
+  .section { margin-bottom: 16px; }
+  .section-title {
+    font-size: 9.5pt; font-weight: 700; text-transform: uppercase;
+    color: #fff; background: {{ACCENT_COLOR}};
+    padding: 3px 8px; margin-bottom: 10px; display: inline-block;
+    letter-spacing: 1px;
+  }
+  .summary-text { font-size: 10pt; color: #222; line-height: 1.6; font-family: Arial, sans-serif; }
+  .skill-categories { }
+  .skill-cat { margin-bottom: 6px; display: flex; align-items: flex-start; gap: 8px; }
+  .skill-cat-label { font-size: 9pt; color: {{ACCENT_COLOR}}; width: 100px; min-width: 100px; font-weight: 700; padding-top: 1px; }
+  .skill-cat-items { font-size: 9.5pt; color: #222; line-height: 1.5; font-family: Arial, sans-serif; }
+  .skills-text { font-size: 10pt; color: #222; font-family: Arial, sans-serif; }
+  .exp-entry { margin-bottom: 13px; }
+  .exp-entry:last-child { margin-bottom: 0; }
+  .exp-header { display: flex; justify-content: space-between; margin-bottom: 3px; }
+  .exp-role { font-size: 10pt; font-weight: 700; color: #000; font-family: Arial, sans-serif; }
+  .exp-company { font-size: 9.5pt; color: {{ACCENT_COLOR}}; }
+  .exp-dates { font-size: 9pt; color: #666; font-family: 'Courier New', monospace; }
+  .exp-entry ul { margin: 4px 0 0 0; list-style: none; }
+  .exp-entry ul li { font-size: 9.5pt; color: #222; margin-bottom: 2px; font-family: Arial, sans-serif; }
+  .exp-entry ul li::before { content: '→ '; color: {{ACCENT_COLOR}}; font-weight: 700; }
+  .edu-entry { margin-bottom: 8px; font-family: Arial, sans-serif; }
+  .edu-header { display: flex; justify-content: space-between; }
+  .edu-degree { font-size: 10pt; font-weight: 700; color: #000; }
+  .edu-dates { font-size: 9pt; color: #666; font-family: 'Courier New'; }
+  .edu-institution { font-size: 9.5pt; color: {{ACCENT_COLOR}}; }
+  .cert-list { list-style: none; margin: 0; }
+  .cert-list li { font-size: 9.5pt; color: #222; margin-bottom: 3px; font-family: Arial, sans-serif; }
+  .cert-list li::before { content: '✓ '; color: {{ACCENT_COLOR}}; font-weight: 700; }
+  .proj-entry { margin-bottom: 10px; }
+  .proj-title { font-size: 10pt; font-weight: 700; color: #000; font-family: Arial, sans-serif; }
+  .proj-tech { font-size: 9pt; color: {{ACCENT_COLOR}}; margin-top: 1px; }
+  .proj-desc { font-size: 9.5pt; color: #333; margin-top: 3px; font-family: Arial, sans-serif; line-height: 1.5; }
+  .ref-entry { margin-bottom: 7px; font-family: Arial, sans-serif; }
+  .ref-name { font-weight: 700; font-size: 10pt; }
+  .ref-detail { font-size: 9.5pt; color: #555; }
+  @media print { body { padding: 0; } a { color: #333 !important; } }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>{{NAME}}</h1>
+  <div class="headline">{{HEADLINE}}</div>
+  <div class="contacts">
+    <a href="mailto:{{EMAIL}}">{{EMAIL}}</a>
+    {{PHONE_SEP}}<span class="sep">|</span>{{PHONE}}
+    {{LOCATION_SEP}}<span class="sep">|</span>{{LOCATION}}
+    <span class="sep">|</span><a href="{{GITHUB_URL}}" target="_blank">{{GITHUB_URL}}</a>
+    <span class="sep">|</span><a href="{{LINKEDIN_URL}}" target="_blank">LinkedIn</a>
+  </div>
+  <hr class="header-rule" />
+</div>
+{{SECTION_SUMMARY}}
+{{SECTION_SKILLS}}
+{{SECTION_EXPERIENCE}}
+{{SECTION_EDUCATION}}
+{{SECTION_CERTIFICATIONS}}
+{{SECTION_PROJECTS}}
+{{SECTION_REFERENCES}}
+</body>
+</html>

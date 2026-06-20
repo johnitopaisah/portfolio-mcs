@@ -10,7 +10,8 @@ const VALID_STATUSES = new Set([
   'DRAFT', 'CV_GENERATED', 'READY_TO_APPLY', 'APPLIED',
   'EMAIL_RECEIVED', 'HR_CONTACTED', 'INTERVIEW_INVITE',
   'TECHNICAL_TEST', 'INTERVIEW_SCHEDULED', 'FINAL_INTERVIEW',
-  'OFFER', 'REJECTED', 'NO_RESPONSE', 'ARCHIVED',
+  'OFFER', 'NEGOTIATING', 'ACCEPTED', 'DECLINED_OFFER',
+  'REJECTED', 'NO_RESPONSE', 'WITHDRAWN', 'GHOSTED', 'ARCHIVED',
 ]);
 
 /**
@@ -433,18 +434,66 @@ router.post('/', requireAuth, async (req, res) => {
  *       404:
  *         $ref: '#/components/schemas/Error'
  */
+router.get('/cv-templates', requireAuth, (req, res) => {
+  const { CV_TEMPLATES, COVER_LETTER_TEMPLATES, SECTION_PRESETS, suggestPreset } = require('../services/cvGeneration/templateService');
+  const { jd } = req.query;
+  res.json({
+    cv_templates:            CV_TEMPLATES,
+    cover_letter_templates:  COVER_LETTER_TEMPLATES,
+    section_presets:         SECTION_PRESETS,
+    suggested_preset:        jd ? suggestPreset(jd) : null,
+  });
+});
+
+// ── Profile sections availability ─────────────────────────────
+router.get('/profile-sections-status', requireAuth, async (req, res) => {
+  try {
+    const [expRes, skillsRes, certRes, eduRes, projRes, refsRes, profileRes] = await Promise.all([
+      pool.query('SELECT COUNT(*) AS count FROM experiences'),
+      pool.query('SELECT COUNT(*) AS count FROM skills'),
+      pool.query('SELECT COUNT(*) AS count FROM certifications'),
+      pool.query('SELECT COUNT(*) AS count FROM education'),
+      pool.query("SELECT COUNT(*) AS count FROM projects WHERE published = TRUE"),
+      pool.query('SELECT COUNT(*) AS count FROM referees WHERE visible = TRUE'),
+      pool.query('SELECT name FROM profile LIMIT 1'),
+    ]);
+    res.json({
+      summary:        profileRes.rows.length > 0,
+      skills:         parseInt(skillsRes.rows[0].count) > 0,
+      experience:     parseInt(expRes.rows[0].count) > 0,
+      education:      parseInt(eduRes.rows[0].count) > 0,
+      certifications: parseInt(certRes.rows[0].count) > 0,
+      projects:       parseInt(projRes.rows[0].count) > 0,
+      references:     parseInt(refsRes.rows[0].count) > 0,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
 
-    const [appRes, eventsRes, docsRes] = await Promise.all([
+    const [appRes, eventsRes, docsRes, contactsRes, remindersRes] = await Promise.all([
       pool.query('SELECT * FROM applications WHERE id = $1', [id]),
       pool.query(
-        'SELECT * FROM application_events WHERE application_id = $1 ORDER BY event_date ASC',
+        'SELECT * FROM application_events WHERE application_id = $1 ORDER BY event_date DESC',
         [id]
       ),
       pool.query(
-        'SELECT id, application_id, document_type, content_json, source_html, version, base_cv_version, ai_model, prompt_version, generated_by_ai, created_at FROM application_documents WHERE application_id = $1 ORDER BY created_at DESC',
+        `SELECT id, application_id, document_type, version, base_cv_version, ai_model, generated_by_ai,
+                template_id, color_scheme, accent_color, sections_included, generation_hints, generation_config,
+                created_at
+         FROM application_documents WHERE application_id = $1 ORDER BY created_at DESC`,
+        [id]
+      ),
+      pool.query(
+        'SELECT * FROM application_contacts WHERE application_id = $1 ORDER BY created_at ASC',
+        [id]
+      ),
+      pool.query(
+        'SELECT * FROM application_reminders WHERE application_id = $1 ORDER BY remind_at ASC',
         [id]
       ),
     ]);
@@ -455,6 +504,8 @@ router.get('/:id', requireAuth, async (req, res) => {
       ...appRes.rows[0],
       events:    eventsRes.rows,
       documents: docsRes.rows,
+      contacts:  contactsRes.rows,
+      reminders: remindersRes.rows,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -517,8 +568,9 @@ router.patch('/:id/status', requireAuth, async (req, res) => {
     let updateQuery = 'UPDATE applications SET status = $1, updated_at = NOW()';
     const params    = [status, id];
 
-    if (status === 'APPLIED') {
-      updateQuery += ', applied_at = NOW()';
+    if (status === 'APPLIED') updateQuery += ', applied_at = NOW()';
+    if (['OFFER', 'NEGOTIATING', 'ACCEPTED', 'DECLINED_OFFER', 'REJECTED', 'NO_RESPONSE', 'GHOSTED'].includes(status)) {
+      updateQuery += ', last_response_at = NOW()';
     }
 
     updateQuery += ' WHERE id = $2 RETURNING *';
@@ -632,10 +684,52 @@ router.post('/:id/notes', requireAuth, async (req, res) => {
  */
 router.post('/:id/generate-cv', requireAuth, async (req, res) => {
   try {
-    const { force = false, language = 'en' } = req.body;
+    const {
+      force       = false,
+      language    = 'en',
+      sections    = ['summary', 'skills', 'experience', 'education', 'certifications'],
+      userHints   = '',
+      hintChips   = [],
+      intensity   = 'balanced',
+      templateId  = 'classic',
+      colorScheme = 'colored',
+      accentColor = '#2563EB',
+      fontFamily  = 'inter',
+      fontSize    = '10.5pt',
+      lineDensity = 'normal',
+    } = req.body;
+
     const { generateCv } = require('../workers/cvWorker');
-    const document = await generateCv(parseInt(req.params.id), { force, language });
+    const document = await generateCv(parseInt(req.params.id), {
+      force, language, sections, userHints, hintChips,
+      intensity, templateId, colorScheme, accentColor,
+      fontFamily, fontSize, lineDensity,
+    });
     res.json(document);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/:id/generate-cover-letter', requireAuth, async (req, res) => {
+  try {
+    const {
+      language           = 'en',
+      tone               = 'professional',
+      length             = 'standard',
+      format             = 'modern',
+      userHints          = '',
+      accentColor        = '#2563EB',
+      colorScheme        = 'colored',
+      linkedCvDocumentId = null,
+    } = req.body;
+
+    const coverLetterService = require('../services/cvGeneration/coverLetterService');
+    const result = await coverLetterService.generate(parseInt(req.params.id), {
+      language, tone, length, format, userHints,
+      accentColor, colorScheme, linkedCvDocumentId,
+    });
+    res.json(result.document);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -761,6 +855,142 @@ router.get('/:id/documents/:docId/download', requireAuth, async (req, res) => {
  *       401:
  *         description: Unauthorised
  */
+// ── Document: preview (serves source_html as HTML page) ──────
+router.get('/:id/documents/:docId/preview', requireAuth, async (req, res) => {
+  try {
+    const { id, docId } = req.params;
+    const result = await pool.query(
+      'SELECT source_html FROM application_documents WHERE id = $1 AND application_id = $2',
+      [docId, id]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Document not found' });
+    const html = result.rows[0].source_html;
+    if (!html) return res.status(404).json({ error: 'No preview available — document has no source HTML' });
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.send(html);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Document: delete ──────────────────────────────────────────
+router.delete('/:id/documents/:docId', requireAuth, async (req, res) => {
+  try {
+    const { id, docId } = req.params;
+    const result = await pool.query(
+      'DELETE FROM application_documents WHERE id = $1 AND application_id = $2 RETURNING id, document_type, version',
+      [docId, id]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Document not found' });
+    const doc = result.rows[0];
+    await pool.query(
+      `INSERT INTO application_events (application_id, event_type, description)
+       VALUES ($1, 'STATUS_CHANGED', $2)`,
+      [id, `${doc.document_type} v${doc.version} deleted`]
+    );
+    res.json({ deleted: true, id: Number(docId) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Document: refine with AI (creates new version) ────────────
+router.post('/:id/documents/:docId/refine', requireAuth, async (req, res) => {
+  try {
+    const { id, docId } = req.params;
+    const { refinementHints = '' } = req.body;
+
+    const docRes = await pool.query(
+      'SELECT * FROM application_documents WHERE id = $1 AND application_id = $2',
+      [docId, id]
+    );
+    if (!docRes.rows.length) return res.status(404).json({ error: 'Document not found' });
+    const orig = docRes.rows[0];
+
+    const config      = orig.generation_config || {};
+    const prevHints   = orig.generation_hints  || '';
+    const mergedHints = [prevHints, refinementHints].filter(Boolean).join('\n\nRefinement: ');
+
+    if (orig.document_type === 'CV') {
+      const { generateCv } = require('../workers/cvWorker');
+      const document = await generateCv(parseInt(id), {
+        force:       true,
+        language:    config.language    || 'en',
+        sections:    (orig.sections_included && orig.sections_included.length ? orig.sections_included : config.sections) || ['summary', 'skills', 'experience', 'education', 'certifications'],
+        userHints:   mergedHints,
+        hintChips:   config.hintChips   || [],
+        intensity:   config.intensity   || 'balanced',
+        templateId:  orig.template_id   || config.templateId  || 'classic',
+        colorScheme: orig.color_scheme  || config.colorScheme || 'colored',
+        accentColor: orig.accent_color  || config.accentColor || '#2563EB',
+      });
+      return res.json(document);
+    }
+
+    if (orig.document_type === 'COVER_LETTER') {
+      const coverLetterService = require('../services/cvGeneration/coverLetterService');
+      const { document } = await coverLetterService.generate(parseInt(id), {
+        language:           config.language    || 'en',
+        tone:               config.tone        || 'professional',
+        length:             config.length      || 'standard',
+        format:             orig.template_id   || config.format   || 'modern',
+        userHints:          mergedHints,
+        accentColor:        orig.accent_color  || config.accentColor || '#2563EB',
+        colorScheme:        orig.color_scheme  || config.colorScheme || 'colored',
+        linkedCvDocumentId: config.linkedCvDocumentId || null,
+      });
+      return res.json(document);
+    }
+
+    res.status(400).json({ error: `Unsupported document type: ${orig.document_type}` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Document: reformat (HTML only, returns live preview) ──────
+router.post('/:id/documents/:docId/reformat', requireAuth, async (req, res) => {
+  try {
+    const { id, docId } = req.params;
+    const {
+      templateId  = 'classic',
+      colorScheme = 'colored',
+      accentColor = '#2563EB',
+      fontFamily  = 'inter',
+      fontSize    = '10.5pt',
+      lineDensity = 'normal',
+      sections,
+    } = req.body;
+
+    const docResult = await pool.query(
+      'SELECT content_json, sections_included FROM application_documents WHERE id = $1 AND application_id = $2',
+      [docId, id]
+    );
+    if (!docResult.rows.length) return res.status(404).json({ error: 'Document not found' });
+    const doc = docResult.rows[0];
+    const aiOutput      = doc.content_json    || {};
+    const effectiveSecs = sections || doc.sections_included || ['summary', 'skills', 'experience', 'education', 'certifications'];
+
+    const baseCvService = require('../services/cvGeneration/baseCvService');
+    const { buildCvHtml } = require('../services/cvGeneration/pdfService');
+
+    const activeBaseCv = await baseCvService.getActiveBaseCv();
+    const html = buildCvHtml({
+      aiOutput,
+      baseCv: activeBaseCv.content_json || {},
+      templateId, colorScheme, accentColor, fontFamily, fontSize, lineDensity,
+      sections: effectiveSecs,
+    });
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.send(html);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.delete('/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
@@ -782,4 +1012,308 @@ router.delete('/:id', requireAuth, async (req, res) => {
   }
 });
 
+// ── Events: list + add manually ───────────────────────────────
+router.get('/:id/events', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM application_events WHERE application_id = $1 ORDER BY event_date DESC',
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/:id/events', requireAuth, async (req, res) => {
+  try {
+    const { event_type = 'NOTE', description, event_date } = req.body;
+    if (!description?.trim()) return res.status(400).json({ error: 'description is required' });
+    const result = await pool.query(
+      `INSERT INTO application_events (application_id, event_type, description, event_date)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [req.params.id, event_type, description.trim(), event_date || new Date()]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Contacts ──────────────────────────────────────────────────
+router.get('/:id/contacts', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM application_contacts WHERE application_id = $1 ORDER BY created_at ASC',
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/:id/contacts', requireAuth, async (req, res) => {
+  try {
+    const { name, title, email, linkedin_url, role = 'recruiter', notes } = req.body;
+    if (!name?.trim()) return res.status(400).json({ error: 'name is required' });
+    const result = await pool.query(
+      `INSERT INTO application_contacts (application_id, name, title, email, linkedin_url, role, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [req.params.id, name.trim(), title||null, email||null, linkedin_url||null, role, notes||null]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/:id/contacts/:cid', requireAuth, async (req, res) => {
+  try {
+    const { name, title, email, linkedin_url, role, notes } = req.body;
+    const result = await pool.query(
+      `UPDATE application_contacts SET name=$1,title=$2,email=$3,linkedin_url=$4,role=$5,notes=$6
+       WHERE id=$7 AND application_id=$8 RETURNING *`,
+      [name, title||null, email||null, linkedin_url||null, role||'recruiter', notes||null, req.params.cid, req.params.id]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Contact not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/:id/contacts/:cid', requireAuth, async (req, res) => {
+  try {
+    await pool.query(
+      'DELETE FROM application_contacts WHERE id=$1 AND application_id=$2',
+      [req.params.cid, req.params.id]
+    );
+    res.json({ deleted: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Reminders ─────────────────────────────────────────────────
+router.get('/:id/reminders', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM application_reminders WHERE application_id = $1 ORDER BY remind_at ASC',
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/:id/reminders', requireAuth, async (req, res) => {
+  try {
+    const { title, remind_at, reminder_type = 'custom' } = req.body;
+    if (!title?.trim() || !remind_at) return res.status(400).json({ error: 'title and remind_at are required' });
+    const result = await pool.query(
+      `INSERT INTO application_reminders (application_id, title, remind_at, reminder_type)
+       VALUES ($1,$2,$3,$4) RETURNING *`,
+      [req.params.id, title.trim(), remind_at, reminder_type]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.patch('/:id/reminders/:rid', requireAuth, async (req, res) => {
+  try {
+    const { is_done, title, remind_at } = req.body;
+    const result = await pool.query(
+      `UPDATE application_reminders
+       SET is_done  = COALESCE($1, is_done),
+           title    = COALESCE($2, title),
+           remind_at= COALESCE($3, remind_at)
+       WHERE id=$4 AND application_id=$5 RETURNING *`,
+      [is_done ?? null, title || null, remind_at || null, req.params.rid, req.params.id]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Reminder not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/:id/reminders/:rid', requireAuth, async (req, res) => {
+  try {
+    await pool.query(
+      'DELETE FROM application_reminders WHERE id=$1 AND application_id=$2',
+      [req.params.rid, req.params.id]
+    );
+    res.json({ deleted: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Due reminders (dashboard widget) ─────────────────────────
+router.get('/reminders/due', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT r.*, a.company_name, a.job_title, a.status AS app_status
+       FROM application_reminders r
+       JOIN applications a ON r.application_id = a.id
+       WHERE r.is_done = false AND r.remind_at <= NOW() + INTERVAL '24 hours'
+       ORDER BY r.remind_at ASC
+       LIMIT 20`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Generate CV + Cover Letter together (bundle) ──────────────
+router.post('/:id/generate-bundle', requireAuth, async (req, res) => {
+  try {
+    const appId = parseInt(req.params.id);
+    const {
+      force       = false,
+      language    = 'en',
+      sections    = ['summary', 'skills', 'experience', 'education', 'certifications'],
+      userHints   = '',
+      hintChips   = [],
+      intensity   = 'balanced',
+      templateId  = 'classic',
+      colorScheme = 'colored',
+      accentColor = '#2563EB',
+      fontFamily  = 'inter',
+      fontSize    = '10.5pt',
+      lineDensity = 'normal',
+      tone               = 'professional',
+      clLength           = 'standard',
+      clFormat           = 'modern',
+      generateCl         = true,
+    } = req.body;
+
+    const { generateCv }     = require('../workers/cvWorker');
+    const coverLetterService = require('../services/cvGeneration/coverLetterService');
+
+    // Generate CV first (cover letter can reference it)
+    const cvDoc = await generateCv(appId, {
+      force, language, sections, userHints, hintChips,
+      intensity, templateId, colorScheme, accentColor, fontFamily, fontSize, lineDensity,
+    });
+
+    let clDoc = null;
+    if (generateCl) {
+      const clResult = await coverLetterService.generate(appId, {
+        language, tone, length: clLength, format: clFormat,
+        userHints, accentColor, colorScheme,
+        linkedCvDocumentId: cvDoc.id,
+      });
+      clDoc = clResult.document;
+    }
+
+    res.json({ cv: cvDoc, cover_letter: clDoc });
+  } catch (err) {
+    console.error('[Applications:GenerateBundle]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Mark submitted document ───────────────────────────────────
+router.patch('/:id/submitted-doc', requireAuth, async (req, res) => {
+  try {
+    const { doc_id } = req.body;
+    const result = await pool.query(
+      'UPDATE applications SET submitted_doc_id=$1, updated_at=NOW() WHERE id=$2 RETURNING *',
+      [doc_id || null, req.params.id]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Application not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Interview prep: update checklist item ────────────────────
+router.patch('/:id/interview-prep', requireAuth, async (req, res) => {
+  try {
+    const { interview_prep } = req.body;
+    const result = await pool.query(
+      'UPDATE applications SET interview_prep=$1, updated_at=NOW() WHERE id=$2 RETURNING interview_prep',
+      [JSON.stringify(interview_prep), req.params.id]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Application not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Analytics ─────────────────────────────────────────────────
+router.get('/analytics/funnel', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        status,
+        COUNT(*) AS count,
+        ROUND(AVG(match_score::numeric),1) AS avg_score
+      FROM applications
+      GROUP BY status
+      ORDER BY
+        CASE status
+          WHEN 'DRAFT'              THEN 1
+          WHEN 'CV_GENERATED'       THEN 2
+          WHEN 'READY_TO_APPLY'     THEN 3
+          WHEN 'APPLIED'            THEN 4
+          WHEN 'EMAIL_RECEIVED'     THEN 5
+          WHEN 'HR_CONTACTED'       THEN 6
+          WHEN 'INTERVIEW_INVITE'   THEN 7
+          WHEN 'INTERVIEW_SCHEDULED'THEN 8
+          WHEN 'TECHNICAL_TEST'     THEN 9
+          WHEN 'FINAL_INTERVIEW'    THEN 10
+          WHEN 'OFFER'              THEN 11
+          WHEN 'NEGOTIATING'        THEN 12
+          WHEN 'ACCEPTED'           THEN 13
+          WHEN 'DECLINED_OFFER'     THEN 14
+          WHEN 'REJECTED'           THEN 15
+          WHEN 'NO_RESPONSE'        THEN 16
+          WHEN 'WITHDRAWN'          THEN 17
+          WHEN 'GHOSTED'            THEN 18
+          WHEN 'ARCHIVED'           THEN 19
+          ELSE 20
+        END
+    `);
+
+    const byPlatform = await pool.query(`
+      SELECT
+        COALESCE(source_platform,'unknown') AS platform,
+        COUNT(*) AS total,
+        COUNT(*) FILTER (WHERE status NOT IN ('DRAFT','CV_GENERATED','ARCHIVED')) AS responded,
+        ROUND(AVG(match_score::numeric),1) AS avg_score
+      FROM applications
+      GROUP BY source_platform
+      ORDER BY total DESC
+    `);
+
+    const timings = await pool.query(`
+      SELECT
+        ROUND(AVG(EXTRACT(EPOCH FROM (last_response_at - applied_at))/86400)::numeric,1) AS avg_days_to_response,
+        ROUND(AVG(EXTRACT(EPOCH FROM (NOW() - created_at))/86400)::numeric,1) AS avg_age_days,
+        COUNT(*) FILTER (WHERE applied_at IS NOT NULL) AS applied_count,
+        COUNT(*) FILTER (WHERE last_response_at IS NOT NULL) AS response_count
+      FROM applications
+      WHERE applied_at IS NOT NULL
+    `);
+
+    res.json({
+      by_status:   result.rows,
+      by_platform: byPlatform.rows,
+      timings:     timings.rows[0],
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── CV template registry ──────────────────────────────────────
 module.exports = router;

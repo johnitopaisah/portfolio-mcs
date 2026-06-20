@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>CV — {{NAME}}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 11pt;
+    color: #000;
+    background: #fff;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 24px 32px;
+    line-height: 1.4;
+  }
+  /* ATS Pure: zero graphics, zero color, maximum machine readability */
+  .header { margin-bottom: 16px; }
+  .header h1 { font-size: 18pt; font-weight: 700; color: #000; margin-bottom: 2px; }
+  .header .headline { font-size: 11pt; color: #000; margin-bottom: 6px; }
+  .header .contacts { font-size: 10pt; color: #000; }
+  .header .contacts span { margin: 0 8px; }
+  .section { margin-bottom: 14px; }
+  .section-title {
+    font-size: 11pt; font-weight: 700; text-transform: uppercase;
+    color: #000; border-bottom: 1px solid #000;
+    padding-bottom: 2px; margin-bottom: 8px;
+  }
+  .summary-text { font-size: 11pt; line-height: 1.5; }
+  .skills-text { font-size: 11pt; line-height: 1.5; }
+  .exp-entry { margin-bottom: 10px; }
+  .exp-header { margin-bottom: 2px; }
+  .exp-title { font-size: 11pt; font-weight: 700; }
+  .exp-company-line { font-size: 11pt; color: #000; }
+  .exp-entry ul { margin: 3px 0 0 20px; }
+  .exp-entry ul li { font-size: 11pt; margin-bottom: 2px; line-height: 1.4; }
+  .edu-entry { margin-bottom: 8px; }
+  .edu-degree { font-size: 11pt; font-weight: 700; }
+  .edu-line { font-size: 11pt; }
+  .cert-list, .proj-list, .ref-list { margin: 0 0 0 20px; }
+  .cert-list li, .proj-list li, .ref-list li { font-size: 11pt; margin-bottom: 3px; }
+  .proj-entry { margin-bottom: 8px; }
+  .proj-title { font-size: 11pt; font-weight: 700; }
+  .proj-detail { font-size: 11pt; }
+  @media print { body { padding: 0; } }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>{{NAME}}</h1>
+  <div class="headline">{{HEADLINE}}</div>
+  <div class="contacts">
+    {{EMAIL}}{{PHONE_SEP}}{{PHONE}}{{LOCATION_SEP}}{{LOCATION}}
+    <span>|</span> {{GITHUB_URL}} <span>|</span> {{LINKEDIN_URL}}
+  </div>
+</div>
+{{SECTION_SUMMARY}}
+{{SECTION_SKILLS}}
+{{SECTION_EXPERIENCE}}
+{{SECTION_EDUCATION}}
+{{SECTION_CERTIFICATIONS}}
+{{SECTION_PROJECTS}}
+{{SECTION_REFERENCES}}
+</body>
+</html>

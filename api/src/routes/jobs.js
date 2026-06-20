@@ -413,4 +413,174 @@ router.get('/feedback/summary', requireAuth, async (req, res) => {
   }
 });
 
+// ── Manual job import: parse raw text with AI ─────────────────
+// POST /api/jobs/parse  (no DB write — returns preview JSON)
+router.post('/parse', requireAuth, async (req, res) => {
+  try {
+    const { rawText, sourceUrl } = req.body;
+    if (!rawText || rawText.trim().length < 50) {
+      return res.status(400).json({ error: 'rawText must be at least 50 characters' });
+    }
+
+    const { parseJob } = require('../services/jobParseService');
+
+    // Load active base CV summary for better matching context
+    let baseCvSummary = null;
+    try {
+      const baseCvService = require('../services/cvGeneration/baseCvService');
+      const baseCv = await baseCvService.getActiveBaseCv();
+      const p = baseCv.content_json || {};
+      baseCvSummary = [p.headline, p.bio].filter(Boolean).join(' — ').slice(0, 400) || null;
+    } catch { /* non-fatal */ }
+
+    const parsed = await parseJob(rawText.trim(), { sourceUrl, baseCvSummary });
+    res.json(parsed);
+  } catch (err) {
+    console.error('[Jobs:Parse]', err.message);
+    res.status(500).json({ error: err.message || 'Failed to parse job' });
+  }
+});
+
+// ── Manual job import: save to DB + create application ────────
+// POST /api/jobs/import
+router.post('/import', requireAuth, async (req, res) => {
+  try {
+    const {
+      job: jobData,
+      sourcePlatform,
+      sourceUrl,
+      entryMethod = 'paste',
+      createApplication = true,
+      referralFrom,
+    } = req.body;
+
+    if (!jobData || !jobData.title || !jobData.company_name) {
+      return res.status(400).json({ error: 'job.title and job.company_name are required' });
+    }
+
+    const { detectPlatformFromUrl } = require('../services/jobParseService');
+    const platform = sourcePlatform || detectPlatformFromUrl(sourceUrl) || 'other';
+    const externalId = `manual_${require('crypto').randomUUID()}`;
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const jobRes = await client.query(
+        `INSERT INTO jobs (
+          external_id, company_name, title, location, job_type, description, requirements,
+          salary_min, salary_max, salary_currency, apply_url, source_api, source_url,
+          relevance_score, ai_decision, ai_reasoning, tech_stack, seniority_level,
+          visa_sponsored, is_active, entry_method, raw_text, role_summary, red_flags,
+          required_skills, nice_to_have, soft_skills, certifications_req, languages_required,
+          company_stage, team_size_hint, reporting_to, work_arrangement
+        ) VALUES (
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,TRUE,
+          $20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32
+        ) RETURNING *`,
+        [
+          externalId,
+          jobData.company_name,
+          jobData.title,
+          jobData.location || 'Remote',
+          jobData.job_type || 'full-time',
+          jobData.description_clean || jobData.description || '',
+          jobData.requirements_text || '',
+          jobData.salary_min   || null,
+          jobData.salary_max   || null,
+          jobData.salary_currency || null,
+          jobData.apply_url    || sourceUrl || null,
+          platform,
+          sourceUrl || null,
+          jobData.relevance_score ?? 50,
+          jobData.ai_decision  || 'REVIEW',
+          jobData.ai_reasoning || '',
+          jobData.tech_stack   || [],
+          jobData.seniority_level || 'unclear',
+          jobData.visa_sponsorship ?? null,
+          entryMethod,
+          jobData._rawText     || null,
+          jobData.role_summary || null,
+          jobData.red_flags    || [],
+          jobData.required_skills   || [],
+          jobData.nice_to_have      || [],
+          jobData.soft_skills       || [],
+          jobData.certifications_req|| [],
+          jobData.languages_required|| [],
+          jobData.company_stage     || 'unknown',
+          jobData.team_size_hint    || null,
+          jobData.reporting_to      || null,
+          jobData.work_arrangement  || 'unclear',
+        ]
+      );
+      const job = jobRes.rows[0];
+
+      let application = null;
+      if (createApplication) {
+        const appRes = await client.query(
+          `INSERT INTO applications (
+            job_id, company_name, job_title, job_url, source_platform, source_url,
+            entry_method, match_score, status, matched_skills, missing_skills,
+            strongest_angle, cover_letter_hook, suggested_hints, suggested_sections,
+            referral_from
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'DRAFT',$9,$10,$11,$12,$13,$14,$15)
+          RETURNING *`,
+          [
+            job.id,
+            job.company_name,
+            job.title,
+            job.apply_url,
+            platform,
+            sourceUrl || null,
+            entryMethod,
+            jobData.relevance_score ?? null,
+            jobData.matched_skills    || [],
+            jobData.missing_skills    || [],
+            jobData.strongest_angle   || null,
+            jobData.cover_letter_hook || null,
+            jobData.suggested_hints   || [],
+            jobData.suggested_sections|| [],
+            referralFrom || null,
+          ]
+        );
+        application = appRes.rows[0];
+
+        // Store interview prep if AI provided it
+        if (jobData.tech_stack?.length || jobData.required_skills?.length) {
+          await client.query(
+            `UPDATE applications SET interview_prep = $1 WHERE id = $2`,
+            [
+              JSON.stringify({
+                tech_to_review:    jobData.tech_stack         || [],
+                key_requirements:  jobData.required_skills    || [],
+                checklist:         [],
+                star_prompts:      [],
+                generated_at:      new Date().toISOString(),
+              }),
+              application.id,
+            ]
+          );
+        }
+
+        await client.query(
+          `INSERT INTO application_events (application_id, event_type, description)
+           VALUES ($1, 'APPLICATION_CREATED', $2)`,
+          [application.id, `Application created from ${platform} (manual import)`]
+        );
+      }
+
+      await client.query('COMMIT');
+      res.status(201).json({ job, application });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('[Jobs:Import]', err.message);
+    res.status(500).json({ error: err.message || 'Failed to import job' });
+  }
+});
+
 module.exports = router;

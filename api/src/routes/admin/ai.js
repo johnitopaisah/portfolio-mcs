@@ -492,4 +492,27 @@ router.get('/calibration', async (req, res) => {
   }
 });
 
+// ── Base CV: refresh snapshot from current DB data ────────────
+router.post('/refresh-base-cv', requireAuth, async (req, res) => {
+  try {
+    const baseCvService = require('../../services/cvGeneration/baseCvService');
+    const result = await baseCvService.refreshBaseCv();
+    const c = result.content_json;
+    res.json({
+      version:      result.version,
+      created_at:   result.created_at,
+      section_counts: {
+        experiences:    (c.experiences    || []).length,
+        skills:         (c.skills         || []).length,
+        certifications: (c.certifications || []).length,
+        education:      (c.education      || []).length,
+        projects:       (c.projects       || []).length,
+        references:     (c.references     || []).length,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

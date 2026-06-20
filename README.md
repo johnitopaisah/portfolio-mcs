@@ -348,3 +348,18 @@ See [k8s/README.md](k8s/README.md) for the full guide. Summary:
 ---
 
 Built with Next.js, Node.js, PostgreSQL, and Kubernetes.
+
+
+
+
+
+
+
+################################################
+
+Gmail OAuth token — fixed and verified
+
+Generated a new refresh token via the OAuth 2.0 authorization flow (gmail.readonly scope)
+Updated GMAIL_REFRESH_TOKEN in Infisical project portfolio-mcs-pds-f (env: dev) via the API
+Confirmed the Infisical controller synced it to the portfolio-secrets Kubernetes secret within 60 seconds
+Triggered a manual job — completed in 9 seconds, fetched 1 email, no auth errors
