@@ -74,7 +74,7 @@ export default function CvIdentityPage() {
     } finally { setBuilding(false); }
   }
 
-  function updateIdentityField(key: string, value: string) {
+  function updateIdentityField(key: string, value: unknown) {
     setIdentity(prev => ({ ...prev, [key]: value }));
   }
 
@@ -187,7 +187,7 @@ export default function CvIdentityPage() {
               <input
                 type="email"
                 value={((identity.application_emails as Record<string,string>) || {}).gmail || ''}
-                onChange={e => updateIdentityField('application_emails', JSON.stringify({ ...((identity.application_emails as Record<string,string>) || {}), gmail: e.target.value }))}
+                onChange={e => updateIdentityField('application_emails', { ...((identity.application_emails as Record<string,string>) || {}), gmail: e.target.value })}
                 placeholder="johnitopaisah@gmail.com"
                 className="w-full px-3 py-2 rounded-xl text-sm"
                 style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(168,85,247,0.15)', color: '#FFFFFF', outline: 'none' }}
@@ -198,7 +198,7 @@ export default function CvIdentityPage() {
               <input
                 type="email"
                 value={((identity.application_emails as Record<string,string>) || {}).professional || ''}
-                onChange={e => updateIdentityField('application_emails', JSON.stringify({ ...((identity.application_emails as Record<string,string>) || {}), professional: e.target.value }))}
+                onChange={e => updateIdentityField('application_emails', { ...((identity.application_emails as Record<string,string>) || {}), professional: e.target.value })}
                 placeholder="john@johnisah.com"
                 className="w-full px-3 py-2 rounded-xl text-sm"
                 style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(168,85,247,0.15)', color: '#FFFFFF', outline: 'none' }}
