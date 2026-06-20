@@ -1,6 +1,7 @@
 'use strict';
 
 const pool = require('../../db/client');
+const { resolveCvEmail } = require('./emailResolver');
 
 let _cache = null;
 
@@ -22,7 +23,9 @@ async function getActiveBaseCv() {
 async function refreshBaseCv() {
   const [profileRes, expRes, skillsRes, certRes, eduRes, projectsRes, refereesRes] = await Promise.all([
     pool.query(`
-      SELECT name, headline, bio, email, github_url, linkedin_url, hero_tags
+      SELECT name, headline, bio, email, github_url, linkedin_url, hero_tags,
+             cv_email_primary, cv_email_choice, application_emails,
+             cv_website, cv_phone, cv_location_display
       FROM profile LIMIT 1
     `),
     pool.query(`
@@ -101,9 +104,10 @@ async function refreshBaseCv() {
     name:           p.name,
     headline:       p.headline,
     bio:            p.bio,
-    email:          p.email,
-    phone:          '',
-    location:       '',
+    email:          resolveCvEmail(p),
+    phone:          p.cv_phone           || '',
+    location:       p.cv_location_display || '',
+    website:        p.cv_website         || '',
     github_url:     p.github_url,
     linkedin_url:   p.linkedin_url,
     hero_tags:      p.hero_tags,

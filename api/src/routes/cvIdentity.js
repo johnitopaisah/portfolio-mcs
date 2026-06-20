@@ -3,13 +3,14 @@
 const express         = require('express');
 const pool            = require('../db/client');
 const { requireAuth } = require('../middleware/auth');
+const { resolveCvEmail } = require('../services/cvGeneration/emailResolver');
 
 const router = express.Router();
 
 const CV_FIELDS = [
   'cv_display_name', 'cv_headline', 'cv_website', 'cv_phone',
   'cv_location_display', 'cv_linkedin', 'cv_github',
-  'cv_email_primary', 'cv_email_secondary',
+  'cv_email_primary', 'cv_email_secondary', 'cv_email_choice',
   'cv_contact_fields', 'application_emails',
 ];
 
@@ -59,14 +60,16 @@ router.post('/build-contact-fields', requireAuth, async (_req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT name AS full_name, email, cv_display_name, cv_email_primary, cv_email_secondary,
+              cv_email_choice, application_emails,
               cv_website, cv_phone, cv_linkedin, cv_github, cv_location_display
        FROM profile LIMIT 1`
     );
     if (!rows.length) return res.status(404).json({ error: 'Profile not found' });
     const p = rows[0];
+    const resolvedEmail = resolveCvEmail(p);
 
     const fields = [
-      { field: 'email',    label: 'Email',    value: p.cv_email_primary || p.email || '',  visible: true,  order: 0 },
+      { field: 'email',    label: 'Email',    value: resolvedEmail,               visible: !!resolvedEmail, order: 0 },
       { field: 'website',  label: 'Website',  value: p.cv_website || '',                    visible: !!p.cv_website, order: 1 },
       { field: 'phone',    label: 'Phone',    value: p.cv_phone || '',                      visible: !!p.cv_phone,   order: 2 },
       { field: 'linkedin', label: 'LinkedIn', value: p.cv_linkedin || '',                   visible: !!p.cv_linkedin, order: 3 },
