@@ -50,15 +50,43 @@ BEGIN
   ) THEN
     ALTER TABLE jobs ADD PRIMARY KEY (id);
   END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'job_feedback'::regclass AND contype = 'p'
+  ) THEN
+    ALTER TABLE job_feedback ADD PRIMARY KEY (id);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'jobs_raw'::regclass AND contype = 'p'
+  ) THEN
+    ALTER TABLE jobs_raw ADD PRIMARY KEY (id);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'job_preferences'::regclass AND contype = 'p'
+  ) THEN
+    ALTER TABLE job_preferences ADD PRIMARY KEY (id);
+  END IF;
 END $$;
 
--- jobIngestionService/aiFilteringService rely on ON CONFLICT (external_id)
--- and ON CONFLICT (channel, alert_key) — these never had backing unique
--- indexes in some environments, causing every insert to fail.
+-- jobIngestionService/aiFilteringService/routes rely on ON CONFLICT
+-- targeting these columns — they never had backing unique indexes in
+-- some environments, causing every insert to fail.
+-- Must be a non-partial index: a WHERE-qualified unique index can't be
+-- used as an ON CONFLICT (external_id) arbiter unless the INSERT repeats
+-- the same predicate, which jobIngestionService/aiFilteringService don't.
 CREATE UNIQUE INDEX IF NOT EXISTS jobs_external_id_key
-  ON jobs(external_id) WHERE external_id IS NOT NULL;
+  ON jobs(external_id);
 CREATE UNIQUE INDEX IF NOT EXISTS notification_log_channel_alert_key
   ON notification_log(channel, alert_key);
+CREATE UNIQUE INDEX IF NOT EXISTS jobs_raw_external_id_key
+  ON jobs_raw(external_id);
+CREATE UNIQUE INDEX IF NOT EXISTS job_feedback_job_id_key
+  ON job_feedback(job_id);
 
 -- ── 2. Extend applications table ───────────────────────────────
 ALTER TABLE applications
