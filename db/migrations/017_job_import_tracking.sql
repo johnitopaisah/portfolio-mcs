@@ -19,6 +19,47 @@ ALTER TABLE jobs
   ADD COLUMN IF NOT EXISTS reporting_to        text,
   ADD COLUMN IF NOT EXISTS work_arrangement    text;
 
+-- ── 1b. Safety guards: some environments are missing PKs/unique indexes
+--       that later ON CONFLICT / FK clauses in this migration depend on.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'application_documents'::regclass AND contype = 'p'
+  ) THEN
+    ALTER TABLE application_documents ADD PRIMARY KEY (id);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'applications'::regclass AND contype = 'p'
+  ) THEN
+    ALTER TABLE applications ADD PRIMARY KEY (id);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'referees'::regclass AND contype = 'p'
+  ) THEN
+    ALTER TABLE referees ADD PRIMARY KEY (id);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'jobs'::regclass AND contype = 'p'
+  ) THEN
+    ALTER TABLE jobs ADD PRIMARY KEY (id);
+  END IF;
+END $$;
+
+-- jobIngestionService/aiFilteringService rely on ON CONFLICT (external_id)
+-- and ON CONFLICT (channel, alert_key) — these never had backing unique
+-- indexes in some environments, causing every insert to fail.
+CREATE UNIQUE INDEX IF NOT EXISTS jobs_external_id_key
+  ON jobs(external_id) WHERE external_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS notification_log_channel_alert_key
+  ON notification_log(channel, alert_key);
+
 -- ── 2. Extend applications table ───────────────────────────────
 ALTER TABLE applications
   ADD COLUMN IF NOT EXISTS source_url          text,

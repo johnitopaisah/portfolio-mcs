@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS application_portfolio_items (
 CREATE TABLE IF NOT EXISTS reference_usage (
   id              SERIAL PRIMARY KEY,
   application_id  INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
-  referee_id      INTEGER NOT NULL REFERENCES referees(id)     ON DELETE CASCADE,
+  referee_id      UUID    NOT NULL REFERENCES referees(id)     ON DELETE CASCADE,
   asked_at        TIMESTAMPTZ,
   confirmed_at    TIMESTAMPTZ,
   note            TEXT,
