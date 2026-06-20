@@ -2,7 +2,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { adminApi } from '@/lib/api';
 
-const CATEGORIES = ['follow_up', 'thank_you', 'networking', 'cold_outreach', 'negotiation', 'decline', 'other'];
+const CATEGORIES = [
+  'follow_up', 'thank_you', 'networking', 'cold_outreach', 'negotiation',
+  'decline', 'withdrawal', 'timeline_request', 'rejection_feedback', 'reconnect', 'general', 'other',
+];
 
 type Template = {
   id: number;
@@ -28,17 +31,24 @@ const PLACEHOLDERS = [
 ];
 
 const CAT_COLORS: Record<string, string> = {
-  follow_up:    'rgba(168,85,247,0.15)',
-  thank_you:    'rgba(74,222,128,0.12)',
-  networking:   'rgba(59,130,246,0.15)',
-  cold_outreach:'rgba(234,179,8,0.12)',
-  negotiation:  'rgba(249,115,22,0.12)',
-  decline:      'rgba(239,68,68,0.1)',
-  other:        'rgba(100,116,139,0.12)',
+  follow_up:         'rgba(168,85,247,0.15)',
+  thank_you:         'rgba(74,222,128,0.12)',
+  networking:        'rgba(59,130,246,0.15)',
+  cold_outreach:     'rgba(234,179,8,0.12)',
+  negotiation:       'rgba(249,115,22,0.12)',
+  decline:           'rgba(239,68,68,0.1)',
+  withdrawal:        'rgba(239,68,68,0.1)',
+  timeline_request:  'rgba(59,130,246,0.12)',
+  rejection_feedback:'rgba(239,68,68,0.08)',
+  reconnect:         'rgba(168,85,247,0.12)',
+  general:           'rgba(100,116,139,0.12)',
+  other:             'rgba(100,116,139,0.12)',
 };
 const CAT_TEXT: Record<string, string> = {
   follow_up: '#DDD6FE', thank_you: '#4ade80', networking: '#60a5fa',
-  cold_outreach: '#fbbf24', negotiation: '#fb923c', decline: '#f87171', other: 'rgba(255,255,255,0.65)',
+  cold_outreach: '#fbbf24', negotiation: '#fb923c', decline: '#f87171',
+  withdrawal: '#f87171', timeline_request: '#60a5fa', rejection_feedback: '#fca5a5',
+  reconnect: '#c4b5fd', general: 'rgba(255,255,255,0.65)', other: 'rgba(255,255,255,0.65)',
 };
 
 export default function EmailTemplatesPage() {

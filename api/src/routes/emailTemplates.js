@@ -7,13 +7,15 @@ const { generateDraft }   = require('../services/emailDraftService');
 
 const router = express.Router();
 
+const SEL = `id, name, category, subject_template AS subject, body_template AS body, is_system, created_at, updated_at`;
+
 // GET /api/email-templates
 router.get('/', requireAuth, async (req, res, next) => {
   try {
     const cat = req.query.category;
     const q   = cat
-      ? pool.query('SELECT * FROM email_templates WHERE category=$1 ORDER BY is_system DESC, name', [cat])
-      : pool.query('SELECT * FROM email_templates ORDER BY is_system DESC, category, name');
+      ? pool.query(`SELECT ${SEL} FROM email_templates WHERE category=$1 ORDER BY is_system DESC, name`, [cat])
+      : pool.query(`SELECT ${SEL} FROM email_templates ORDER BY is_system DESC, category, name`);
     const { rows } = await q;
     res.json(rows);
   } catch (err) { next(err); }
@@ -22,7 +24,7 @@ router.get('/', requireAuth, async (req, res, next) => {
 // GET /api/email-templates/:id
 router.get('/:id', requireAuth, async (req, res, next) => {
   try {
-    const { rows } = await pool.query('SELECT * FROM email_templates WHERE id=$1', [req.params.id]);
+    const { rows } = await pool.query(`SELECT ${SEL} FROM email_templates WHERE id=$1`, [req.params.id]);
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
     res.json(rows[0]);
   } catch (err) { next(err); }
@@ -30,15 +32,15 @@ router.get('/:id', requireAuth, async (req, res, next) => {
 
 // POST /api/email-templates  (user-created only)
 router.post('/', requireAuth, async (req, res, next) => {
-  const { name, category, subject_template, body_template } = req.body;
-  if (!name || !body_template) {
-    return res.status(400).json({ error: 'name and body_template required' });
+  const { name, category, subject, body } = req.body;
+  if (!name || !body) {
+    return res.status(400).json({ error: 'name and body required' });
   }
   try {
     const { rows } = await pool.query(
       `INSERT INTO email_templates (name, category, subject_template, body_template)
-       VALUES ($1,$2,$3,$4) RETURNING *`,
-      [name, category || 'general', subject_template || '', body_template]
+       VALUES ($1,$2,$3,$4) RETURNING ${SEL}`,
+      [name, category || 'general', subject || '', body]
     );
     res.status(201).json(rows[0]);
   } catch (err) { next(err); }
@@ -46,20 +48,20 @@ router.post('/', requireAuth, async (req, res, next) => {
 
 // PUT /api/email-templates/:id
 router.put('/:id', requireAuth, async (req, res, next) => {
-  const { name, category, subject_template, body_template } = req.body;
+  const { name, category, subject, body } = req.body;
   try {
     const { rows: existing } = await pool.query(
       'SELECT is_system FROM email_templates WHERE id=$1', [req.params.id]
     );
     if (!existing.length) return res.status(404).json({ error: 'Not found' });
-    if (existing[0].is_system && (subject_template !== undefined || body_template !== undefined)) {
+    if (existing[0].is_system && (subject !== undefined || body !== undefined)) {
       return res.status(403).json({ error: 'System templates cannot be edited — duplicate first' });
     }
     const { rows } = await pool.query(
       `UPDATE email_templates
        SET name=$1, category=$2, subject_template=$3, body_template=$4, updated_at=NOW()
-       WHERE id=$5 RETURNING *`,
-      [name, category || 'general', subject_template || '', body_template, req.params.id]
+       WHERE id=$5 RETURNING ${SEL}`,
+      [name, category || 'general', subject || '', body, req.params.id]
     );
     res.json(rows[0]);
   } catch (err) { next(err); }
@@ -86,7 +88,7 @@ router.post('/:id/duplicate', requireAuth, async (req, res, next) => {
     const s = src[0];
     const { rows } = await pool.query(
       `INSERT INTO email_templates (name, category, subject_template, body_template)
-       VALUES ($1,$2,$3,$4) RETURNING *`,
+       VALUES ($1,$2,$3,$4) RETURNING ${SEL}`,
       [`${s.name} (copy)`, s.category, s.subject_template, s.body_template]
     );
     res.status(201).json(rows[0]);
