@@ -15,27 +15,36 @@ function fmtDate(d) {
 function buildContactVariants(profile) {
   const phone    = profile.phone    || '';
   const location = profile.location || '';
+  const website  = profile.website  || '';
+  const websiteDisplay = website.replace(/^https?:\/\//, '').replace(/\/$/, '');
   return {
     // inline item with separator for classic/wallstreet/harvard
     PHONE_ITEM:    phone    ? `<span>${phone}</span>`    : '',
     LOCATION_ITEM: location ? `<span>${location}</span>` : '',
+    WEBSITE_ITEM:  website  ? `<span><a href="${website}" target="_blank">${websiteDisplay}</a></span>` : '',
     // raw text for ats-pure
     PHONE:         phone,
     LOCATION:      location,
+    WEBSITE:       websiteDisplay,
     PHONE_SEP:     phone    ? '' : '<!---->',
     LOCATION_SEP:  location ? '' : '<!---->',
+    WEBSITE_SEP:   website  ? '' : '<!---->',
     // chip for startup
     PHONE_CHIP:    phone    ? `<span class="contact-chip">${phone}</span>` : '',
     LOCATION_CHIP: location ? `<span class="contact-chip">${location}</span>` : '',
+    WEBSITE_CHIP:  website  ? `<span class="contact-chip"><a href="${website}" target="_blank">${websiteDisplay}</a></span>` : '',
     // sidebar item
     PHONE_SIDEBAR:    phone    ? `<div class="contact-item">${phone}</div>` : '',
     LOCATION_SIDEBAR: location ? `<div class="contact-item">${location}</div>` : '',
+    WEBSITE_SIDEBAR:  website  ? `<div class="contact-item"><a href="${website}" target="_blank">${websiteDisplay}</a></div>` : '',
     // creative c-item
     PHONE_CITEM:    phone    ? `<div class="c-item">${phone}</div>` : '',
     LOCATION_CITEM: location ? `<div class="c-item">${location}</div>` : '',
+    WEBSITE_CITEM:  website  ? `<div class="c-item"><a href="${website}" target="_blank">${websiteDisplay}</a></div>` : '',
     // europass row
     PHONE_EP_ROW:    phone    ? `<div class="ep-row"><div class="ep-label">Phone</div><div class="ep-value">${phone}</div></div>` : '',
     LOCATION_EP_ROW: location ? `<div class="ep-row"><div class="ep-label">Location</div><div class="ep-value">${location}</div></div>` : '',
+    WEBSITE_EP_ROW:  website  ? `<div class="ep-row"><div class="ep-label">Website</div><div class="ep-value"><a href="${website}" target="_blank">${websiteDisplay}</a></div></div>` : '',
     // name split for creative
     FIRST_NAME: (profile.name || '').split(' ')[0] || '',
     LAST_NAME:  (profile.name || '').split(' ').slice(1).join(' ') || '',
@@ -360,6 +369,7 @@ function buildCvHtml({
     email:        baseCv.email        || baseCvJson.email        || '',
     phone:        baseCv.phone        || baseCvJson.phone        || '',
     location:     baseCv.location     || baseCvJson.location     || '',
+    website:      baseCv.website      || baseCvJson.website      || '',
     github_url:   baseCv.github_url   || baseCvJson.github_url   || '',
     linkedin_url: baseCv.linkedin_url || baseCvJson.linkedin_url || '',
   };

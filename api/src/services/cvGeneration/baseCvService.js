@@ -24,6 +24,7 @@ async function refreshBaseCv() {
   const [profileRes, expRes, skillsRes, certRes, eduRes, projectsRes, refereesRes] = await Promise.all([
     pool.query(`
       SELECT name, headline, bio, email, github_url, linkedin_url, hero_tags,
+             cv_display_name, cv_headline,
              cv_email_primary, cv_email_choice, application_emails,
              cv_website, cv_phone, cv_location_display
       FROM profile LIMIT 1
@@ -101,8 +102,8 @@ async function refreshBaseCv() {
   const p = profileRes.rows[0] || {};
 
   const contentJson = {
-    name:           p.name,
-    headline:       p.headline,
+    name:           p.cv_display_name || p.name,
+    headline:       p.cv_headline     || p.headline,
     bio:            p.bio,
     email:          resolveCvEmail(p),
     phone:          p.cv_phone           || '',
