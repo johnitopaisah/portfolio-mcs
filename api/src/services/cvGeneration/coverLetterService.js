@@ -48,6 +48,9 @@ async function renderCoverLetterPdf({ clOutput, profile, app, templateId = 'mode
   const headline  = profile.headline    || '';
   const email     = profile.email       || '';
   const phone     = profile.phone       || '';
+  const location  = profile.location    || '';
+  const website   = profile.website     || '';
+  const websiteDisplay = website.replace(/^https?:\/\//, '').replace(/\/$/, '');
   const github    = profile.github_url  || '';
   const linkedin  = profile.linkedin_url|| '';
 
@@ -55,7 +58,9 @@ async function renderCoverLetterPdf({ clOutput, profile, app, templateId = 'mode
     ? `<div class="ps-line"><strong>P.S.</strong> ${clOutput.ps_line}</div>`
     : '';
 
-  const phoneItem = phone ? `<span class="contact-item">${phone}</span>` : '';
+  const phoneItem   = phone    ? `<span class="contact-item">${phone}</span>` : '';
+  const locationItem = location ? `<span class="contact-item">${location}</span>` : '';
+  const websiteItem = website  ? `<span class="contact-item"><a href="${website}" target="_blank">${websiteDisplay}</a></span>` : '';
 
   html = html
     .replaceAll('{{NAME}}',         name)
@@ -64,7 +69,8 @@ async function renderCoverLetterPdf({ clOutput, profile, app, templateId = 'mode
     .replaceAll('{{GITHUB_URL}}',   github)
     .replaceAll('{{LINKEDIN_URL}}', linkedin)
     .replaceAll('{{PHONE_ITEM}}',   phoneItem)
-    .replaceAll('{{LOCATION_ITEM}}','')
+    .replaceAll('{{LOCATION_ITEM}}',locationItem)
+    .replaceAll('{{WEBSITE_ITEM}}', websiteItem)
     .replaceAll('{{COMPANY_NAME}}', app.company_name || '')
     .replaceAll('{{ROLE_TITLE}}',   app.job_title    || '')
     .replaceAll('{{SUBJECT_LINE}}', clOutput.subject_line   || '')
