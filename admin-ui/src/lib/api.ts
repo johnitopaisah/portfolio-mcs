@@ -307,10 +307,14 @@ export const adminApi = {
   },
 
   // Email tracking
-  getEmailResponses: (page = 1, limit = 50) =>
-    request(`/api/applications/email-responses?page=${page}&limit=${limit}`),
+  getEmailResponses: (filters: Record<string, string | number | boolean | undefined> = {}) => {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([k, v]) => { if (v !== undefined && v !== '') params.set(k, String(v)); });
+    return request(`/api/applications/email-responses?${params.toString()}`);
+  },
   getAppEmailResponses: (applicationId: number | string) =>
     request(`/api/applications/email-responses?application_id=${applicationId}&limit=20`),
+  getEmailSyncStatus: () => request('/api/applications/email-sync-status'),
   linkEmailResponse: (id: number, application_id: number) =>
     request(`/api/applications/email-responses/${id}/link`, {
       method: 'PATCH',
@@ -320,6 +324,11 @@ export const adminApi = {
     request(`/api/applications/email-responses/${id}/reclassify`, {
       method: 'PATCH',
       body: JSON.stringify({ classification }),
+    }),
+  submitEmailFeedback: (id: number, correct: boolean) =>
+    request(`/api/applications/email-responses/${id}/feedback`, {
+      method: 'PATCH',
+      body: JSON.stringify({ correct }),
     }),
   getJob: (id: string) => request(`/api/jobs/${id}`),
 

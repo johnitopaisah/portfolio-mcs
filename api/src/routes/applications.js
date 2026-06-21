@@ -1,8 +1,9 @@
 'use strict';
 
-const express         = require('express');
-const pool            = require('../db/client');
-const { requireAuth } = require('../middleware/auth');
+const express              = require('express');
+const pool                 = require('../db/client');
+const { requireAuth }      = require('../middleware/auth');
+const emailSyncLogService  = require('../services/emailTracking/emailSyncLogService');
 
 const router = express.Router();
 
@@ -112,7 +113,12 @@ router.get('/cv-library', requireAuth, async (req, res) => {
  */
 router.get('/email-responses', requireAuth, async (req, res) => {
   try {
-    const { page = 1, limit = 50, application_id } = req.query;
+    const {
+      page = 1, limit = 50, application_id,
+      source_account, classification, matched,
+      confidence_min, confidence_max,
+      search, date_from, date_to, domain,
+    } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
     const conditions = [];
@@ -122,25 +128,60 @@ router.get('/email-responses', requireAuth, async (req, res) => {
       params.push(parseInt(application_id));
       conditions.push(`er.application_id = $${params.length}`);
     }
+    if (source_account) {
+      params.push(source_account);
+      conditions.push(`er.source_account = $${params.length}`);
+    }
+    if (classification) {
+      const list = String(classification).split(',').filter(Boolean);
+      if (list.length) {
+        params.push(list);
+        conditions.push(`er.ai_classification = ANY($${params.length})`);
+      }
+    }
+    if (matched === 'true')  conditions.push('er.application_id IS NOT NULL');
+    if (matched === 'false') conditions.push('er.application_id IS NULL');
+    if (confidence_min !== undefined) {
+      params.push(parseFloat(confidence_min));
+      conditions.push(`er.confidence_score >= $${params.length}`);
+    }
+    if (confidence_max !== undefined) {
+      params.push(parseFloat(confidence_max));
+      conditions.push(`er.confidence_score <= $${params.length}`);
+    }
+    if (search) {
+      params.push(`%${search}%`);
+      conditions.push(`(er.subject ILIKE $${params.length} OR er.sender_email ILIKE $${params.length} OR er.body_snippet ILIKE $${params.length})`);
+    }
+    if (date_from) {
+      params.push(date_from);
+      conditions.push(`er.received_at >= $${params.length}`);
+    }
+    if (date_to) {
+      params.push(date_to);
+      conditions.push(`er.received_at <= $${params.length}`);
+    }
+    if (domain) {
+      params.push(`%@${domain}`);
+      conditions.push(`er.sender_email ILIKE $${params.length}`);
+    }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    params.push(parseInt(limit), offset);
+    const listParams = [...params, parseInt(limit), offset];
     const result = await pool.query(
       `SELECT er.*, a.company_name, a.job_title
        FROM email_responses er
        LEFT JOIN applications a ON er.application_id = a.id
        ${where}
        ORDER BY er.received_at DESC
-       LIMIT $${params.length - 1} OFFSET $${params.length}`,
-      params
+       LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
+      listParams
     );
 
-    const countParams = application_id ? [parseInt(application_id)] : [];
-    const countWhere  = application_id ? 'WHERE application_id = $1' : '';
     const countRes = await pool.query(
-      `SELECT COUNT(*) FROM email_responses ${countWhere}`,
-      countParams
+      `SELECT COUNT(*) FROM email_responses er ${where}`,
+      params
     );
 
     res.json({
@@ -149,6 +190,17 @@ router.get('/email-responses', requireAuth, async (req, res) => {
       page:   parseInt(page),
       limit:  parseInt(limit),
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/applications/email-sync-status
+// Latest sync result per mailbox — powers the dashboard health badge.
+router.get('/email-sync-status', requireAuth, async (req, res) => {
+  try {
+    const rows = await emailSyncLogService.getLatestStatusBySource();
+    res.json({ sources: rows });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -247,9 +299,29 @@ router.patch('/email-responses/:id/reclassify', requireAuth, async (req, res) =>
     const valid = ['INTERVIEW_INVITE', 'REJECTION', 'TECHNICAL_TEST', 'OFFER', 'FOLLOW_UP_NEEDED', 'GENERAL_RESPONSE', 'UNKNOWN'];
     if (!valid.includes(classification)) return res.status(400).json({ error: 'Invalid classification' });
     const result = await pool.query(
-      'UPDATE email_responses SET ai_classification = $1 WHERE id = $2 RETURNING *',
+      `UPDATE email_responses
+       SET ai_classification = $1, reviewed_correct = FALSE, corrected_classification = $1
+       WHERE id = $2 RETURNING *`,
       [classification, req.params.id]
     );
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/applications/email-responses/:id/feedback
+// Thumbs-up/down on whether the AI's classification was correct, without
+// changing it — distinct from /reclassify, which corrects the value itself.
+router.patch('/email-responses/:id/feedback', requireAuth, async (req, res) => {
+  try {
+    const { correct } = req.body;
+    if (typeof correct !== 'boolean') return res.status(400).json({ error: 'correct must be true or false' });
+    const result = await pool.query(
+      'UPDATE email_responses SET reviewed_correct = $1 WHERE id = $2 RETURNING *',
+      [correct, req.params.id]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Not found' });
     res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
