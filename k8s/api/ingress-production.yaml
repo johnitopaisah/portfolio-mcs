@@ -26,11 +26,23 @@ spec:
   tls:
     - hosts:
         - johnisah.com
+        - www.johnisah.com
         - api.johnisah.com
         - admin.johnisah.com
       secretName: portfolio-tls
   rules:
     - host: johnisah.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: portfolio-user-ui
+                port:
+                  number: 3000
+
+    - host: www.johnisah.com
       http:
         paths:
           - path: /
