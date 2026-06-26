@@ -1,4 +1,9 @@
 import { Node, mergeAttributes } from '@tiptap/core';
+import Paragraph from '@tiptap/extension-paragraph';
+import Heading from '@tiptap/extension-heading';
+import ListItem from '@tiptap/extension-list-item';
+import BulletList from '@tiptap/extension-bullet-list';
+import OrderedList from '@tiptap/extension-ordered-list';
 
 // The CV/cover-letter templates are built almost entirely from
 // <div class="..."> (sections, headers, contact blocks) and
@@ -50,5 +55,49 @@ export const PassthroughSpan = Node.create({
   },
   renderHTML({ HTMLAttributes }) {
     return ['span', mergeAttributes(HTMLAttributes), 0];
+  },
+});
+
+// StarterKit's stock Paragraph/Heading/ListItem nodes don't preserve
+// class/style attributes either — same root cause as the div/span
+// issue above, just on recognized node types instead of unrecognized
+// ones. Every template resets all default spacing to zero
+// (* { margin: 0; padding: 0; }) and relies entirely on classes like
+// .cl-para (margin-bottom: 16px) for paragraph spacing — once the
+// class drops during parsing, that spacing silently disappears even
+// though the <p> tags themselves survive, producing paragraphs that
+// are structurally separate but visually run together.
+const classAndStyleAttrs = {
+  class: { default: null },
+  style: { default: null },
+};
+
+export const ClassParagraph = Paragraph.extend({
+  addAttributes() {
+    return { ...this.parent?.(), ...classAndStyleAttrs };
+  },
+});
+
+export const ClassHeading = Heading.extend({
+  addAttributes() {
+    return { ...this.parent?.(), ...classAndStyleAttrs };
+  },
+});
+
+export const ClassListItem = ListItem.extend({
+  addAttributes() {
+    return { ...this.parent?.(), ...classAndStyleAttrs };
+  },
+});
+
+export const ClassBulletList = BulletList.extend({
+  addAttributes() {
+    return { ...this.parent?.(), ...classAndStyleAttrs };
+  },
+});
+
+export const ClassOrderedList = OrderedList.extend({
+  addAttributes() {
+    return { ...this.parent?.(), ...classAndStyleAttrs };
   },
 });

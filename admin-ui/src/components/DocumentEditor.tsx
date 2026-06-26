@@ -5,7 +5,11 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { TextStyleKit } from '@tiptap/extension-text-style';
 import Underline from '@tiptap/extension-underline';
-import { PassthroughDiv, PassthroughSpan } from '@/lib/tiptapPassthrough';
+import TextAlign from '@tiptap/extension-text-align';
+import {
+  PassthroughDiv, PassthroughSpan,
+  ClassParagraph, ClassHeading, ClassListItem, ClassBulletList, ClassOrderedList,
+} from '@/lib/tiptapPassthrough';
 import { adminApi } from '@/lib/api';
 
 interface DocumentEditorProps {
@@ -50,7 +54,15 @@ export default function DocumentEditor({
   const [shrinkError,    setShrinkError]    = useState<string | null>(null);
 
   const editor = useEditor({
-    extensions: [StarterKit, TextStyleKit, Underline, PassthroughDiv, PassthroughSpan],
+    extensions: [
+      StarterKit.configure({
+        paragraph: false, heading: false, listItem: false, bulletList: false, orderedList: false,
+      }),
+      ClassParagraph, ClassHeading, ClassListItem, ClassBulletList, ClassOrderedList,
+      TextStyleKit, Underline,
+      TextAlign.configure({ types: ['paragraph', 'heading', 'passthroughDiv'] }),
+      PassthroughDiv, PassthroughSpan,
+    ],
     content: '',
     immediatelyRender: false,
     onUpdate: () => scheduleAutosave(),
@@ -244,6 +256,17 @@ export default function DocumentEditor({
           className={btnClass(!!editor?.isActive('italic'))} title="Italic"><i>I</i></button>
         <button onClick={() => editor?.chain().focus().toggleUnderline().run()}
           className={btnClass(!!editor?.isActive('underline'))} title="Underline"><u>U</u></button>
+
+        <div className="w-px h-5 bg-gray-700 mx-1" />
+
+        <button onClick={() => editor?.chain().focus().setTextAlign('left').run()}
+          className={btnClass(!!editor?.isActive({ textAlign: 'left' }))} title="Align left">⫷</button>
+        <button onClick={() => editor?.chain().focus().setTextAlign('center').run()}
+          className={btnClass(!!editor?.isActive({ textAlign: 'center' }))} title="Align center">≡</button>
+        <button onClick={() => editor?.chain().focus().setTextAlign('right').run()}
+          className={btnClass(!!editor?.isActive({ textAlign: 'right' }))} title="Align right">⫸</button>
+        <button onClick={() => editor?.chain().focus().setTextAlign('justify').run()}
+          className={btnClass(!!editor?.isActive({ textAlign: 'justify' }))} title="Justify">☰</button>
 
         <div className="w-px h-5 bg-gray-700 mx-1" />
 
