@@ -4,6 +4,8 @@ const express              = require('express');
 const pool                 = require('../db/client');
 const { requireAuth }      = require('../middleware/auth');
 const emailSyncLogService  = require('../services/emailTracking/emailSyncLogService');
+const { renderHtmlToPdf }  = require('../services/cvGeneration/pdfService');
+const { sanitizeEditedHtml, checkAtsRisks } = require('../services/cvGeneration/manualEditService');
 
 const router = express.Router();
 
@@ -556,7 +558,7 @@ router.get('/:id', requireAuth, async (req, res) => {
       pool.query(
         `SELECT id, application_id, document_type, version, base_cv_version, ai_model, generated_by_ai,
                 template_id, color_scheme, accent_color, sections_included, generation_hints, generation_config,
-                created_at
+                created_at, is_manually_edited, edited_at
          FROM application_documents WHERE application_id = $1 ORDER BY created_at DESC`,
         [id]
       ),
@@ -967,11 +969,131 @@ router.delete('/:id/documents/:docId', requireAuth, async (req, res) => {
   }
 });
 
+// ── Document: manual edit — explicit save (sanitize, re-print PDF,
+//    freeze from further AI/cosmetic regeneration) ────────────
+router.patch('/:id/documents/:docId/content', requireAuth, async (req, res) => {
+  try {
+    const { id, docId } = req.params;
+    const { html } = req.body;
+    if (typeof html !== 'string' || !html.trim()) {
+      return res.status(400).json({ error: 'html is required' });
+    }
+
+    const exists = await pool.query(
+      'SELECT id FROM application_documents WHERE id = $1 AND application_id = $2',
+      [docId, id]
+    );
+    if (!exists.rows.length) return res.status(404).json({ error: 'Document not found' });
+
+    const appRes = await pool.query('SELECT matched_skills FROM applications WHERE id = $1', [id]);
+    const matchedSkills = appRes.rows[0]?.matched_skills || [];
+
+    const safeHtml = sanitizeEditedHtml(html);
+    const warnings = checkAtsRisks(safeHtml, matchedSkills);
+    const pdfBuffer = await renderHtmlToPdf(safeHtml);
+
+    const result = await pool.query(
+      `UPDATE application_documents
+       SET source_html = $1, file_data = $2, is_manually_edited = TRUE, edited_at = NOW()
+       WHERE id = $3 RETURNING id, document_type, version, is_manually_edited, edited_at`,
+      [safeHtml, pdfBuffer, docId]
+    );
+
+    await pool.query(
+      `INSERT INTO application_events (application_id, event_type, description)
+       VALUES ($1, 'STATUS_CHANGED', $2)`,
+      [id, `${result.rows[0].document_type} v${result.rows[0].version} manually edited`]
+    );
+
+    res.json({ ...result.rows[0], warnings });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Document: manual edit — autosave (lightweight, no PDF re-print) ──
+router.patch('/:id/documents/:docId/autosave', requireAuth, async (req, res) => {
+  try {
+    const { id, docId } = req.params;
+    const { html } = req.body;
+    if (typeof html !== 'string') return res.status(400).json({ error: 'html is required' });
+
+    const safeHtml = sanitizeEditedHtml(html);
+    const result = await pool.query(
+      `UPDATE application_documents
+       SET source_html = $1, last_autosaved_at = NOW()
+       WHERE id = $2 AND application_id = $3 RETURNING id, last_autosaved_at`,
+      [safeHtml, docId, id]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Document not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Document: AI-shorten one or more text blocks (whole-document
+//    "Shrink to fit" or single-paragraph "Shorten this") ───────
+// Stateless — does not touch the DB. The frontend applies the
+// shortened text into the editor and the user still explicitly
+// Saves/autosaves afterward, same as any other manual edit.
+router.post('/:id/documents/:docId/shrink-text', requireAuth, async (req, res) => {
+  try {
+    const { blocks, intensity = 'light' } = req.body;
+    if (!Array.isArray(blocks) || blocks.length === 0) {
+      return res.status(400).json({ error: 'blocks (non-empty array) is required' });
+    }
+    if (!['light', 'aggressive'].includes(intensity)) {
+      return res.status(400).json({ error: 'intensity must be "light" or "aggressive"' });
+    }
+    const documentShrinkService = require('../services/cvGeneration/documentShrinkService');
+    const result = await documentShrinkService.shrinkBlocks(blocks, intensity);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Document: AI-original HTML for "compare to AI version" ─────
+router.get('/:id/documents/:docId/ai-original', requireAuth, async (req, res) => {
+  try {
+    const { id, docId } = req.params;
+    const docRes = await pool.query(
+      'SELECT content_json, sections_included, template_id, color_scheme, accent_color, document_type FROM application_documents WHERE id = $1 AND application_id = $2',
+      [docId, id]
+    );
+    if (!docRes.rows.length) return res.status(404).json({ error: 'Document not found' });
+    const doc = docRes.rows[0];
+    if (doc.document_type !== 'CV') {
+      return res.status(400).json({ error: 'Compare-to-AI view is only available for CVs' });
+    }
+
+    const baseCvService = require('../services/cvGeneration/baseCvService');
+    const { buildCvHtml } = require('../services/cvGeneration/pdfService');
+    const activeBaseCv = await baseCvService.getActiveBaseCv();
+
+    const html = buildCvHtml({
+      aiOutput:    doc.content_json || {},
+      baseCv:      activeBaseCv.content_json || {},
+      templateId:  doc.template_id  || 'classic',
+      colorScheme: doc.color_scheme || 'colored',
+      accentColor: doc.accent_color || '#2563EB',
+      sections:    doc.sections_included || ['summary', 'skills', 'experience', 'education', 'certifications'],
+    });
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.send(html);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Document: refine with AI (creates new version) ────────────
 router.post('/:id/documents/:docId/refine', requireAuth, async (req, res) => {
   try {
     const { id, docId } = req.params;
-    const { refinementHints = '' } = req.body;
+    const { refinementHints = '', discardEdits = false } = req.body;
 
     const docRes = await pool.query(
       'SELECT * FROM application_documents WHERE id = $1 AND application_id = $2',
@@ -979,6 +1101,13 @@ router.post('/:id/documents/:docId/refine', requireAuth, async (req, res) => {
     );
     if (!docRes.rows.length) return res.status(404).json({ error: 'Document not found' });
     const orig = docRes.rows[0];
+
+    if (orig.is_manually_edited && !discardEdits) {
+      return res.status(409).json({
+        error: 'This version has manual edits. Refining creates a new version starting from the original AI draft — your edits here will not carry forward.',
+        requiresConfirmation: true,
+      });
+    }
 
     const config      = orig.generation_config || {};
     const prevHints   = orig.generation_hints  || '';

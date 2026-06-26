@@ -192,6 +192,16 @@ export const adminApi = {
   refreshBaseCv: () =>
     request('/api/admin/ai/refresh-base-cv', { method: 'POST' }),
 
+  getDocumentSourceHtml: async (appId: number | string, docId: number): Promise<string> => {
+    const token = getToken();
+    const res = await fetch(
+      `${getApiBase()}/api/applications/${appId}/documents/${docId}/preview`,
+      { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.text();
+  },
+
   reformatDocument: async (
     appId: number | string,
     docId: number,
@@ -278,11 +288,41 @@ export const adminApi = {
     return URL.createObjectURL(blob);
   },
 
-  refineDocument: (appId: number | string, docId: number, refinementHints: string) =>
+  refineDocument: (appId: number | string, docId: number, refinementHints: string, discardEdits = false) =>
     request(`/api/applications/${appId}/documents/${docId}/refine`, {
       method: 'POST',
-      body: JSON.stringify({ refinementHints }),
+      body: JSON.stringify({ refinementHints, discardEdits }),
     }),
+
+  saveDocumentEdit: (appId: number | string, docId: number, html: string) =>
+    request(`/api/applications/${appId}/documents/${docId}/content`, {
+      method: 'PATCH',
+      body: JSON.stringify({ html }),
+    }),
+
+  autosaveDocumentEdit: (appId: number | string, docId: number, html: string) =>
+    request(`/api/applications/${appId}/documents/${docId}/autosave`, {
+      method: 'PATCH',
+      body: JSON.stringify({ html }),
+    }),
+
+  shrinkText: (appId: number | string, docId: number, blocks: string[], intensity: 'light' | 'aggressive' = 'light'): Promise<{ blocks: string[] }> =>
+    request(`/api/applications/${appId}/documents/${docId}/shrink-text`, {
+      method: 'POST',
+      body: JSON.stringify({ blocks, intensity }),
+    }),
+
+  getAiOriginalDocument: async (appId: number | string, docId: number): Promise<string> => {
+    const token = getToken();
+    const res = await fetch(
+      `${getApiBase()}/api/applications/${appId}/documents/${docId}/ai-original`,
+      { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const html = await res.text();
+    const blob = new Blob([html], { type: 'text/html' });
+    return URL.createObjectURL(blob);
+  },
 
   downloadCvDocument: async (appId: number | string, docId: number, filename: string): Promise<void> => {
     const token = getToken();

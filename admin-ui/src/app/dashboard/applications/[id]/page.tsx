@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { adminApi } from '@/lib/api';
+import DocumentEditor from '@/components/DocumentEditor';
 
 // ── Types ────────────────────────────────────────────────────
 interface AppEvent {
@@ -26,6 +27,8 @@ interface AppDocument {
   generation_hints: string | null;
   generation_config: Record<string, unknown> | null;
   created_at: string;
+  is_manually_edited?: boolean;
+  edited_at?: string | null;
 }
 
 interface AppEmailResponse {
@@ -463,14 +466,21 @@ function measureIframeHeight(blobUrl: string): Promise<number> {
   });
 }
 
-function GenerationDrawer({ job, appId, latestCvDocId, onGenerate, generating, onClose }: {
+function GenerationDrawer({ job, appId, latestCvDocId, latestCvDoc, onGenerate, generating, onClose }: {
   job: Job | null;
   appId: string;
   latestCvDocId: number | null;
+  latestCvDoc: AppDocument | null;
   onGenerate: (config: GenerationConfig) => void;
   generating: boolean;
   onClose: () => void;
 }) {
+  const [editMode,        setEditMode]        = useState(false);
+  const [editInitialHtml, setEditInitialHtml] = useState<string | null>(null);
+  const [isManuallyEdited, setIsManuallyEdited] = useState(!!latestCvDoc?.is_manually_edited);
+  const [showCompare,     setShowCompare]     = useState(false);
+  const [compareUrl,      setCompareUrl]      = useState<string | null>(null);
+  const [editPageCount,   setEditPageCount]   = useState<number | null>(null);
   const [tab,           setTab]          = useState<'template' | 'sections' | 'ai'>('template');
   const [templates,     setTemplates]    = useState<CvTemplate[]>([]);
   const [presets,       setPresets]      = useState<Record<string, SectionPreset>>({});
@@ -531,9 +541,11 @@ function GenerationDrawer({ job, appId, latestCvDocId, onGenerate, generating, o
     return () => ro.disconnect();
   }, []);
 
-  // Debounced live preview on cosmetic setting changes
+  // Debounced live preview on cosmetic setting changes — skipped while in
+  // Edit mode or once manually edited, since those cosmetic pickers would
+  // otherwise silently swap the preview away from the saved manual edit.
   useEffect(() => {
-    if (!latestCvDocId) return;
+    if (!latestCvDocId || editMode || isManuallyEdited) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       setPreviewLoading(true);
@@ -549,9 +561,16 @@ function GenerationDrawer({ job, appId, latestCvDocId, onGenerate, generating, o
     }, 600);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [templateId, colorScheme, accentColor, fontFamily, fontSize, lineDensity, sections, latestCvDocId, appId]);
+  }, [templateId, colorScheme, accentColor, fontFamily, fontSize, lineDensity, sections, latestCvDocId, appId, editMode, isManuallyEdited]);
 
   useEffect(() => () => { if (latestBlobUrl.current) URL.revokeObjectURL(latestBlobUrl.current); }, []);
+
+  // Keep isManuallyEdited in sync with the latest document prop (e.g. a
+  // fresh "Generate" creates a brand-new, not-yet-edited version).
+  useEffect(() => {
+    setIsManuallyEdited(!!latestCvDoc?.is_manually_edited);
+    setEditMode(false);
+  }, [latestCvDoc?.id, latestCvDoc?.is_manually_edited]);
 
   function handleIframeLoad() {
     try {
@@ -605,6 +624,47 @@ function GenerationDrawer({ job, appId, latestCvDocId, onGenerate, generating, o
     setSections(prev => prev.includes(key) ? prev.filter(s => s !== key) : [...prev, key]);
   const toggleChip = (chip: string) =>
     setChips(prev => prev.includes(chip) ? prev.filter(c => c !== chip) : [...prev, chip]);
+
+  async function enterEditMode() {
+    if (!latestCvDocId) return;
+    try {
+      const html = await adminApi.getDocumentSourceHtml(appId, latestCvDocId);
+      setEditInitialHtml(html);
+      setEditMode(true);
+      setShowCompare(false);
+    } catch { /* silent — preview just won't open */ }
+  }
+
+  function handleEditCancel() {
+    setEditMode(false);
+    setEditInitialHtml(null);
+  }
+
+  function handleEditSaved() {
+    setIsManuallyEdited(true);
+    setEditMode(false);
+    setEditInitialHtml(null);
+    // Re-fetch the (now edited) document as the read-only preview
+    if (latestCvDocId) {
+      adminApi.getDocumentSourceHtml(appId, latestCvDocId).then(html => {
+        const blob = new Blob([html], { type: 'text/html' });
+        if (latestBlobUrl.current) URL.revokeObjectURL(latestBlobUrl.current);
+        const url = URL.createObjectURL(blob);
+        latestBlobUrl.current = url;
+        setPreviewUrl(url);
+      }).catch(() => {});
+    }
+  }
+
+  async function toggleCompare() {
+    if (showCompare) { setShowCompare(false); return; }
+    if (!latestCvDocId) return;
+    try {
+      const url = await adminApi.getAiOriginalDocument(appId, latestCvDocId);
+      setCompareUrl(url);
+      setShowCompare(true);
+    } catch { /* silent */ }
+  }
 
   const selectedTmpl = templates.find(t => t.id === templateId);
   const scaledH = Math.round(1123 * previewScale);
@@ -943,12 +1003,26 @@ function GenerationDrawer({ job, appId, latestCvDocId, onGenerate, generating, o
 
         {/* ── Right: Live A4 Preview ── */}
         <div className="flex-1 flex flex-col bg-gray-900 overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-800 flex items-center gap-3 shrink-0 bg-gray-950">
+          <div className="px-5 py-3 border-b border-gray-800 flex items-center gap-3 shrink-0 bg-gray-950 flex-wrap">
             <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Live Preview</span>
-            {latestCvDocId && <span className="text-[10px] text-gray-600">Auto-updates 0.6s after changes</span>}
+            {latestCvDocId && !editMode && !isManuallyEdited && <span className="text-[10px] text-gray-600">Auto-updates 0.6s after changes</span>}
+            {isManuallyEdited && !editMode && (
+              <span className="text-[10px] px-2 py-0.5 rounded-md bg-yellow-950/40 text-yellow-400 border border-yellow-800/40">
+                Manually edited — auto-regeneration disabled for this version
+              </span>
+            )}
             <div className="flex-1" />
-            {previewLoading && <div className="w-3.5 h-3.5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />}
-            {pageCount !== null && !previewLoading && (
+            {editMode && editPageCount !== null && (
+              <span className={`text-xs font-bold px-2.5 py-1 rounded-lg border ${
+                editPageCount > 1.05
+                  ? 'bg-red-900/40 text-red-300 border-red-800/40'
+                  : 'bg-green-900/40 text-green-300 border-green-800/40'
+              }`}>
+                {editPageCount > 1.05 ? `Page ~${editPageCount.toFixed(1)} — overflowing` : '✓ Fits 1 page'}
+              </span>
+            )}
+            {!editMode && previewLoading && <div className="w-3.5 h-3.5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />}
+            {!editMode && pageCount !== null && !previewLoading && (
               <span className={`text-xs font-bold px-2.5 py-1 rounded-lg border ${
                 pageCount > 1.05
                   ? 'bg-red-900/40 text-red-300 border-red-800/40'
@@ -957,14 +1031,51 @@ function GenerationDrawer({ job, appId, latestCvDocId, onGenerate, generating, o
                 {pageCount > 1.05 ? `~${pageCount.toFixed(1)} pages` : '✓ Fits 1 page'}
               </span>
             )}
-            {latestCvDocId && pageCount !== null && pageCount > 1.05 && (
+            {!editMode && latestCvDocId && pageCount !== null && pageCount > 1.05 && !isManuallyEdited && (
               <button onClick={fitToOnePage} disabled={fittingPage || previewLoading}
                 className="px-3 py-1.5 text-xs rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold disabled:opacity-50 transition-colors flex items-center gap-1.5">
                 {fittingPage ? <><div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />Fitting…</> : 'Fit to 1 page'}
               </button>
             )}
+            {!editMode && latestCvDocId && (
+              <button onClick={toggleCompare}
+                className="px-3 py-1.5 text-xs rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 transition-colors">
+                {showCompare ? 'Hide AI original' : 'Compare to AI version'}
+              </button>
+            )}
+            {!editMode && latestCvDocId && (
+              <button onClick={enterEditMode}
+                className="px-3 py-1.5 text-xs rounded-lg bg-purple-700 hover:bg-purple-600 text-white font-bold transition-colors">
+                ✎ Edit
+              </button>
+            )}
           </div>
 
+          {editMode && editInitialHtml ? (
+            <div className="flex-1 overflow-auto py-6 px-4">
+              <DocumentEditor
+                appId={appId}
+                docId={latestCvDocId as number}
+                initialHtml={editInitialHtml}
+                onSaved={() => handleEditSaved()}
+                onCancel={handleEditCancel}
+                onPageMetrics={setEditPageCount}
+              />
+            </div>
+          ) : showCompare && compareUrl ? (
+            <div className="flex-1 overflow-auto py-8 px-4 flex gap-4 items-start justify-center">
+              <div className="flex flex-col gap-2 items-center">
+                <span className="text-[10px] text-gray-500 uppercase tracking-wider">Your version</span>
+                <iframe src={previewUrl ?? undefined} sandbox="allow-same-origin"
+                  style={{ width: '397px', height: '561px', border: 0, transformOrigin: 'top left', transform: 'scale(0.5)', background: 'white', boxShadow: '0 4px 32px rgba(0,0,0,0.4)' }} />
+              </div>
+              <div className="flex flex-col gap-2 items-center">
+                <span className="text-[10px] text-gray-500 uppercase tracking-wider">Original AI draft</span>
+                <iframe src={compareUrl} sandbox="allow-same-origin"
+                  style={{ width: '397px', height: '561px', border: 0, transformOrigin: 'top left', transform: 'scale(0.5)', background: 'white', boxShadow: '0 4px 32px rgba(0,0,0,0.4)' }} />
+              </div>
+            </div>
+          ) : (
           <div ref={previewPanelRef} className="flex-1 overflow-auto py-8 px-4 flex flex-col items-center">
             {!latestCvDocId ? (
               <div className="flex flex-col items-center justify-center flex-1 text-center max-w-xs">
@@ -999,6 +1110,7 @@ function GenerationDrawer({ job, appId, latestCvDocId, onGenerate, generating, o
               </div>
             )}
           </div>
+          )}
         </div>
       </div>
     </div>
@@ -1258,6 +1370,68 @@ function PreviewModal({ appId, doc, onClose }: { appId: string; doc: AppDocument
   );
 }
 
+// ── Edit Document Modal ────────────────────────────────────────
+function EditDocumentModal({ appId, doc, onClose, onSaved }: {
+  appId: string; doc: AppDocument; onClose: () => void; onSaved: () => void;
+}) {
+  const [html,    setHtml]    = useState<string | null>(null);
+  const [error,   setError]   = useState<string | null>(null);
+  const [pages,   setPages]   = useState<number | null>(null);
+
+  useEffect(() => {
+    adminApi.getDocumentSourceHtml(appId, doc.id)
+      .then(setHtml)
+      .catch((e: Error) => setError(e.message));
+  }, [appId, doc.id]);
+
+  const docLabel = doc.document_type === 'CV' ? `CV v${doc.version}` : `Cover Letter v${doc.version}`;
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col bg-gray-950/98 backdrop-blur-sm">
+      <div className="flex items-center justify-between px-6 py-3 border-b border-gray-800 shrink-0">
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-bold px-2.5 py-1 rounded-md bg-purple-900/50 text-purple-200 border border-purple-700">
+            Editing {docLabel}
+          </span>
+          {pages !== null && (
+            <span className={`text-xs font-bold px-2.5 py-1 rounded-lg border ${
+              pages > 1.05 ? 'bg-red-900/40 text-red-300 border-red-800/40' : 'bg-green-900/40 text-green-300 border-green-800/40'
+            }`}>
+              {pages > 1.05 ? `Page ~${pages.toFixed(1)} — overflowing` : '✓ Fits 1 page'}
+            </span>
+          )}
+        </div>
+        <button onClick={onClose}
+          className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-white hover:bg-gray-800 transition-colors">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-auto bg-gray-900 py-6 px-4">
+        {error && <div className="flex items-center justify-center h-full text-red-400 text-sm">{error}</div>}
+        {!error && !html && (
+          <div className="flex items-center justify-center h-full gap-3 text-gray-400">
+            <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+            Loading document…
+          </div>
+        )}
+        {html && (
+          <DocumentEditor
+            appId={appId}
+            docId={doc.id}
+            initialHtml={html}
+            onCancel={onClose}
+            onSaved={onSaved}
+            onPageMetrics={setPages}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Refine Modal ──────────────────────────────────────────────
 function RefineModal({ appId, doc, onDone, onClose }: {
   appId: string;
@@ -1277,7 +1451,7 @@ function RefineModal({ appId, doc, onDone, onClose }: {
     setLoading(true);
     setError(null);
     try {
-      await adminApi.refineDocument(appId, doc.id, hints.trim());
+      await adminApi.refineDocument(appId, doc.id, hints.trim(), !!doc.is_manually_edited);
       onDone();
     } catch (e: any) {
       setError(e.message || 'Refinement failed');
@@ -1296,6 +1470,11 @@ function RefineModal({ appId, doc, onDone, onClose }: {
         </div>
 
         <div className="px-6 py-4 space-y-3">
+          {doc.is_manually_edited && (
+            <div className="p-3 rounded-lg bg-yellow-950/30 border border-yellow-800/40 text-xs text-yellow-400">
+              ⚠ This version has manual edits. The refined version starts fresh from the original AI draft — your manual edits here will not carry forward.
+            </div>
+          )}
           <label className="label-xs mb-2 block">What should the AI change?</label>
           <textarea
             ref={textareaRef}
@@ -1339,7 +1518,7 @@ function DocCard({ doc, appId, appName, onAction }: {
   doc: AppDocument;
   appId: string;
   appName: string;
-  onAction: (action: 'preview' | 'refine' | 'delete', doc: AppDocument) => void;
+  onAction: (action: 'preview' | 'refine' | 'edit' | 'delete', doc: AppDocument) => void;
 }) {
   const isCv = doc.document_type === 'CV';
   const sects = doc.sections_included || [];
@@ -1404,6 +1583,18 @@ function DocCard({ doc, appId, appName, onAction }: {
             Refine
           </button>
 
+          <button onClick={() => onAction('edit', doc)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition-colors font-medium ${
+              doc.is_manually_edited
+                ? 'bg-purple-900/50 text-purple-200 border-purple-700 hover:bg-purple-900/70'
+                : 'bg-purple-900/30 hover:bg-purple-900/60 text-purple-300 hover:text-purple-200 border-purple-800/50 hover:border-purple-700'
+            }`}>
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            {doc.is_manually_edited ? 'Edited' : 'Edit'}
+          </button>
+
           <button
             onClick={() => adminApi.downloadCvDocument(
               appId, doc.id,
@@ -1453,6 +1644,7 @@ export default function ApplicationDetailPage() {
 
   const [previewDoc,  setPreviewDoc]  = useState<AppDocument | null>(null);
   const [refineDoc,   setRefineDoc]   = useState<AppDocument | null>(null);
+  const [editDoc,     setEditDoc]     = useState<AppDocument | null>(null);
   const [deleteConfirmDoc, setDeleteConfirmDoc] = useState<AppDocument | null>(null);
   const [deleteLoading,    setDeleteLoading]    = useState(false);
 
@@ -1673,9 +1865,10 @@ export default function ApplicationDetailPage() {
     }
   }
 
-  function handleDocAction(action: 'preview' | 'refine' | 'delete', doc: AppDocument) {
+  function handleDocAction(action: 'preview' | 'refine' | 'edit' | 'delete', doc: AppDocument) {
     if (action === 'preview') setPreviewDoc(doc);
     if (action === 'refine')  setRefineDoc(doc);
+    if (action === 'edit')    setEditDoc(doc);
     if (action === 'delete')  setDeleteConfirmDoc(doc);
   }
 
@@ -1797,6 +1990,7 @@ export default function ApplicationDetailPage() {
           job={job}
           appId={id}
           latestCvDocId={cvDocs[0]?.id ?? null}
+          latestCvDoc={cvDocs[0] ?? null}
           onGenerate={handleGenerateCv}
           generating={generating && lastGenType === 'cv'}
           onClose={() => setShowCvDrawer(false)}
@@ -1823,6 +2017,14 @@ export default function ApplicationDetailPage() {
           doc={refineDoc}
           onClose={() => setRefineDoc(null)}
           onDone={async () => { setRefineDoc(null); await fetchApp(); }}
+        />
+      )}
+      {editDoc && (
+        <EditDocumentModal
+          appId={id}
+          doc={editDoc}
+          onClose={() => setEditDoc(null)}
+          onSaved={async () => { setEditDoc(null); await fetchApp(); }}
         />
       )}
       {deleteConfirmDoc && (

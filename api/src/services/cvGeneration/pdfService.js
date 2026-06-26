@@ -438,23 +438,10 @@ function buildCvHtml({
   return html;
 }
 
-// ── PDF generator ─────────────────────────────────────────────
-async function generate({
-  applicationId,
-  version,
-  aiOutput,
-  baseCv      = {},
-  language    = 'en',
-  templateId  = 'classic',
-  colorScheme = 'colored',
-  accentColor = '#2563EB',
-  fontFamily  = 'inter',
-  fontSize    = '10.5pt',
-  lineDensity = 'normal',
-  sections    = ['summary', 'skills', 'experience', 'education', 'certifications'],
-}) {
-  const html = buildCvHtml({ aiOutput, baseCv, templateId, colorScheme, accentColor, fontFamily, fontSize, lineDensity, sections });
-
+// ── Reusable HTML → PDF printer ─────────────────────────────────
+// Decoupled from buildCvHtml so manually-edited HTML (which doesn't
+// go through AI token substitution) can be printed the same way.
+async function renderHtmlToPdf(html) {
   const browser = await puppeteer.launch({
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser',
     args: [
@@ -474,7 +461,27 @@ async function generate({
   });
   await browser.close();
 
+  return pdfBuffer;
+}
+
+// ── PDF generator ─────────────────────────────────────────────
+async function generate({
+  applicationId,
+  version,
+  aiOutput,
+  baseCv      = {},
+  language    = 'en',
+  templateId  = 'classic',
+  colorScheme = 'colored',
+  accentColor = '#2563EB',
+  fontFamily  = 'inter',
+  fontSize    = '10.5pt',
+  lineDensity = 'normal',
+  sections    = ['summary', 'skills', 'experience', 'education', 'certifications'],
+}) {
+  const html = buildCvHtml({ aiOutput, baseCv, templateId, colorScheme, accentColor, fontFamily, fontSize, lineDensity, sections });
+  const pdfBuffer = await renderHtmlToPdf(html);
   return { pdfBuffer, sourceHtml: html };
 }
 
-module.exports = { generate, buildCvHtml };
+module.exports = { generate, buildCvHtml, renderHtmlToPdf };
