@@ -1,6 +1,43 @@
 'use strict';
 const sanitizeHtml = require('sanitize-html');
 
+// Decodes Cloudflare's "Email Address Obfuscation" (Scrape Shield)
+// encoding — a simple XOR cipher: the first hex byte is the key, every
+// subsequent byte pair XORed with it recovers one character. If this
+// feature is enabled on the zone, Cloudflare rewrites real mailto
+// links in HTTP responses passing through its proxy into this form
+// before they reach the browser. Since the manual editor fetches
+// document HTML via fetch() and parses it directly (never running
+// Cloudflare's injected decoder script), an edited-and-saved document
+// would otherwise permanently bake in the obfuscated placeholder
+// instead of the real email — this reverses it before anything else
+// touches the HTML, regardless of whether the zone setting is on.
+function decodeCloudflareEmailObfuscation(hex) {
+  const key = parseInt(hex.substring(0, 2), 16);
+  let out = '';
+  for (let i = 2; i < hex.length; i += 2) {
+    out += String.fromCharCode(parseInt(hex.substring(i, i + 2), 16) ^ key);
+  }
+  return out;
+}
+
+function undoCloudflareEmailObfuscation(html) {
+  // Link-wrapped form: <a href="/cdn-cgi/l/email-protection#HEX">...<span class="__cf_email__">...</span>...</a>
+  html = html.replace(
+    /<a[^>]*href="\/cdn-cgi\/l\/email-protection#([0-9a-f]+)"[^>]*>(?:[^<]|<(?!\/a>))*<\/a>/gi,
+    (_match, hex) => {
+      const email = decodeCloudflareEmailObfuscation(hex);
+      return `<a href="mailto:${email}">${email}</a>`;
+    }
+  );
+  // Bare-span form (no wrapping link): <span class="__cf_email__" data-cfemail="HEX">...</span>
+  html = html.replace(
+    /<span class="__cf_email__" data-cfemail="([0-9a-f]+)">[^<]*<\/span>/gi,
+    (_match, hex) => decodeCloudflareEmailObfuscation(hex)
+  );
+  return html;
+}
+
 // Allow-list scoped to formatting only — manually-edited HTML is later
 // re-rendered in an iframe and printed via headless Chrome, so anything
 // beyond inline text formatting (scripts, event handlers, iframes,
@@ -44,7 +81,8 @@ function sanitizeEditedHtml(html) {
   // call bypasses the normal client flow — script tags are never
   // legitimately needed in our own template heads (style/link/meta only).
   const head = headMatch ? headMatch[1].replace(/<script[\s\S]*?<\/script>/gi, '') : '';
-  const body = bodyMatch ? bodyMatch[1] : html;
+  const rawBody = bodyMatch ? bodyMatch[1] : html;
+  const body = undoCloudflareEmailObfuscation(rawBody);
   const safeBody = sanitizeHtml(body, SANITIZE_OPTIONS);
   return `<!DOCTYPE html><html><head>${head}</head><body>${safeBody}</body></html>`;
 }
