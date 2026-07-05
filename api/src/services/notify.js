@@ -977,8 +977,46 @@ async function sendContactRequestConsentReminder({ refereeEmail, refereeName, re
   console.log(`[notify] Consent reminder ${reminderNumber} sent to referee: ${refereeEmail}`);
 }
 
+async function sendBlogSyncStaleReminder({ daysSinceLastSync }) {
+  if (!process.env.NOTIFY_EMAIL_USER || !process.env.NOTIFY_EMAIL_PASS) {
+    console.warn('[notify] Email env vars not set — skipping blog staleness reminder');
+    return;
+  }
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <div style="background: #7c3aed; padding: 24px 32px; border-radius: 12px 12px 0 0;">
+        <h2 style="color: #ffffff; margin: 0; font-size: 20px;">Portfolio Notifications</h2>
+        <p style="color: #c4b5fd; margin: 6px 0 0; font-size: 14px;">Blog sync reminder</p>
+      </div>
+      <div style="background: #18181b; padding: 32px; border: 1px solid #27272a; border-top: none;">
+        <p style="color: #a1a1aa; font-size: 14px; line-height: 1.6; margin: 0;">
+          It's been <strong style="color: #f4f4f5;">${daysSinceLastSync} days</strong> since your blog was last
+          synced from Medium. Open the admin dashboard and click "Sync Now" on the Blog page to pull in any new posts.
+        </p>
+      </div>
+      <div style="background: #09090b; padding: 16px 32px; border: 1px solid #27272a;
+                  border-top: none; border-radius: 0 0 12px 12px; text-align: center;">
+        <p style="color: #3f3f46; font-size: 12px; margin: 0;">
+          Portfolio Notifications · johnisah.com
+        </p>
+      </div>
+    </div>`;
+
+  await createTransport().sendMail({
+    from:    `"Portfolio Notifications" <${process.env.NOTIFY_EMAIL_USER}>`,
+    to:      process.env.NOTIFY_EMAIL_TO || process.env.NOTIFY_EMAIL_USER,
+    subject: '[Portfolio] Blog hasn\'t been synced in a while',
+    html,
+    text: `It's been ${daysSinceLastSync} days since your blog was last synced from Medium. Open the admin dashboard and click "Sync Now" on the Blog page.`,
+  });
+
+  console.log('[notify] Blog staleness reminder sent');
+}
+
 module.exports = {
   notify,
+  sendBlogSyncStaleReminder,
   sendPasswordResetEmail,
   notifyRefereeEvent,
   notifyModificationRequest,

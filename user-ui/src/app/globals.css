@@ -7,6 +7,26 @@
   75%, 100%  { transform: scale(2.8); opacity: 0; }
 }
 
+@keyframes blog-marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+.blog-marquee-track {
+  animation: blog-marquee linear infinite;
+}
+
+.blog-marquee-wrapper:hover .blog-marquee-track,
+.blog-marquee-wrapper:focus-within .blog-marquee-track {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blog-marquee-track {
+    animation: none;
+  }
+}
+
 /* ═══════════════════════════════════════════════
    THEME VARIABLES
    Default (dark): rich purple gradient.

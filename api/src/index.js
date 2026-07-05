@@ -12,6 +12,7 @@ const metricsMiddleware = require('./metricsMiddleware');
 const { startDailyDigest }           = require('./services/visitorDigest');
 const { startDailyJobDigest }        = require('./services/jobIngestion/notificationService');
 const { startConsentReminderWorker } = require('./workers/consentReminderWorker');
+const { startBlogStalenessWorker }   = require('./workers/blogStalenessWorker');
 const { runAllRules, captureWeeklySnapshot } = require('./services/automationService');
 
 const { errorHandler } = require('./middleware/errorHandler');
@@ -113,10 +114,12 @@ app.use('/api/experiences',    require('./routes/experiences'));
 app.use('/api/certifications', require('./routes/certifications'));
 app.use('/api/contact',        require('./routes/contact'));
 app.use('/api/social-links',   require('./routes/socialLinks'));
+app.use('/api/blog',           require('./routes/blog'));
 app.use('/api/visitors',       require('./routes/visitors'));
 app.use('/api/jobs',           require('./routes/jobs'));
-app.use('/api/admin/jobs',     require('./routes/admin/jobs'));
-app.use('/api/admin/ai',      require('./routes/admin/ai'));
+app.use('/api/admin/jobs',      require('./routes/admin/jobs'));
+app.use('/api/admin/ai',       require('./routes/admin/ai'));
+app.use('/api/admin/linkedin', require('./routes/linkedin'));
 app.use('/api/applications', require('./routes/applications'));
 app.use('/api/education',             require('./routes/education'));
 app.use('/api/referees',                  require('./routes/referees'));
@@ -152,6 +155,9 @@ app.listen(PORT, () => {
 
   // Consent reminder worker — checks every 24h for overdue consent requests
   startConsentReminderWorker();
+
+  // Blog staleness reminder — checks every 24h, emails if Sync Now hasn't run in 14+ days
+  startBlogStalenessWorker();
 
   // Automation rules — run every hour
   setInterval(() => {

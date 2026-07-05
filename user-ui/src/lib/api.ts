@@ -37,6 +37,7 @@ export const api = {
   getSocialLinks:    () => get('/api/social-links'),
   getEducation:      () => get('/api/education'),
   getReferies:       () => get('/api/referees'),
+  getBlogPosts:      () => get('/api/blog'),
 
   // Binary asset URLs — relative paths, proxied through middleware (same-origin).
   // Never cross-origin from the browser's perspective.

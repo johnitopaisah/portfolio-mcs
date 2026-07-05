@@ -419,6 +419,21 @@ export const adminApi = {
   deleteSocialLink: (id: string) =>
     request(`/api/social-links/${id}`, { method: 'DELETE' }),
 
+  // Blog
+  getBlogPosts: () => request('/api/blog/all'),
+  syncBlog: () => request('/api/blog/sync', { method: 'POST' }),
+  updateBlogPost: (id: string, data: Record<string, unknown>) =>
+    request(`/api/blog/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+
+  // LinkedIn
+  getLinkedInStatus: () => request('/api/admin/linkedin/status'),
+  getLinkedInAuthUrl: () => request('/api/admin/linkedin/auth'),
+  disconnectLinkedIn: () => request('/api/admin/linkedin/disconnect', { method: 'DELETE' }),
+  shareToLinkedIn: (id: string, caption: string) =>
+    request(`/api/admin/linkedin/share/${id}`, { method: 'POST', body: JSON.stringify({ caption }) }),
+  deleteLinkedInShare: (id: string) =>
+    request(`/api/admin/linkedin/share/${id}`, { method: 'DELETE' }),
+
   // Messages
   getMessages: () => request('/api/contact'),
   markRead: (id: string) => request(`/api/contact/${id}/read`, { method: 'PATCH' }),

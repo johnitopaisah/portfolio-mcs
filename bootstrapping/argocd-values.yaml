@@ -1,0 +1,19 @@
+# global:
+#  domain: ${ARGO_DOMAIN}
+
+applicationSet:
+  enabled: true
+
+server:
+  service:
+    type: ClusterIP
+    ports:
+      http: 80
+      https: 443
+
+redis:
+  enabled: true
+
+configs:
+  params:
+    server.insecure: true

@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd-server
+  namespace: argocd
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod 
+#   traefik.ingress.kubernetes.io/service.serversscheme: https
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - argocd-deploy.johnisah.com
+      secretName: argocd-tls-secret
+  rules:
+    - host: argocd-deploy.johnisah.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: argocd-deploy-server
+                port:
+                  number: 80

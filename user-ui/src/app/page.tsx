@@ -8,11 +8,12 @@ import EducationSection from '@/components/EducationSection';
 import CertificationsSection from '@/components/CertificationsSection';
 import RefereesSection from '@/components/RefereesSection';
 import ContactSection from '@/components/ContactSection';
+import BlogTeaserSection from '@/components/BlogTeaserSection';
 
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
-  const [profile, projects, skills, experiences, education, certifications, referees, socialLinks] = await Promise.all([
+  const [profile, projects, skills, experiences, education, certifications, referees, socialLinks, blogPosts] = await Promise.all([
     api.getProfile().catch(() => null),
     api.getProjects().catch(() => []),
     api.getSkills().catch(() => []),
@@ -21,6 +22,7 @@ export default async function HomePage() {
     api.getCertifications().catch(() => []),
     api.getReferies().catch(() => []),
     api.getSocialLinks().catch(() => []),
+    api.getBlogPosts().catch(() => []),
   ]);
 
   return (
@@ -28,6 +30,12 @@ export default async function HomePage() {
       <Navbar availabilityStatus={profile?.availability_status} />
       <main>
         <HeroSection profile={profile} certifications={certifications} />
+
+        <BlogTeaserSection
+          posts={blogPosts}
+          authorName={profile?.name}
+          authorAvatarUrl={profile ? api.avatarUrl : undefined}
+        />
 
         <ProjectsSection projects={projects} />
         <SkillsSection skills={skills} />

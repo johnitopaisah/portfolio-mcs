@@ -4,17 +4,18 @@ import { useEffect, useRef, useState } from 'react';
 import { useTheme } from './ThemeProvider';
 
 const links = [
-  { href: '#about',          label: 'About'          },
-  { href: '#projects',       label: 'Projects'       },
-  { href: '#skills',         label: 'Skills'         },
-  { href: '#experience',     label: 'Experience'     },
-  { href: '#certifications', label: 'Certifications' },
-  { href: '#contact',        label: 'Contact'        },
+  { href: '/#about',          label: 'About'          },
+  { href: '/#projects',       label: 'Projects'       },
+  { href: '/#skills',         label: 'Skills'         },
+  { href: '/#experience',     label: 'Experience'     },
+  { href: '/#certifications', label: 'Certifications' },
+  { href: '/blog',            label: 'Blog'           },
+  { href: '/#contact',        label: 'Contact'        },
 ];
 
 const moreLinks = [
-  { href: '#education', label: 'Education' },
-  { href: '#referees',  label: 'Referees'  },
+  { href: '/#education', label: 'Education' },
+  { href: '/#referees',  label: 'Referees'  },
 ];
 
 function SunIcon() {
