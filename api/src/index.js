@@ -119,6 +119,7 @@ app.use('/api/visitors',       require('./routes/visitors'));
 app.use('/api/jobs',           require('./routes/jobs'));
 app.use('/api/admin/jobs',      require('./routes/admin/jobs'));
 app.use('/api/admin/ai',       require('./routes/admin/ai'));
+app.use('/api/admin/targets',  require('./routes/admin/targets'));
 app.use('/api/admin/linkedin', require('./routes/linkedin'));
 app.use('/api/applications', require('./routes/applications'));
 app.use('/api/education',             require('./routes/education'));

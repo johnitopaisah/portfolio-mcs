@@ -1,0 +1,20 @@
+
+# Minimal override on top of SearXNG's bundled defaults.
+# Only used internally by scraper/ (never exposed publicly) — this is a
+# private discovery backend, not a public search instance, so:
+#   - JSON output is enabled (disabled by default upstream)
+#   - the bot/rate limiter is disabled (it would otherwise throttle our own
+#     automated queries; there's no public traffic here to protect against)
+use_default_settings: true
+
+general:
+  instance_name: "portfolio-scraper-search"
+
+server:
+  secret_key: "686c194bb9e9563ab6effc93b0ddbb9f91a3244aa3e4042f8e26823fd00d21de"
+  limiter: false
+
+search:
+  formats:
+    - html
+    - json

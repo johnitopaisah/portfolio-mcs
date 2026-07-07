@@ -118,6 +118,15 @@ export const adminApi = {
     request('/api/admin/ai/test-score', { method: 'POST', body: JSON.stringify(job) }),
   getAiCalibration:    () => request('/api/admin/ai/calibration'),
 
+  // Job targets (drives scraper discovery — role + location pairs)
+  getJobTargets:    () => request('/api/admin/targets'),
+  createJobTarget:  (data: Record<string, unknown>) =>
+    request('/api/admin/targets', { method: 'POST', body: JSON.stringify(data) }),
+  updateJobTarget:  (id: string, data: Record<string, unknown>) =>
+    request(`/api/admin/targets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteJobTarget:  (id: string) =>
+    request(`/api/admin/targets/${id}`, { method: 'DELETE' }),
+
   // Jobs pipeline (admin triage view)
   getJobsPipeline: (params: Record<string, string>) =>
     request(`/api/admin/jobs/pipeline?${new URLSearchParams(params)}`),

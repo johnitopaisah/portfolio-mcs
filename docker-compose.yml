@@ -41,6 +41,17 @@ services:
       retries: 10
       start_period: 10s
 
+  # ── Search (self-hosted, for job-discovery queries — no API key/billing) ──
+  searxng:
+    image: searxng/searxng:latest
+    container_name: portfolio-searxng
+    restart: unless-stopped
+    networks: [portfolio]
+    volumes:
+      - ./searxng:/etc/searxng:ro
+    ports:
+      - "8080:8080"
+
   # ── API ─────────────────────────────────────────────────────
   api:
     build:

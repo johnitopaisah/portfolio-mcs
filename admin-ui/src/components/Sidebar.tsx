@@ -41,6 +41,11 @@ const IconExternalLink = (p: React.SVGProps<SVGSVGElement>) => (
     <line x1="10" y1="14" x2="21" y2="3"/>
   </svg>
 );
+const IconSearch = (p: React.SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" {...p}>
+    <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+  </svg>
+);
 
 // ── Nav structure ─────────────────────────────────────────────────────────────
 type NavChild   = { href: string; label: string; Icon: React.ComponentType<React.SVGProps<SVGSVGElement>> };
@@ -79,8 +84,9 @@ const sections: NavSection[] = [
           { href: '/dashboard/email-templates', label: 'Email Templates', Icon: IconMail     },
         ],
       },
-      { href: '/dashboard/goals', label: 'My Goals',  Icon: IconTarget },
-      { href: '/dashboard/ai',    label: 'AI Engine', Icon: IconCpu    },
+      { href: '/dashboard/goals',   label: 'My Goals',    Icon: IconTarget },
+      { href: '/dashboard/targets', label: 'Job Targets', Icon: IconSearch },
+      { href: '/dashboard/ai',      label: 'AI Engine',   Icon: IconCpu    },
     ],
   },
   {

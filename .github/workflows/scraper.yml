@@ -1,0 +1,222 @@
+# ============================================================
+#  Scraper — CI Pipeline
+#  Stages: validate → lint → build → push → scan → manifest → summary
+# ============================================================
+
+name: Scraper
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag  e.g. v1.0.0 | v1.0.0-rc"
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+
+permissions:
+  contents: write         # write needed for manifest update commit
+  packages: write
+  security-events: write  # upload Trivy SARIF to GitHub Security tab
+
+env:
+  IMAGE:    ${{ vars.IMAGE_REGISTRY_BASE }}/scraper
+  NODE_VER: "20"
+
+jobs:
+  validate:
+    name: Validate tag
+    uses: ./.github/workflows/_validate-tag.yml
+    with:
+      tag: ${{ inputs.tag }}
+
+  lint:
+    name: Lint & audit
+    needs: validate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: scraper
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify IMAGE_REGISTRY_BASE is set
+        run: |
+          [ -z "${{ vars.IMAGE_REGISTRY_BASE }}" ] \
+            && echo "❌ IMAGE_REGISTRY_BASE not set" && exit 1 \
+            || echo "✅ IMAGE_REGISTRY_BASE=${{ vars.IMAGE_REGISTRY_BASE }}"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VER }}
+          cache: npm
+          cache-dependency-path: scraper/package-lock.json
+
+      - run: npm install
+
+      - name: Check required source files exist
+        run: |
+          echo "── Checking source structure ──"
+          for f in \
+            index.js \
+            src/db/client.js \
+            src/dedupHash.js \
+            src/htmlUtils.js \
+            src/locationFilter.js \
+            src/postedWithinFilter.js \
+            src/pipeline.js \
+            src/discovery/searxng.js \
+            src/discovery/linkedin.js \
+            src/parsers/greenhouse.js \
+            src/parsers/lever.js \
+            src/parsers/ashby.js; do
+            test -f "$f" && echo "✅ $f" || (echo "❌ Missing: $f" && exit 1)
+          done
+
+      - name: Security audit (high severity only)
+        run: npm audit --audit-level=high --omit=dev
+
+      - name: Check no placeholder secrets in source
+        run: |
+          BAD=0
+          for PAT in "changeme" "REPLACE_THIS" "your-secret-here"; do
+            if grep -r "$PAT" src/ --include="*.js" -l 2>/dev/null; then
+              echo "❌ Found placeholder '$PAT'"; BAD=1
+            fi
+          done
+          [ $BAD -eq 0 ] && echo "✅ No placeholders found"
+          exit $BAD
+
+  build-push:
+    name: Build & push
+    needs: [validate, lint]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v5
+        with:
+          context:    ./scraper
+          push:       true
+          provenance: false
+          tags: |
+            ${{ vars.IMAGE_REGISTRY_BASE }}/scraper:${{ needs.validate.outputs.tag }}
+            ${{ vars.IMAGE_REGISTRY_BASE }}/scraper:latest
+          cache-from: type=gha,scope=scraper
+          cache-to:   type=gha,scope=scraper,mode=max
+
+  # ── 4. Trivy image scan ──────────────────────────────────
+  scan:
+    name: Scan image
+    needs: [validate, build-push]
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: '${{ vars.IMAGE_REGISTRY_BASE }}/scraper:${{ needs.validate.outputs.tag }}'
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+          ignore-unfixed: true
+          trivyignores: scraper/.trivyignore
+
+      - name: Run Trivy vulnerability scanner (SARIF report)
+        if: always()
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: '${{ vars.IMAGE_REGISTRY_BASE }}/scraper:${{ needs.validate.outputs.tag }}'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+          ignore-unfixed: true
+          trivyignores: scraper/.trivyignore
+
+      - name: Upload results to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # ── 5. Update manifest ───────────────────────────────────
+  update-manifest:
+    name: Update k8s manifest
+    needs: [validate, scan]
+    runs-on: ubuntu-latest
+    if: needs.scan.result == 'success'
+    steps:
+      - name: Checkout develop
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update image tag in manifest
+        run: |
+          TAG="${{ needs.validate.outputs.tag }}"
+          BASE="ghcr.io/johnitopaisah/portfolio-mcs"
+          sed -i "s|${BASE}/scraper:.*|${BASE}/scraper:${TAG}|g" k8s/scraper/03-cronjob-discovery.yaml
+          echo "✅ k8s/scraper/03-cronjob-discovery.yaml → ${BASE}/scraper:${TAG}"
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          TAG="${{ needs.validate.outputs.tag }}"
+          git add k8s/scraper/03-cronjob-discovery.yaml
+          git diff --cached --quiet && echo "No manifest change needed" && exit 0
+          git commit -m "chore: bump scraper image to ${TAG} [skip ci]"
+          PUSHED=false
+          for i in 1 2 3 4 5; do
+            git pull --rebase origin develop && git push origin develop && { PUSHED=true; break; }
+            echo "Push attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          [ "$PUSHED" = "true" ] || { echo "❌ Failed to push after 5 attempts"; exit 1; }
+          echo "✅ Manifest updated — ArgoCD will sync shortly"
+
+  # ── 6. Summary ───────────────────────────────────────────
+  summary:
+    name: Summary
+    needs: [validate, lint, build-push, scan, update-manifest]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Write summary
+        run: |
+          TAG="${{ needs.validate.outputs.tag }}"
+          LINT="${{ needs.lint.result }}"
+          BUILD="${{ needs.build-push.result }}"
+          SCAN="${{ needs.scan.result }}"
+          MANIFEST="${{ needs.update-manifest.result }}"
+          ok() { [ "$1" = "success" ] && echo "✅" || ( [ "$1" = "skipped" ] && echo "⏭️" || echo "❌" ); }
+          echo "## Scraper pipeline" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Lint & audit    | $(ok $LINT) $LINT |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build & push    | $(ok $BUILD) $BUILD |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trivy scan      | $(ok $SCAN) $SCAN |" >> $GITHUB_STEP_SUMMARY
+          echo "| Update manifest | $(ok $MANIFEST) $MANIFEST |" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`${{ vars.IMAGE_REGISTRY_BASE }}/scraper:$TAG\`" >> $GITHUB_STEP_SUMMARY

@@ -71,10 +71,18 @@ jobs:
       tag: ${{ inputs.tag }}
     secrets: inherit
 
+  scraper:
+    name: Scraper
+    needs: validate
+    uses: ./.github/workflows/scraper.yml
+    with:
+      tag: ${{ inputs.tag }}
+    secrets: inherit
+
   # ── 4. GitHub Release (stable tags only) ─────────────────
   release:
     name: Create GitHub Release
-    needs: [validate, api, user-ui, admin-ui]
+    needs: [validate, api, user-ui, admin-ui, scraper]
     runs-on: ubuntu-latest
     if: needs.validate.outputs.is_stable == 'true'
     steps:
@@ -101,6 +109,7 @@ jobs:
           | api       | \`${BASE}/api:${TAG}\`       |
           | user-ui   | \`${BASE}/user-ui:${TAG}\`   |
           | admin-ui  | \`${BASE}/admin-ui:${TAG}\`  |
+          | scraper   | \`${BASE}/scraper:${TAG}\`   |
 
           ## Domains
 
@@ -129,7 +138,7 @@ jobs:
   # ── 5. Summary ───────────────────────────────────────────
   summary:
     name: Summary
-    needs: [validate, api, user-ui, admin-ui]
+    needs: [validate, api, user-ui, admin-ui, scraper]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -139,11 +148,12 @@ jobs:
           API="${{ needs.api.result }}"
           UI="${{ needs.user-ui.result }}"
           ADMIN="${{ needs.admin-ui.result }}"
+          SCRAPER="${{ needs.scraper.result }}"
 
           ok() { [ "$1" = "success" ] && echo "✅" || echo "❌"; }
 
           ALL_OK="true"
-          for r in "$API" "$UI" "$ADMIN"; do
+          for r in "$API" "$UI" "$ADMIN" "$SCRAPER"; do
             [ "$r" != "success" ] && ALL_OK="false"
           done
 
@@ -158,7 +168,8 @@ jobs:
           echo "| api      | $(ok $API) $API |" >> $GITHUB_STEP_SUMMARY
           echo "| user-ui  | $(ok $UI) $UI |" >> $GITHUB_STEP_SUMMARY
           echo "| admin-ui | $(ok $ADMIN) $ADMIN |" >> $GITHUB_STEP_SUMMARY
+          echo "| scraper  | $(ok $SCRAPER) $SCRAPER |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Images tagged: \`$TAG\` + \`latest\`" >> $GITHUB_STEP_SUMMARY
-          echo "> api/admin-ui/user-ui manifests updated automatically — ArgoCD will auto-sync." >> $GITHUB_STEP_SUMMARY
+          echo "> api/admin-ui/user-ui/scraper manifests updated automatically — ArgoCD will auto-sync." >> $GITHUB_STEP_SUMMARY
           echo "> ⚠️ DB image is built and deployed separately via the **db.yml** workflow." >> $GITHUB_STEP_SUMMARY
