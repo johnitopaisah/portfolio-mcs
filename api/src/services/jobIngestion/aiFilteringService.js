@@ -491,11 +491,20 @@ async function analyzeJob(rawJob, forcePatternOnly = false) {
 // ═══════════════════════════════════════════════════════════════
 //  DB OPERATIONS
 // ═══════════════════════════════════════════════════════════════
-async function getUnprocessedRawJobs(limit = 500) {
+async function getUnprocessedRawJobs(limit = 10000) {
   // FIFO by discovery time (created_at), not by real-world posted_at — the
   // latter let aggregator sources (which normalize posted_at to look recent)
-  // perpetually starve ATS-sourced rows (real, often-older post dates) out of
-  // every batch. Oldest-discovered-first guarantees nothing waits forever.
+  // perpetually starve ATS-sourced rows out of every batch.
+  //
+  // The limit itself matters as much as the ordering: ingestion has been
+  // adding more rows per 8h cycle (e.g. ~250 from Adzuna alone) than any
+  // small batch could ever clear, so a real, ~2-week-old backlog of ~9k
+  // unprocessed rows had silently accumulated (discovered 2026-07-07 while
+  // debugging why new scraper rows never got scored — FIFO was correctly
+  // working through that backlog first). Sized generously above current
+  // backlog + per-cycle intake so one run actually catches up, not just
+  // nudges the queue. Pattern-only scoring is cheap (no external calls);
+  // the separate LLM_CALLS_PER_RUN cap is what actually bounds cost.
   const result = await pool.query(
     `SELECT jr.*
      FROM jobs_raw jr
