@@ -28,6 +28,9 @@ spec:
         app: portfolio-mcs
         component: searxng
     spec:
+
+      enableServiceLinks: false
+
       securityContext:
         fsGroup: 977   # searxng group id in the upstream image
 
@@ -52,8 +55,8 @@ spec:
           volumeMounts:
             - name: searxng-settings
               mountPath: /etc/searxng
-              readOnly: true
-
+              readOnly: false   
+              
           resources:
             requests:
               cpu:    100m
