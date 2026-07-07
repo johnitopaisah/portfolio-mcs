@@ -491,13 +491,17 @@ async function analyzeJob(rawJob, forcePatternOnly = false) {
 // ═══════════════════════════════════════════════════════════════
 //  DB OPERATIONS
 // ═══════════════════════════════════════════════════════════════
-async function getUnprocessedRawJobs(limit = 100) {
+async function getUnprocessedRawJobs(limit = 500) {
+  // FIFO by discovery time (created_at), not by real-world posted_at — the
+  // latter let aggregator sources (which normalize posted_at to look recent)
+  // perpetually starve ATS-sourced rows (real, often-older post dates) out of
+  // every batch. Oldest-discovered-first guarantees nothing waits forever.
   const result = await pool.query(
     `SELECT jr.*
      FROM jobs_raw jr
      LEFT JOIN jobs j ON jr.id = j.job_raw_id
      WHERE j.id IS NULL AND jr.is_duplicate = FALSE
-     ORDER BY jr.posted_at DESC
+     ORDER BY jr.created_at ASC
      LIMIT $1`,
     [limit]
   );
