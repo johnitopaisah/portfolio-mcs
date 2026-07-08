@@ -827,6 +827,20 @@ function JobsPageInner() {
           <option value="remotive">Remotive</option>
           <option value="apec">APEC</option>
           <option value="wttj">Welcome to the Jungle</option>
+          <option value="greenhouse_search">Greenhouse</option>
+          <option value="lever_search">Lever</option>
+          <option value="ashby_search">Ashby</option>
+          <option value="linkedin_search">LinkedIn</option>
+        </select>
+
+        {/* AI decision */}
+        <select value={aiDecision} onChange={e => setAiDecision(e.target.value)}
+          className="text-xs bg-gray-800 border border-gray-700 text-gray-300
+            rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500">
+          <option value="">Kept + Review (default)</option>
+          <option value="KEEP">Keep only</option>
+          <option value="REVIEW">Review only</option>
+          <option value="DROP">Dropped</option>
         </select>
 
         {/* Seniority */}
