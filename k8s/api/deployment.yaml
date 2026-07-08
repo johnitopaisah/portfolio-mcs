@@ -63,7 +63,7 @@ spec:
 
       containers:
         - name: api
-          image: ghcr.io/johnitopaisah/portfolio-mcs/api:v0.1.11-rc3
+          image: ghcr.io/johnitopaisah/portfolio-mcs/api:v0.1.11-rc5
           imagePullPolicy: Always
 
           ports:
