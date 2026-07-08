@@ -148,4 +148,46 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/admin/targets/boards:
+ *   get:
+ *     summary: Discovery visibility — known_boards summary and recent list
+ *     description: >
+ *       Read-only view into the scraper's self-building board registry.
+ *       Search discovers a board once; every subsequent run polls it
+ *       directly, so this shows how much of the pipeline's cost is now
+ *       "free" polling vs. active search discovery.
+ *     tags: [Admin: Job Targets]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get('/boards', async (req, res) => {
+  try {
+    const { limit = 100 } = req.query;
+
+    const [summaryRes, recentRes] = await Promise.all([
+      pool.query(`
+        SELECT ats_platform, COUNT(*)::int AS count,
+               SUM(COALESCE(last_yield_count, 0))::int AS total_yield
+        FROM known_boards
+        GROUP BY ats_platform
+        ORDER BY count DESC
+      `),
+      pool.query(
+        `SELECT ats_platform, board_slug, first_discovered_via, last_polled_at, last_yield_count, created_at
+         FROM known_boards
+         ORDER BY created_at DESC
+         LIMIT $1`,
+        [parseInt(limit, 10)]
+      ),
+    ]);
+
+    res.json({ summary: summaryRes.rows, recent: recentRes.rows });
+  } catch (err) {
+    console.error('[Admin:Targets:Boards]', err.message);
+    res.status(500).json({ error: 'Failed to fetch known boards' });
+  }
+});
+
 module.exports = router;

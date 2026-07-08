@@ -126,6 +126,11 @@ export const adminApi = {
     request(`/api/admin/targets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteJobTarget:  (id: string) =>
     request(`/api/admin/targets/${id}`, { method: 'DELETE' }),
+  getKnownBoards:   () => request('/api/admin/targets/boards'),
+
+  // Ingestion observability (shared by old sources + scraper's *_search source_api values)
+  getIngestionStats: (hours = 24) => request(`/api/admin/jobs/ingestion-stats?hours=${hours}`),
+  getIngestionLogs:  (limit = 50) => request(`/api/admin/jobs/logs?limit=${limit}`),
 
   // Jobs pipeline (admin triage view)
   getJobsPipeline: (params: Record<string, string>) =>

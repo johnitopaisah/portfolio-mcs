@@ -2,6 +2,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { adminApi } from '@/lib/api';
 
+type Tab = 'targets' | 'discovery';
+
 // ── Types ────────────────────────────────────────────────────
 interface JobTarget {
   id: string;
@@ -65,7 +67,165 @@ function formatWhen(iso: string | null) {
   return new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
+// Discovery tab types
+interface BoardSummary { ats_platform: string; count: number; total_yield: number }
+interface BoardRow {
+  ats_platform: string; board_slug: string; first_discovered_via: string | null;
+  last_polled_at: string | null; last_yield_count: number | null; created_at: string;
+}
+interface IngestionLog {
+  id: string; source_api: string; status: string;
+  jobs_fetched: number; jobs_new: number; jobs_duplicates: number; jobs_filtered: number;
+  duration_ms: number | null; created_at: string;
+}
+
+const SCRAPER_SOURCES = ['greenhouse_search', 'lever_search', 'ashby_search', 'linkedin_search'];
+const PLATFORM_LABEL: Record<string, string> = {
+  greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', linkedin: 'LinkedIn',
+};
+
+function DiscoveryTab() {
+  const [summary, setSummary] = useState<BoardSummary[]>([]);
+  const [recentBoards, setRecentBoards] = useState<BoardRow[]>([]);
+  const [logs, setLogs] = useState<IngestionLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        const [boards, logData] = await Promise.all([
+          adminApi.getKnownBoards(),
+          adminApi.getIngestionLogs(100),
+        ]);
+        setSummary(boards.summary);
+        setRecentBoards(boards.recent);
+        setLogs((logData.data as IngestionLog[]).filter(l => SCRAPER_SOURCES.includes(l.source_api)));
+        setError(null);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to load discovery data');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-16">
+        <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return <div className="px-4 py-3 rounded-lg bg-red-900/30 border border-red-800 text-sm text-red-300">{error}</div>;
+  }
+
+  const totalBoards = summary.reduce((n, s) => n + s.count, 0);
+
+  return (
+    <div className="space-y-6">
+      <p className="text-sm text-zinc-500">
+        Search discovers a company board once; every run afterward polls it directly — free, no search spent.
+        This is the self-building registry that makes discovery cost shrink over time.
+      </p>
+
+      {/* Summary cards */}
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className={card}>
+          <p className="text-xs text-zinc-500 mb-1">Total known boards</p>
+          <p className="text-2xl font-bold text-white">{totalBoards}</p>
+        </div>
+        {summary.map(s => (
+          <div key={s.ats_platform} className={card}>
+            <p className="text-xs text-zinc-500 mb-1">{PLATFORM_LABEL[s.ats_platform] || s.ats_platform}</p>
+            <p className="text-2xl font-bold text-indigo-300">{s.count}</p>
+            <p className="text-xs text-zinc-600 mt-1">{s.total_yield} postings last poll</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Recent ingestion runs */}
+      <div className={card}>
+        <h2 className="text-sm font-semibold text-zinc-300 mb-4">Recent Discovery Runs</h2>
+        {logs.length === 0 ? (
+          <p className="text-sm text-zinc-500">No discovery runs recorded yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-zinc-500 text-left border-b border-zinc-800">
+                  <th className="pb-2 pr-4">Platform</th>
+                  <th className="pb-2 pr-4">Status</th>
+                  <th className="pb-2 pr-4">Fetched</th>
+                  <th className="pb-2 pr-4">New</th>
+                  <th className="pb-2 pr-4">Dupes</th>
+                  <th className="pb-2 pr-4">Filtered</th>
+                  <th className="pb-2 pr-4">Duration</th>
+                  <th className="pb-2">When</th>
+                </tr>
+              </thead>
+              <tbody>
+                {logs.slice(0, 20).map(l => (
+                  <tr key={l.id} className="border-b border-zinc-900 text-zinc-300">
+                    <td className="py-2 pr-4">{PLATFORM_LABEL[l.source_api.replace('_search', '')] || l.source_api}</td>
+                    <td className="py-2 pr-4">
+                      <span className={l.status === 'SUCCESS' ? 'text-green-400' : 'text-red-400'}>{l.status}</span>
+                    </td>
+                    <td className="py-2 pr-4 font-mono">{l.jobs_fetched}</td>
+                    <td className="py-2 pr-4 font-mono text-emerald-400">{l.jobs_new}</td>
+                    <td className="py-2 pr-4 font-mono text-zinc-500">{l.jobs_duplicates}</td>
+                    <td className="py-2 pr-4 font-mono text-zinc-500">{l.jobs_filtered}</td>
+                    <td className="py-2 pr-4 font-mono">{l.duration_ms ? `${(l.duration_ms / 1000).toFixed(1)}s` : '—'}</td>
+                    <td className="py-2 text-zinc-500">{formatWhen(l.created_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Known boards */}
+      <div className={card}>
+        <h2 className="text-sm font-semibold text-zinc-300 mb-4">Known Boards (most recently discovered first)</h2>
+        {recentBoards.length === 0 ? (
+          <p className="text-sm text-zinc-500">No boards discovered yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-zinc-500 text-left border-b border-zinc-800">
+                  <th className="pb-2 pr-4">Platform</th>
+                  <th className="pb-2 pr-4">Board</th>
+                  <th className="pb-2 pr-4">Discovered via</th>
+                  <th className="pb-2 pr-4">Last polled</th>
+                  <th className="pb-2">Last yield</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentBoards.map(b => (
+                  <tr key={`${b.ats_platform}-${b.board_slug}`} className="border-b border-zinc-900 text-zinc-300">
+                    <td className="py-2 pr-4">{PLATFORM_LABEL[b.ats_platform] || b.ats_platform}</td>
+                    <td className="py-2 pr-4 font-mono">{b.board_slug}</td>
+                    <td className="py-2 pr-4 text-zinc-500">{b.first_discovered_via || '—'}</td>
+                    <td className="py-2 pr-4 text-zinc-500">{formatWhen(b.last_polled_at)}</td>
+                    <td className="py-2 font-mono">{b.last_yield_count ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function TargetsPage() {
+  const [tab, setTab] = useState<Tab>('targets');
   const [targets, setTargets] = useState<JobTarget[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -169,11 +329,27 @@ export default function TargetsPage() {
             Define the roles and locations the scraper searches for — this drives search discovery directly, no redeploy needed.
           </p>
         </div>
-        <button onClick={openCreate} className={`${btn} bg-indigo-600 hover:bg-indigo-700 text-white whitespace-nowrap`}>
-          + New Target
-        </button>
+        {tab === 'targets' && (
+          <button onClick={openCreate} className={`${btn} bg-indigo-600 hover:bg-indigo-700 text-white whitespace-nowrap`}>
+            + New Target
+          </button>
+        )}
       </div>
 
+      {/* Tabs */}
+      <div className="flex flex-wrap gap-2 mb-6">
+        {(['targets', 'discovery'] as Tab[]).map(t => (
+          <button key={t} onClick={() => setTab(t)}
+            className={`${btn} ${tab === t ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'}`}>
+            {t === 'targets' ? 'Targets' : 'Discovery'}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'discovery' && <DiscoveryTab />}
+
+      {tab === 'targets' && (
+      <>
       {error && (
         <div className="mb-4 px-4 py-3 rounded-lg bg-red-900/30 border border-red-800 text-sm text-red-300">{error}</div>
       )}
@@ -297,6 +473,8 @@ export default function TargetsPage() {
             </div>
           ))}
         </div>
+      )}
+      </>
       )}
     </div>
   );
