@@ -270,15 +270,6 @@ CREATE TABLE IF NOT EXISTS jobs (
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- job_tags — searchable tags per job
-CREATE TABLE IF NOT EXISTS job_tags (
-  id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-  job_id          UUID        NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
-  tag             TEXT        NOT NULL,       -- "kubernetes", "aws", "go", etc.
-  category        TEXT        NOT NULL,       -- "tech", "seniority", "location"
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
 -- user_preferences — user job search preferences
 CREATE TABLE IF NOT EXISTS user_preferences (
   id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -356,10 +347,6 @@ CREATE INDEX IF NOT EXISTS idx_jobs_location ON jobs (location);
 CREATE INDEX IF NOT EXISTS idx_jobs_title_tsvector ON jobs USING GIN (to_tsvector('english', title || ' ' || description));
 CREATE INDEX IF NOT EXISTS idx_jobs_is_active ON jobs (is_active) WHERE is_active = TRUE;
 CREATE INDEX IF NOT EXISTS idx_jobs_external_id ON jobs (external_id);
-
-CREATE INDEX IF NOT EXISTS idx_job_tags_job_id ON job_tags (job_id);
-CREATE INDEX IF NOT EXISTS idx_job_tags_tag ON job_tags (tag);
-CREATE INDEX IF NOT EXISTS idx_job_tags_category ON job_tags (category);
 
 CREATE INDEX IF NOT EXISTS idx_user_prefs_user_id ON user_preferences (user_id);
 

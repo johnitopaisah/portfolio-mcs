@@ -281,10 +281,10 @@ spec:
 
 ---
 
-# ── 5. Job Ingestion Worker ──────────────────────────────────
+# ── 5. Job Filtering & Lifecycle Worker ──────────────────────
 # Ingress:  none (CronJob pods never receive traffic)
-# Egress:   CoreDNS, DB (direct PostgreSQL writes), external HTTPS (job
-#           board APIs: Adzuna, Jooble, etc.) + SMTP (job digest emails)
+# Egress:   CoreDNS, DB (direct PostgreSQL writes), external HTTPS (LLM
+#           scoring APIs: Claude/Groq/Gemini) + SMTP (job digest emails)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

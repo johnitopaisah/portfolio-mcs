@@ -62,13 +62,12 @@ api/
 │   │   ├── geoip.js                IP → country/city lookup
 │   │   ├── parseVisitor.js         User-agent + referrer parsing
 │   │   ├── visitorDigest.js        Daily visitor analytics email (08:00 Paris)
-│   │   ├── jobIngestion/
-│   │   │   ├── jobIngestionService.js   Fetches from Jooble, RemoteOK, Adzuna
+│   │   ├── jobIngestion/                  (raw discovery lives in scraper/)
+│   │   │   ├── jobIngestionService.js   Expiry + purge lifecycle for scored jobs
 │   │   │   ├── aiFilteringService.js    Claude Haiku relevance scoring
-│   │   │   ├── deduplicationService.js  URL-hash dedup before DB insert
 │   │   │   ├── notificationService.js   Daily job digest email (08:15 Paris)
 │   │   │   ├── ingestionLogsService.js  Per-run stats logging
-│   │   │   └── config.js               Provider API keys + scoring thresholds
+│   │   │   └── config.js               Max job age + scoring thresholds
 │   │   ├── cvGeneration/
 │   │   │   ├── baseCvService.js         Fetch profile data from DB
 │   │   │   ├── cvTailoringService.js    AI-tailored CV generation

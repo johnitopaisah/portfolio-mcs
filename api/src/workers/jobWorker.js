@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 'use strict';
 /**
- * Job Ingestion & Filtering Worker
- * Runs via Kubernetes CronJob every 8 hours.
- * Steps: ingest → AI filter → notify → expire → purge → backup
+ * Job Filtering & Lifecycle Worker
+ * Runs via Kubernetes CronJob every 8 hours. Raw job discovery is handled
+ * separately by scraper/'s own CronJob — this worker scores whatever it left
+ * behind in jobs_raw, then handles notify/expire/purge/backup.
+ * Steps: AI filter → notify → expire → purge → backup
  */
 
 require('dotenv').config();
@@ -28,45 +30,39 @@ async function runJobWorker() {
   console.log('[Worker] Time:', new Date().toISOString());
   console.log('[Worker] LLM engine: Claude Haiku (ANTHROPIC_API_KEY',
     process.env.ANTHROPIC_API_KEY ? 'SET ✅' : 'NOT SET — using pattern fallback ⚠️', ')');
-  console.log('[Worker] Adzuna:', process.env.ADZUNA_APP_ID ? 'enabled ✅' : 'disabled ⚠️');
   console.log('[Worker] ======================================\n');
 
   const t0 = Date.now();
 
   try {
-    // Step 1: Ingest from all providers
-    console.log('\n[Worker:1] Ingesting from all providers…');
-    const ingestion = await jobIngestionService.ingestAllJobs();
-    console.log('[Worker:1] Done:', ingestion);
-
-    // Step 2: AI filter new raw jobs
-    console.log('\n[Worker:2] Running AI filtering…');
+    // Step 1: AI filter new raw jobs (discovered by scraper/'s own CronJob)
+    console.log('\n[Worker:1] Running AI filtering…');
     const filtering = await aiFilteringService.filterUnprocessedJobs();
-    console.log('[Worker:2] Done:', filtering);
+    console.log('[Worker:1] Done:', filtering);
 
-    // Step 3: Send run digest — fires on every successful run
-    console.log('\n[Worker:3] Sending job run digest…');
+    // Step 2: Send run digest — fires on every successful run
+    console.log('\n[Worker:2] Sending job run digest…');
     const notification = await notificationService.sendWorkerRunDigest(CRON_INTERVAL_H);
-    console.log('[Worker:3] Done:', notification);
+    console.log('[Worker:2] Done:', notification);
 
-    // Step 4: Expire stale jobs
-    console.log('\n[Worker:4] Expiring old jobs…');
+    // Step 3: Expire stale jobs
+    console.log('\n[Worker:3] Expiring old jobs…');
     const expired = await jobIngestionService.markExpiredJobs();
-    console.log(`[Worker:4] Done: ${expired} expired`);
+    console.log(`[Worker:3] Done: ${expired} expired`);
 
-    // Step 5: Hard-delete jobs older than 14 days (applied/interested history kept)
-    console.log('\n[Worker:5] Purging jobs older than 14 days…');
+    // Step 4: Hard-delete jobs older than 14 days (applied/interested history kept)
+    console.log('\n[Worker:4] Purging jobs older than 14 days…');
     const purged = await jobIngestionService.purgeOldJobs();
-    console.log(`[Worker:5] Done: ${purged.jobs} jobs, ${purged.raw} raw rows removed`);
+    console.log(`[Worker:4] Done: ${purged.jobs} jobs, ${purged.raw} raw rows removed`);
 
-    // Step 6: Full database backup → ~/db-backups, keep last 3
-    // Non-fatal: a backup failure must not undo the ingest/filter/notify work above.
-    console.log('\n[Worker:6] Running database backup…');
+    // Step 5: Full database backup → ~/db-backups, keep last 3
+    // Non-fatal: a backup failure must not undo the filter/notify work above.
+    console.log('\n[Worker:5] Running database backup…');
     try {
       const backup = await runDatabaseBackup();
-      console.log(`[Worker:6] Done: ${backup.file} (${backup.kept} kept, ${backup.pruned} pruned)`);
+      console.log(`[Worker:5] Done: ${backup.file} (${backup.kept} kept, ${backup.pruned} pruned)`);
     } catch (backupErr) {
-      console.error('[Worker:6] Backup failed (non-fatal):', backupErr.message);
+      console.error('[Worker:5] Backup failed (non-fatal):', backupErr.message);
     }
 
     const secs = Math.round((Date.now() - t0) / 1000);

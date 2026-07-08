@@ -84,7 +84,6 @@ jobs:
             src/services/jobIngestion/aiFilteringService.js \
             src/services/jobIngestion/notificationService.js \
             src/services/jobIngestion/config.js \
-            src/services/jobIngestion/deduplicationService.js \
             src/services/jobIngestion/ingestionLogsService.js \
             src/workers/jobWorker.js; do
             test -f "$f" && echo "✅ $f" || (echo "❌ Missing: $f" && exit 1)

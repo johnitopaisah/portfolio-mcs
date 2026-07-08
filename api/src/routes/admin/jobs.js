@@ -8,7 +8,6 @@
 const express       = require('express');
 const pool          = require('../../db/client');
 const { requireAuth } = require('../../middleware/auth');
-const jobIngestionService = require('../../services/jobIngestion/jobIngestionService');
 const { filterUnprocessedJobs, getFilteringStats, recalibrateFromFeedback }
   = require('../../services/jobIngestion/aiFilteringService');
 const { sendDailyJobDigest, getAlertStats }
@@ -133,9 +132,11 @@ router.get('/logs', async (req, res) => {
  *   get:
  *     summary: Get job source health status
  *     description: >
- *       Returns the health status of each configured job source (Jooble,
- *       Adzuna, RemoteOK, etc.) including whether API keys are set and the
- *       outcome of the most recent ingestion run for that source.
+ *       Returns the health status of each career-site discovery source
+ *       (Greenhouse, Lever, Ashby, Workday, SmartRecruiters, LinkedIn lead
+ *       capture, custom-site Claude extraction) including whether required
+ *       API keys are set and the outcome of the most recent scraper run for
+ *       that source.
  *     tags: [Admin: Job Pipeline]
  *     security:
  *       - bearerAuth: []
@@ -149,8 +150,8 @@ router.get('/logs', async (req, res) => {
  *               items:
  *                 type: object
  *                 properties:
- *                   source:      { type: string, example: joobleApi }
- *                   label:       { type: string, example: Jooble }
+ *                   source:      { type: string, example: greenhouse_search }
+ *                   label:       { type: string, example: Greenhouse }
  *                   keyRequired: { type: boolean }
  *                   keySet:      { type: boolean, nullable: true }
  *                   missingKeys: { type: array, items: { type: string }, nullable: true }
@@ -170,13 +171,13 @@ router.get('/logs', async (req, res) => {
  *         description: Unauthorised
  */
 const JOB_SOURCES = [
-  { key: 'joobleApi',  label: 'Jooble',               envs: ['JOOBLE_API_KEY'] },
-  { key: 'adzuna',     label: 'Adzuna',                envs: ['ADZUNA_APP_ID', 'ADZUNA_API_KEY'] },
-  { key: 'arbeitnow',  label: 'Arbeitnow',             envs: [] },
-  { key: 'remoteOk',   label: 'RemoteOK',              envs: [] },
-  { key: 'remotive',   label: 'Remotive',              envs: [] },
-  { key: 'apec',       label: 'APEC',                  envs: [] },
-  { key: 'wttj',       label: 'Welcome to the Jungle', envs: [] },
+  { key: 'greenhouse_search',      label: 'Greenhouse',              envs: [] },
+  { key: 'lever_search',           label: 'Lever',                    envs: [] },
+  { key: 'ashby_search',           label: 'Ashby',                    envs: [] },
+  { key: 'workday_search',         label: 'Workday',                  envs: [] },
+  { key: 'smartrecruiters_search', label: 'SmartRecruiters',          envs: [] },
+  { key: 'linkedin_search',        label: 'LinkedIn (lead capture)',  envs: [] },
+  { key: 'custom_site_search',     label: 'Custom Site (Claude)',     envs: ['ANTHROPIC_API_KEY'] },
 ];
 
 router.get('/sources-status', async (req, res) => {
@@ -266,37 +267,6 @@ router.get('/ingestion-stats', async (req, res) => {
     console.error('[Admin:IngestionStats]', err.message);
     res.status(500).json({ error: 'Failed to fetch ingestion stats' });
   }
-});
-
-/**
- * @swagger
- * /api/admin/jobs/ingest:
- *   post:
- *     summary: Trigger job ingestion
- *     description: >
- *       Starts a full ingestion run across all configured sources in the
- *       background. Returns immediately with `status: pending`.
- *     tags: [Admin: Job Pipeline]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Ingestion started
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message: { type: string, example: Ingestion started in background }
- *                 status:  { type: string, example: pending }
- *       401:
- *         description: Unauthorised
- */
-router.post('/ingest', async (req, res) => {
-  jobIngestionService.ingestAllJobs().catch(err =>
-    console.error('[Admin:Ingest] Background error:', err)
-  );
-  res.json({ message: 'Ingestion started in background', status: 'pending' });
 });
 
 /**
@@ -770,8 +740,8 @@ router.patch('/:id', async (req, res) => {
  *     summary: Get pipeline runtime configuration
  *     description: >
  *       Returns read-only runtime configuration — active AI engine name,
- *       poll interval, max job age, digest schedule, and which integrations
- *       and providers have API keys configured.
+ *       discovery schedule, max job age, digest schedule, and which
+ *       discovery sources and integrations have API keys configured.
  *     tags: [Admin: Job Pipeline]
  *     security:
  *       - bearerAuth: []
@@ -783,11 +753,11 @@ router.patch('/:id', async (req, res) => {
  *             schema:
  *               type: object
  *               properties:
- *                 pollIntervalMinutes: { type: string }
- *                 aiEngine:            { type: string }
- *                 maxJobAgeDays:       { type: integer }
- *                 digestTime:          { type: string, example: '08:15 Europe/Paris' }
- *                 providers:
+ *                 discoverySchedule: { type: string }
+ *                 aiEngine:          { type: string }
+ *                 maxJobAgeDays:     { type: integer }
+ *                 digestTime:        { type: string, example: '08:15 Europe/Paris' }
+ *                 sources:
  *                   type: object
  *                   additionalProperties: { type: boolean }
  *                 integrations:
@@ -799,7 +769,7 @@ router.patch('/:id', async (req, res) => {
 router.get('/config', async (req, res) => {
   try {
     res.json({
-      pollIntervalMinutes: process.env.JOB_POLL_INTERVAL_MINUTES || '15',
+      discoverySchedule: 'daily 03:00 (scraper-discovery CronJob)',
       aiEngine: process.env.ANTHROPIC_API_KEY
         ? 'claude-haiku-4-5 (Claude Haiku)'
         : process.env.GROQ_API_KEY
@@ -809,14 +779,14 @@ router.get('/config', async (req, res) => {
             : 'pattern-v2 (no LLM key)',
       maxJobAgeDays:  14,
       digestTime:     '08:15 Europe/Paris',
-      providers: {
-        jooble:    !!process.env.JOOBLE_API_KEY,
-        remoteOk:  true,
-        adzuna:    !!(process.env.ADZUNA_APP_ID && process.env.ADZUNA_API_KEY),
-        arbeitnow: true,
-        remotive:  true,
-        apec:      true,
-        wttj:      !!(process.env.WTTJ_ALGOLIA_APP_ID && process.env.WTTJ_ALGOLIA_API_KEY),
+      sources: {
+        greenhouse:      true,
+        lever:           true,
+        ashby:           true,
+        workday:         true,
+        smartrecruiters: true,
+        linkedin:        true,
+        customSite:      !!process.env.ANTHROPIC_API_KEY,
       },
       integrations: {
         anthropic: !!process.env.ANTHROPIC_API_KEY,

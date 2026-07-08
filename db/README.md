@@ -43,7 +43,7 @@ db/
 
 | Table | Description |
 |---|---|
-| `job_listings` | AI-scored job listings from Jooble, RemoteOK, and Adzuna — title, company, location, url, relevance_score, provider, status |
+| `job_listings` | AI-scored job listings discovered from company career sites (Greenhouse, Lever, Ashby, Workday, SmartRecruiters, LinkedIn, custom sites) — title, company, location, url, relevance_score, provider, status |
 | `job_feedback` | Per-job thumbs up/down feedback to improve future scoring |
 | `ai_pattern_config` | Configurable keywords, must-have/must-not-have patterns, and scoring weights used by Claude Haiku |
 | `notification_log` | Tracks per-run digest notifications to avoid duplicate emails |

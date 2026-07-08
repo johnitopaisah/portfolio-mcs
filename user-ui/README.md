@@ -60,7 +60,7 @@ Single-page portfolio layout with these sections, all populated from the API:
 
 ### Jobs (`/jobs`)
 
-Displays AI-curated job listings sourced from Jooble, RemoteOK, and Adzuna. Jobs are scored for relevance by Claude Haiku and filtered to show only matches above the configured threshold.
+Displays AI-curated job listings discovered directly from company career sites (Greenhouse, Lever, Ashby, Workday, SmartRecruiters, plus LinkedIn leads and custom-site extraction). Jobs are scored for relevance by Claude Haiku and filtered to show only matches above the configured threshold.
 
 ---
 

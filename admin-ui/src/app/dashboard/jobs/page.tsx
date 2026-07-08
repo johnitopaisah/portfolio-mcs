@@ -67,9 +67,13 @@ interface SourceStatus {
 
 // ── Helpers ──────────────────────────────────────────────────
 const SOURCE_LABELS: Record<string, string> = {
-  adzuna: 'Adzuna',
-  joobleApi: 'Jooble',
-  remoteOk: 'RemoteOK',
+  greenhouse_search: 'Greenhouse',
+  lever_search: 'Lever',
+  ashby_search: 'Ashby',
+  workday_search: 'Workday',
+  smartrecruiters_search: 'SmartRecruiters',
+  linkedin_search: 'LinkedIn',
+  custom_site_search: 'Custom Site',
 };
 
 function scoreStyle(s: number) {
@@ -820,13 +824,6 @@ function JobsPageInner() {
           className="text-xs bg-gray-800 border border-gray-700 text-gray-300
             rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500">
           <option value="">All sources</option>
-          <option value="adzuna">Adzuna</option>
-          <option value="joobleApi">Jooble</option>
-          <option value="remoteOk">RemoteOK</option>
-          <option value="arbeitnow">Arbeitnow</option>
-          <option value="remotive">Remotive</option>
-          <option value="apec">APEC</option>
-          <option value="wttj">Welcome to the Jungle</option>
           <option value="greenhouse_search">Greenhouse</option>
           <option value="lever_search">Lever</option>
           <option value="ashby_search">Ashby</option>

@@ -89,7 +89,7 @@ CI/CD:   GitHub Actions → GHCR (ghcr.io/johnitopaisah/portfolio-mcs/*)
 - Portfolio CRUD routes with file upload (Multer)
 - Swagger UI at `/api/docs`
 - Prometheus metrics at `/metrics`
-- Job ingestion workers (Jooble, RemoteOK, Adzuna)
+- Career-site job discovery (Greenhouse, Lever, Ashby, Workday, SmartRecruiters, LinkedIn, custom sites)
 - AI scoring via Claude Haiku (`@anthropic-ai/sdk`)
 - CV generation via Puppeteer (HTML → PDF)
 - Gmail OAuth email tracking
