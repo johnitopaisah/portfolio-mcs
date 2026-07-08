@@ -830,7 +830,10 @@ function JobsPageInner() {
           <option value="greenhouse_search">Greenhouse</option>
           <option value="lever_search">Lever</option>
           <option value="ashby_search">Ashby</option>
+          <option value="workday_search">Workday</option>
+          <option value="smartrecruiters_search">SmartRecruiters</option>
           <option value="linkedin_search">LinkedIn</option>
+          <option value="custom_site_search">Custom Site (Claude)</option>
         </select>
 
         {/* AI decision */}

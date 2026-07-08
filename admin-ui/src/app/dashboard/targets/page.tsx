@@ -79,9 +79,13 @@ interface IngestionLog {
   duration_ms: number | null; created_at: string;
 }
 
-const SCRAPER_SOURCES = ['greenhouse_search', 'lever_search', 'ashby_search', 'linkedin_search'];
+const SCRAPER_SOURCES = [
+  'greenhouse_search', 'lever_search', 'ashby_search', 'workday_search',
+  'smartrecruiters_search', 'linkedin_search', 'custom_site_search',
+];
 const PLATFORM_LABEL: Record<string, string> = {
-  greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', linkedin: 'LinkedIn',
+  greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', workday: 'Workday',
+  smartrecruiters: 'SmartRecruiters', linkedin: 'LinkedIn', custom_site: 'Custom Site (Claude)',
 };
 
 function DiscoveryTab() {

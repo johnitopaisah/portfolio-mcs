@@ -7,9 +7,12 @@
     "start": "node index.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.110.0",
     "axios": "^1.6.0",
+    "cheerio": "^1.1.0",
     "dotenv": "^16.4.5",
-    "pg": "^8.11.5"
+    "pg": "^8.11.5",
+    "playwright-core": "^1.61.1"
   },
   "engines": {
     "node": ">=20"

@@ -1,11 +1,21 @@
 'use strict';
 
+const crypto = require('crypto');
 const pool = require('./db/client');
 const searxng = require('./discovery/searxng');
 const linkedin = require('./discovery/linkedin');
+const customSite = require('./discovery/customSite');
+const { fetchPageText } = require('./extraction/fetchPage');
+const { extractJobFromPage } = require('./extraction/claudeExtract');
 const { matchesLocation } = require('./locationFilter');
 const { matchesPostedWithin } = require('./postedWithinFilter');
 const { calculateDeduplicationHash } = require('./dedupHash');
+
+// Bounds Claude spend per run, same philosophy as the existing scoring
+// pipeline's LLM_CALLS_PER_RUN — cheap tiers (URL-seen check, then a
+// cheap pre-filter) run first, so this only gates the genuinely expensive
+// step (fetch + Claude extraction) for candidates that already passed both.
+const CUSTOM_EXTRACTION_CALLS_PER_RUN = 20;
 
 // Adding a new structured ATS platform is just one more entry here — no
 // other pipeline code needs to change. Each parser exports the same
@@ -153,7 +163,87 @@ async function storeRawJob(job) {
 }
 
 function emptyStats() {
-  return { fetched: 0, new: 0, locationFiltered: 0, staleFiltered: 0, alreadySeen: 0, errors: 0 };
+  return { fetched: 0, new: 0, locationFiltered: 0, staleFiltered: 0, alreadySeen: 0, errors: 0, notAJobPosting: 0 };
+}
+
+// Custom (non-ATS) career pages, found via a broad, unrestricted search.
+// Unlike the ATS/LinkedIn tiers, there's no board to poll and no free
+// re-check — every candidate genuinely costs a fetch + (if it passes) a
+// Claude call, so the URL-seen gate MUST run before that spend, not after
+// (the ATS tiers can afford to check it after a cheap structured-API fetch;
+// this tier can't afford to fetch+extract first and ask questions later).
+async function discoverCustomSiteJobs(targets) {
+  const stats = emptyStats();
+  let extractionCalls = 0;
+
+  for (const target of targets) {
+    if (extractionCalls >= CUSTOM_EXTRACTION_CALLS_PER_RUN) break;
+
+    let candidates;
+    try {
+      candidates = await customSite.discoverCustomSiteUrls(target);
+    } catch (err) {
+      console.error(`[Pipeline] Custom-site discovery failed for "${target.role_query}":`, err.message);
+      continue;
+    }
+
+    for (const candidate of candidates) {
+      if (extractionCalls >= CUSTOM_EXTRACTION_CALLS_PER_RUN) break;
+      stats.fetched += 1;
+
+      const isNewUrl = await markSeen(candidate.url);
+      if (!isNewUrl) {
+        stats.alreadySeen += 1;
+        continue;
+      }
+
+      try {
+        const page = await fetchPageText(candidate.url);
+        if (!page) { stats.errors += 1; continue; }
+
+        extractionCalls += 1;
+        const extracted = await extractJobFromPage(page.text, candidate.url);
+        if (!extracted || !extracted.is_job_posting) {
+          stats.notAJobPosting += 1;
+          continue;
+        }
+
+        if (!matchesLocation(extracted.location, target.locations)) {
+          stats.locationFiltered += 1;
+          continue;
+        }
+
+        const job = {
+          external_id:     `custom_${crypto.createHash('sha256').update(candidate.url).digest('hex').slice(0, 16)}`,
+          company_name:    extracted.company_name || 'Unknown',
+          title:           extracted.title || candidate.title,
+          location:        extracted.location || 'Remote',
+          job_type:        extracted.job_type || null,
+          description:     extracted.description || '',
+          requirements:    null,
+          salary_min:      extracted.salary_min ?? null,
+          salary_max:      extracted.salary_max ?? null,
+          salary_currency: extracted.salary_currency ?? null,
+          posted_at:       new Date(), // no reliable posted date from an arbitrary page
+          apply_url:       candidate.url,
+          source_api:      'custom_site_search', // matches recordIngestionLog's `${platform}_search` convention
+          raw_data: {
+            tech_stack: extracted.tech_stack || [],
+            extraction_confidence: extracted.confidence,
+            rendered_with_browser: page.renderedWithBrowser,
+          },
+        };
+
+        const inserted = await storeRawJob(job);
+        if (inserted) stats.new += 1;
+      } catch (err) {
+        stats.errors += 1;
+        console.error(`[Pipeline] Custom-site processing failed for "${candidate.url}":`, err.message);
+      }
+    }
+  }
+
+  return stats;
 }
 
 // Returns stats per platform (ats_platform -> stats) so each gets its own
@@ -237,6 +327,9 @@ async function run() {
     console.log(`[Pipeline] Found ${linkedInResults.reduce((n, r) => n + r.jobs.length, 0)} LinkedIn lead(s)`);
 
     const statsByPlatform = await processBoardResults([...boardResults, ...linkedInResults]);
+
+    const customSiteStats = await discoverCustomSiteJobs(targets);
+    statsByPlatform.custom_site = customSiteStats;
     console.log('[Pipeline] Result by platform:', statsByPlatform);
 
     const durationMs = Date.now() - t0;
