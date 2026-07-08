@@ -44,11 +44,21 @@ async function deduplicateJobs(jobs, sourceApi) {
         duplicates.push(job);
       });
     } else {
-      // New job
-      jobList.forEach((job) => {
-        job.is_duplicate = false;
-        newJobs.push(job);
-      });
+      // Passed exact-hash dedup — but that only catches identical title+
+      // company+location text. Check for near-duplicates too (same posting
+      // mirrored elsewhere with slightly different wording/location
+      // formatting, e.g. "Berlin" vs "Berlin, Germany") before accepting
+      // each candidate as genuinely new.
+      for (const job of jobList) {
+        const similar = await findSimilarJobs(job.title, job.company_name);
+        if (similar.length > 0) {
+          job.is_duplicate = true;
+          duplicates.push(job);
+        } else {
+          job.is_duplicate = false;
+          newJobs.push(job);
+        }
+      }
     }
   }
 
