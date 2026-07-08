@@ -14,6 +14,7 @@ const PLATFORMS = {
   greenhouse: { parser: require('./parsers/greenhouse'), siteFilter: 'site:boards.greenhouse.io' },
   lever:      { parser: require('./parsers/lever'),      siteFilter: 'site:jobs.lever.co' },
   ashby:      { parser: require('./parsers/ashby'),       siteFilter: 'site:jobs.ashbyhq.com' },
+  workday:    { parser: require('./parsers/workday'),    siteFilter: 'site:myworkdayjobs.com' },
 };
 
 async function loadActiveTargets() {
@@ -151,7 +152,7 @@ async function storeRawJob(job) {
 }
 
 function emptyStats() {
-  return { fetched: 0, new: 0, locationFiltered: 0, staleFiltered: 0, alreadySeen: 0 };
+  return { fetched: 0, new: 0, locationFiltered: 0, staleFiltered: 0, alreadySeen: 0, errors: 0 };
 }
 
 // Returns stats per platform (ats_platform -> stats) so each gets its own
@@ -181,8 +182,16 @@ async function processBoardResults(boardResults) {
         continue;
       }
 
-      const inserted = await storeRawJob(job);
-      if (inserted) stats.new += 1;
+      // One malformed row (unexpected null, a constraint violation, etc.)
+      // must not sink the entire run's progress — log and move on, same
+      // resilience the old system's per-job scoring loop already has.
+      try {
+        const inserted = await storeRawJob(job);
+        if (inserted) stats.new += 1;
+      } catch (err) {
+        stats.errors += 1;
+        console.error(`[Pipeline] Failed to store "${job.external_id}":`, err.message);
+      }
     }
   }
 

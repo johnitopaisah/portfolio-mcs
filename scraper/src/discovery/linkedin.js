@@ -32,7 +32,7 @@ function parseResult(result) {
     // Snippet only — we deliberately never fetch the LinkedIn page itself
     // (anti-bot risk + against their robots.txt). Click through for the
     // full description.
-    description:     result.description || null,
+    description:     result.description || '', // jobs_raw.description is NOT NULL
     requirements:    null,
     salary_min:       null,
     salary_max:       null,

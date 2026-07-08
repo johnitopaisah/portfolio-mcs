@@ -36,7 +36,7 @@ async function fetchBoardJobs(slug) {
     title:           j.text,
     location:        j.categories?.location || 'Remote',
     job_type:        j.categories?.commitment || null,
-    description:     j.descriptionPlain || null,
+    description:     j.descriptionPlain || '', // jobs_raw.description is NOT NULL — Lever sometimes omits this field
     requirements:    null,
     salary_min:      null,
     salary_max:      null,

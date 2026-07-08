@@ -11,7 +11,11 @@ require('dotenv').config();
 const pipeline = require('./src/pipeline');
 const pool = require('./src/db/client');
 
-const WORKER_TIMEOUT = 10 * 60 * 1000; // 10 min hard limit
+// Matches the k8s CronJob's activeDeadlineSeconds (1800s) — must not exceed it,
+// but shouldn't be much shorter either. Workday boards cost meaningfully more
+// per poll than Greenhouse/Lever/Ashby (separate list + per-job detail
+// requests), so 10 min proved too tight once Workday was added.
+const WORKER_TIMEOUT = 28 * 60 * 1000; // 28 min — leaves headroom under k8s's 30 min deadline
 
 async function main() {
   console.log('[Scraper] ================================');
