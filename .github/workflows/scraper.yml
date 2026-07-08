@@ -73,7 +73,14 @@ jobs:
             src/discovery/linkedin.js \
             src/parsers/greenhouse.js \
             src/parsers/lever.js \
-            src/parsers/ashby.js; do
+            src/parsers/ashby.js \
+            src/parsers/workday.js \
+            src/parsers/smartrecruiters.js \
+            src/discovery/customSite.js \
+            src/extraction/fetchPage.js \
+            src/extraction/claudeExtract.js \
+            src/canary.js \
+            scripts/run-canary.js; do
             test -f "$f" && echo "✅ $f" || (echo "❌ Missing: $f" && exit 1)
           done
 

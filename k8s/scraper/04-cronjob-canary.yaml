@@ -1,0 +1,61 @@
+# ============================================================
+#  ATS Parser Canary — Kubernetes CronJob
+#  Weekly contract check: re-fetches a known-good, stable public
+#  board per structured ATS platform and validates the response
+#  shape, catching a silent API change (Greenhouse/Lever/Ashby/
+#  Workday/SmartRecruiters altering their JSON) before it causes
+#  an unexplained volume drop weeks later.
+#
+#  Needs no DB/secrets — purely calls the public ATS APIs. A
+#  failed run is visible via standard k8s tooling
+#  (kubectl get cronjob/jobs canary-checker -n portfolio),
+#  same as any other failed Job.
+# ============================================================
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: canary-checker
+  namespace: portfolio
+  labels:
+    app: portfolio-mcs
+    component: scraper
+spec:
+  schedule: "0 6 * * 1"   # weekly, Monday 06:00 — independent of daily discovery
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  suspend: false
+  concurrencyPolicy: Forbid
+
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 600  # 10 min — five quick API checks, no reason for this to run long
+      template:
+        metadata:
+          labels:
+            app: portfolio-mcs
+            component: scraper
+        spec:
+          restartPolicy: Never
+          imagePullSecrets:
+            - name: ghcr-pull-secret
+
+          containers:
+          - name: canary
+            image: ghcr.io/johnitopaisah/portfolio-mcs/scraper:v0.1.11-rc5
+            imagePullPolicy: Always
+            command: ["node", "scripts/run-canary.js"]
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 1001
+              runAsGroup: 1001
+              allowPrivilegeEscalation: false
+
+            resources:
+              requests:
+                cpu:    50m
+                memory: 64Mi
+              limits:
+                cpu:    200m
+                memory: 128Mi

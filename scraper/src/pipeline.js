@@ -70,9 +70,19 @@ async function discoverBoards(targets) {
 // Polls every known board directly via its platform's structured API — no
 // search spent on boards we already know about. This is what makes the
 // registry shrink discovery cost over time.
+// After this many consecutive failures (timeouts, 5xx, network errors — not
+// a clean "board removed" null return, which is handled separately and
+// doesn't count as a failure at all), stop retrying every single run and
+// back off for a while instead. Duration scales with failure count so a
+// board that keeps failing gets left alone longer, capped at 14 days.
+const CIRCUIT_BREAKER_THRESHOLD = 3;
+const CIRCUIT_BREAKER_MAX_DAYS = 14;
+
 async function pollKnownBoards(targetsByRoleQuery) {
   const { rows: boards } = await pool.query(
-    `SELECT ats_platform, board_slug, first_discovered_via FROM known_boards`
+    `SELECT ats_platform, board_slug, first_discovered_via, consecutive_failures
+     FROM known_boards
+     WHERE backoff_until IS NULL OR backoff_until < NOW()`
   );
 
   const results = [];
@@ -87,14 +97,29 @@ async function pollKnownBoards(targetsByRoleQuery) {
     try {
       jobs = await platform.parser.fetchBoardJobs(board.board_slug);
     } catch (err) {
-      console.error(`[Pipeline] Failed to poll ${board.ats_platform}/"${board.board_slug}":`, err.message);
+      const failures = board.consecutive_failures + 1;
+      const backoffDays = Math.min(failures, CIRCUIT_BREAKER_MAX_DAYS);
+      const shouldBackOff = failures >= CIRCUIT_BREAKER_THRESHOLD;
+      console.error(
+        `[Pipeline] Failed to poll ${board.ats_platform}/"${board.board_slug}" (${failures} consecutive):`,
+        err.message,
+        shouldBackOff ? `— backing off ${backoffDays}d` : ''
+      );
+      await pool.query(
+        `UPDATE known_boards SET consecutive_failures = $3,
+           backoff_until = CASE WHEN $4 THEN NOW() + INTERVAL '1 day' * $5 ELSE backoff_until END
+         WHERE ats_platform = $1 AND board_slug = $2`,
+        [board.ats_platform, board.board_slug, failures, shouldBackOff, backoffDays]
+      );
       continue;
     }
 
-    if (jobs === null) continue; // board no longer exists
+    if (jobs === null) continue; // board no longer exists — not a failure, just gone
 
     await pool.query(
-      `UPDATE known_boards SET last_polled_at = NOW(), last_yield_count = $3
+      `UPDATE known_boards
+       SET last_polled_at = NOW(), last_yield_count = $3,
+           consecutive_failures = 0, backoff_until = NULL
        WHERE ats_platform = $1 AND board_slug = $2`,
       [board.ats_platform, board.board_slug, jobs.length]
     );
