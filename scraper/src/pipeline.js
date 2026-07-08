@@ -15,6 +15,7 @@ const PLATFORMS = {
   lever:      { parser: require('./parsers/lever'),      siteFilter: 'site:jobs.lever.co' },
   ashby:      { parser: require('./parsers/ashby'),       siteFilter: 'site:jobs.ashbyhq.com' },
   workday:    { parser: require('./parsers/workday'),    siteFilter: 'site:myworkdayjobs.com' },
+  smartrecruiters: { parser: require('./parsers/smartrecruiters'), siteFilter: 'site:careers.smartrecruiters.com' },
 };
 
 async function loadActiveTargets() {
