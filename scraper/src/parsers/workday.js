@@ -101,7 +101,11 @@ async function fetchBoardJobs(compositeSlug) {
     jobs.push({
       external_id:     `workday_${tenant}_${site}_${jobId}`,
       company_name:    companyName,
-      title:           posting.title,
+      // jobs_raw.title is NOT NULL — Workday has returned postings with a
+      // blank title in practice (e.g. KBR requisitions R2124992-1, R2125307,
+      // seen live 2026-07-08), which crashed dedup hashing before the row
+      // ever reached the DB's own constraint check.
+      title:           posting.title || '',
       location:        detail?.location || posting.locationsText || 'Remote',
       job_type:        detail?.timeType || null,
       // jobs_raw.description is NOT NULL — empty string, not null, when

@@ -78,14 +78,57 @@ async function discoverBoards(targets) {
 const CIRCUIT_BREAKER_THRESHOLD = 3;
 const CIRCUIT_BREAKER_MAX_DAYS = 14;
 
-async function pollKnownBoards(targetsByRoleQuery) {
+// Persists one board/target's job batch immediately, accumulating into the
+// given stats bucket. Called right after each board is fetched (inside
+// pollKnownBoards's own loop) rather than once at the very end of a run —
+// a run that gets cut short by the hard timeout (index.js) can only ever
+// lose boards it hadn't reached yet, never jobs already fetched. Shared by
+// the ATS-board tier and the LinkedIn tier below.
+async function storeJobBatch(jobs, locations, postedWithinDays, stats) {
+  for (const job of jobs) {
+    stats.fetched += 1;
+
+    const isNewUrl = await markSeen(job.apply_url);
+    if (!isNewUrl) {
+      stats.alreadySeen += 1;
+      continue;
+    }
+
+    if (!matchesLocation(job.location, locations)) {
+      stats.locationFiltered += 1;
+      continue;
+    }
+
+    if (!matchesPostedWithin(job.posted_at, postedWithinDays)) {
+      stats.staleFiltered += 1;
+      continue;
+    }
+
+    // One malformed row (unexpected null, a constraint violation, etc.)
+    // must not sink the entire run's progress — log and move on, same
+    // resilience the old system's per-job scoring loop already has.
+    try {
+      const inserted = await storeRawJob(job);
+      if (inserted) stats.new += 1;
+    } catch (err) {
+      stats.errors += 1;
+      console.error(`[Pipeline] Failed to store "${job.external_id}":`, err.message);
+    }
+  }
+}
+
+async function pollKnownBoards(targetsByRoleQuery, statsByPlatform) {
+  // Never-polled boards first (NULLS FIRST), then stalest-first — so if a
+  // run gets cut short, it's always a *different* tail of boards left
+  // behind, not the same newly-discovered ones stuck at the back every day.
   const { rows: boards } = await pool.query(
     `SELECT ats_platform, board_slug, first_discovered_via, consecutive_failures
      FROM known_boards
-     WHERE backoff_until IS NULL OR backoff_until < NOW()`
+     WHERE backoff_until IS NULL OR backoff_until < NOW()
+     ORDER BY last_polled_at ASC NULLS FIRST`
   );
 
-  const results = [];
+  let polled = 0;
   for (const board of boards) {
     const platform = PLATFORMS[board.ats_platform];
     if (!platform) {
@@ -123,40 +166,32 @@ async function pollKnownBoards(targetsByRoleQuery) {
        WHERE ats_platform = $1 AND board_slug = $2`,
       [board.ats_platform, board.board_slug, jobs.length]
     );
+    polled += 1;
 
     // Best-effort mapping back to the target that discovered this board, so
     // we know which location/recency constraints to filter against. If that
     // target was since renamed/paused, fall back to no constraint rather than
     // silently dropping jobs over bookkeeping drift.
     const target = targetsByRoleQuery.get(board.first_discovered_via);
-    results.push({
-      atsPlatform: board.ats_platform,
-      slug: board.board_slug,
-      jobs,
-      locations: target?.locations || [],
-      postedWithinDays: target?.posted_within_days ?? null,
-    });
+    const stats = (statsByPlatform[board.ats_platform] ??= emptyStats());
+    await storeJobBatch(jobs, target?.locations || [], target?.posted_within_days ?? null, stats);
   }
 
-  return results;
+  return polled;
 }
 
 // LinkedIn has no structured API and no "board" to poll for free — every
-// lead comes straight from a fresh search each run. Shaped identically to
-// pollKnownBoards()'s output so processBoardResults() can treat it the same.
-async function discoverLinkedInLeads(targets) {
-  const results = [];
+// lead comes straight from a fresh search each run, stored immediately per
+// target for the same reason pollKnownBoards stores per-board.
+async function pollLinkedInLeads(targets, statsByPlatform) {
+  let found = 0;
   for (const target of targets) {
     const jobs = await linkedin.discoverLeads(target);
-    results.push({
-      atsPlatform: 'linkedin',
-      slug: null,
-      jobs,
-      locations: target.locations || [],
-      postedWithinDays: target.posted_within_days ?? null,
-    });
+    found += jobs.length;
+    const stats = (statsByPlatform.linkedin ??= emptyStats());
+    await storeJobBatch(jobs, target.locations || [], target.posted_within_days ?? null, stats);
   }
-  return results;
+  return found;
 }
 
 // Cheapest gate first: has this URL already been considered? Insert into
@@ -271,49 +306,6 @@ async function discoverCustomSiteJobs(targets) {
   return stats;
 }
 
-// Returns stats per platform (ats_platform -> stats) so each gets its own
-// job_ingestion_logs row, same as each old job-board provider used to.
-async function processBoardResults(boardResults) {
-  const statsByPlatform = {};
-
-  for (const { atsPlatform, jobs, locations, postedWithinDays } of boardResults) {
-    const stats = (statsByPlatform[atsPlatform] ??= emptyStats());
-
-    for (const job of jobs) {
-      stats.fetched += 1;
-
-      const isNewUrl = await markSeen(job.apply_url);
-      if (!isNewUrl) {
-        stats.alreadySeen += 1;
-        continue;
-      }
-
-      if (!matchesLocation(job.location, locations)) {
-        stats.locationFiltered += 1;
-        continue;
-      }
-
-      if (!matchesPostedWithin(job.posted_at, postedWithinDays)) {
-        stats.staleFiltered += 1;
-        continue;
-      }
-
-      // One malformed row (unexpected null, a constraint violation, etc.)
-      // must not sink the entire run's progress — log and move on, same
-      // resilience the old system's per-job scoring loop already has.
-      try {
-        const inserted = await storeRawJob(job);
-        if (inserted) stats.new += 1;
-      } catch (err) {
-        stats.errors += 1;
-        console.error(`[Pipeline] Failed to store "${job.external_id}":`, err.message);
-      }
-    }
-  }
-
-  return statsByPlatform;
-}
-
 async function recordIngestionLog(atsPlatform, stats, durationMs, error) {
   await pool.query(
     `INSERT INTO job_ingestion_logs (
@@ -342,16 +334,20 @@ async function run() {
 
     const targetsByRoleQuery = new Map(targets.map((t) => [t.role_query, t]));
 
+    const statsByPlatform = {};
+
     const discovered = await discoverBoards(targets);
     console.log(`[Pipeline] Discovered ${discovered} new board(s)`);
 
-    const boardResults = await pollKnownBoards(targetsByRoleQuery);
-    console.log(`[Pipeline] Polled ${boardResults.length} known board(s)`);
+    // Each board's jobs are stored immediately as it's polled (inside
+    // pollKnownBoards itself), not batched in memory until this whole pass
+    // finishes — so index.js's hard timeout can only ever cost us boards not
+    // yet reached, never jobs already fetched.
+    const polled = await pollKnownBoards(targetsByRoleQuery, statsByPlatform);
+    console.log(`[Pipeline] Polled ${polled} known board(s)`);
 
-    const linkedInResults = await discoverLinkedInLeads(targets);
-    console.log(`[Pipeline] Found ${linkedInResults.reduce((n, r) => n + r.jobs.length, 0)} LinkedIn lead(s)`);
-
-    const statsByPlatform = await processBoardResults([...boardResults, ...linkedInResults]);
+    const linkedInCount = await pollLinkedInLeads(targets, statsByPlatform);
+    console.log(`[Pipeline] Found ${linkedInCount} LinkedIn lead(s)`);
 
     const customSiteStats = await discoverCustomSiteJobs(targets);
     statsByPlatform.custom_site = customSiteStats;
