@@ -78,6 +78,30 @@ async function discoverBoards(targets) {
 const CIRCUIT_BREAKER_THRESHOLD = 3;
 const CIRCUIT_BREAKER_MAX_DAYS = 14;
 
+// Each board is a different company's independent ATS endpoint, so several
+// can be in flight at once without one slow board (e.g. a multi-MB Lever
+// payload) blocking others behind it in a single-file queue. Matches the db
+// pool's max connections (db/client.js) — every board's own DB writes are
+// brief and release the connection immediately, so this comfortably overlaps
+// network I/O wait across boards without starving the pool or hammering
+// SearXNG/every ATS at once.
+const POLL_CONCURRENCY = 5;
+
+// Runs `worker` over `items` with at most `concurrency` in flight at a time.
+// Each of the `concurrency` lanes pulls the next item as soon as it finishes
+// its current one, rather than waiting for a whole batch to complete —
+// so one slow item only holds up its own lane, not the others.
+async function mapWithConcurrency(items, concurrency, worker) {
+  let next = 0;
+  async function lane() {
+    while (next < items.length) {
+      const item = items[next++];
+      await worker(item);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, lane));
+}
+
 // Persists one board/target's job batch immediately, accumulating into the
 // given stats bucket. Called right after each board is fetched (inside
 // pollKnownBoards's own loop) rather than once at the very end of a run —
@@ -117,6 +141,57 @@ async function storeJobBatch(jobs, locations, postedWithinDays, stats) {
   }
 }
 
+// Polls, circuit-breaks, and stores a single board — everything one lane of
+// mapWithConcurrency does per item. Returns true if the board was actually
+// polled (vs. skipped/failed), so the caller can keep an accurate count.
+async function pollOneBoard(board, targetsByRoleQuery, statsByPlatform) {
+  const platform = PLATFORMS[board.ats_platform];
+  if (!platform) {
+    console.warn(`[Pipeline] Unknown ats_platform "${board.ats_platform}" — skipping`);
+    return false;
+  }
+
+  let jobs;
+  try {
+    jobs = await platform.parser.fetchBoardJobs(board.board_slug);
+  } catch (err) {
+    const failures = board.consecutive_failures + 1;
+    const backoffDays = Math.min(failures, CIRCUIT_BREAKER_MAX_DAYS);
+    const shouldBackOff = failures >= CIRCUIT_BREAKER_THRESHOLD;
+    console.error(
+      `[Pipeline] Failed to poll ${board.ats_platform}/"${board.board_slug}" (${failures} consecutive):`,
+      err.message,
+      shouldBackOff ? `— backing off ${backoffDays}d` : ''
+    );
+    await pool.query(
+      `UPDATE known_boards SET consecutive_failures = $3,
+         backoff_until = CASE WHEN $4 THEN NOW() + INTERVAL '1 day' * $5 ELSE backoff_until END
+       WHERE ats_platform = $1 AND board_slug = $2`,
+      [board.ats_platform, board.board_slug, failures, shouldBackOff, backoffDays]
+    );
+    return false;
+  }
+
+  if (jobs === null) return false; // board no longer exists — not a failure, just gone
+
+  await pool.query(
+    `UPDATE known_boards
+     SET last_polled_at = NOW(), last_yield_count = $3,
+         consecutive_failures = 0, backoff_until = NULL
+     WHERE ats_platform = $1 AND board_slug = $2`,
+    [board.ats_platform, board.board_slug, jobs.length]
+  );
+
+  // Best-effort mapping back to the target that discovered this board, so
+  // we know which location/recency constraints to filter against. If that
+  // target was since renamed/paused, fall back to no constraint rather than
+  // silently dropping jobs over bookkeeping drift.
+  const target = targetsByRoleQuery.get(board.first_discovered_via);
+  const stats = (statsByPlatform[board.ats_platform] ??= emptyStats());
+  await storeJobBatch(jobs, target?.locations || [], target?.posted_within_days ?? null, stats);
+  return true;
+}
+
 async function pollKnownBoards(targetsByRoleQuery, statsByPlatform) {
   // Never-polled boards first (NULLS FIRST), then stalest-first — so if a
   // run gets cut short, it's always a *different* tail of boards left
@@ -129,53 +204,10 @@ async function pollKnownBoards(targetsByRoleQuery, statsByPlatform) {
   );
 
   let polled = 0;
-  for (const board of boards) {
-    const platform = PLATFORMS[board.ats_platform];
-    if (!platform) {
-      console.warn(`[Pipeline] Unknown ats_platform "${board.ats_platform}" — skipping`);
-      continue;
-    }
-
-    let jobs;
-    try {
-      jobs = await platform.parser.fetchBoardJobs(board.board_slug);
-    } catch (err) {
-      const failures = board.consecutive_failures + 1;
-      const backoffDays = Math.min(failures, CIRCUIT_BREAKER_MAX_DAYS);
-      const shouldBackOff = failures >= CIRCUIT_BREAKER_THRESHOLD;
-      console.error(
-        `[Pipeline] Failed to poll ${board.ats_platform}/"${board.board_slug}" (${failures} consecutive):`,
-        err.message,
-        shouldBackOff ? `— backing off ${backoffDays}d` : ''
-      );
-      await pool.query(
-        `UPDATE known_boards SET consecutive_failures = $3,
-           backoff_until = CASE WHEN $4 THEN NOW() + INTERVAL '1 day' * $5 ELSE backoff_until END
-         WHERE ats_platform = $1 AND board_slug = $2`,
-        [board.ats_platform, board.board_slug, failures, shouldBackOff, backoffDays]
-      );
-      continue;
-    }
-
-    if (jobs === null) continue; // board no longer exists — not a failure, just gone
-
-    await pool.query(
-      `UPDATE known_boards
-       SET last_polled_at = NOW(), last_yield_count = $3,
-           consecutive_failures = 0, backoff_until = NULL
-       WHERE ats_platform = $1 AND board_slug = $2`,
-      [board.ats_platform, board.board_slug, jobs.length]
-    );
-    polled += 1;
-
-    // Best-effort mapping back to the target that discovered this board, so
-    // we know which location/recency constraints to filter against. If that
-    // target was since renamed/paused, fall back to no constraint rather than
-    // silently dropping jobs over bookkeeping drift.
-    const target = targetsByRoleQuery.get(board.first_discovered_via);
-    const stats = (statsByPlatform[board.ats_platform] ??= emptyStats());
-    await storeJobBatch(jobs, target?.locations || [], target?.posted_within_days ?? null, stats);
-  }
+  await mapWithConcurrency(boards, POLL_CONCURRENCY, async (board) => {
+    const ok = await pollOneBoard(board, targetsByRoleQuery, statsByPlatform);
+    if (ok) polled += 1;
+  });
 
   return polled;
 }

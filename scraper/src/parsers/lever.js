@@ -20,7 +20,11 @@ async function fetchBoardJobs(slug) {
 
   let data;
   try {
-    ({ data } = await axios.get(url, { timeout: 10000 }));
+    // Lever returns the whole board in one response, no pagination — a large
+    // employer's postings can run well into multiple MB (e.g. jobgether's
+    // board is 13MB+, seen live 2026-07-13), so this needs real headroom
+    // rather than the 10s used by the paginated parsers (Workday/SmartRecruiters).
+    ({ data } = await axios.get(url, { timeout: 30000 }));
   } catch (err) {
     if (err.response?.status === 404) return null; // board doesn't exist / was removed
     throw err;

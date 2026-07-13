@@ -19,7 +19,9 @@ async function fetchBoardJobs(slug) {
 
   let data;
   try {
-    ({ data } = await axios.get(url, { timeout: 10000 }));
+    // Greenhouse returns the whole board in one response, no pagination —
+    // a large employer's postings can take well over 10s to fully transfer.
+    ({ data } = await axios.get(url, { timeout: 30000 }));
   } catch (err) {
     if (err.response?.status === 404) return null; // board doesn't exist / was removed
     throw err;
