@@ -62,7 +62,7 @@ spec:
 
           containers:
           - name: scraper
-            image: ghcr.io/johnitopaisah/portfolio-mcs/scraper:v0.1.11-rc6
+            image: ghcr.io/johnitopaisah/portfolio-mcs/scraper:v0.1.11-rc7
             imagePullPolicy: Always
             command: ["node", "index.js"]
             securityContext:
