@@ -56,10 +56,10 @@ spec:
           resources:
             requests:
               cpu: "10m"
-              memory: "16Mi"
+              memory: "40Mi"
             limits:
               cpu: "50m"
-              memory: "32Mi"
+              memory: "80Mi"
 
       containers:
         - name: api
