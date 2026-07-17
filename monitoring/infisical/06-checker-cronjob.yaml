@@ -50,7 +50,7 @@ spec:
                     METRICS="${METRICS}infisical_secret_synced{namespace=\"${ns}\",name=\"${name}\"} ${value}
                   "
                   done < <(kubectl get infisicalsecrets.secrets.infisical.com -A \
-                    -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{" "}{.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}')
+                    -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{" "}{.status.conditions[?(@.type=="secrets.infisical.com/ReadyToSyncSecrets")].status}{"\n"}{end}')
 
                   if [ -z "$METRICS" ]; then
                     echo "[$(date)] ⚠ No InfisicalSecret resources found — nothing to push"
