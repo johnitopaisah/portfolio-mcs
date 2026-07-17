@@ -71,7 +71,12 @@ spec:
               subPath: smtp-password
             - name: alertmanager-secrets
               mountPath: /etc/alertmanager-secrets/telegram-bot-token
-              subPath: telegram-bot-token
+              # subPath must match the actual Infisical-synced key name
+              # exactly (TELEGRAM_BOT_TOKEN, uppercase) — a lowercase
+              # mismatch here silently mounts an empty directory instead
+              # of the file, which is not what happens with a missing key
+              # (that fails loudly). Found via live cluster verification.
+              subPath: TELEGRAM_BOT_TOKEN
             - name: alertmanager-data
               mountPath: /alertmanager
 

@@ -146,7 +146,7 @@ All secrets in the `monitoring` namespace are managed by the Infisical operator 
 | `GRAFANA_ADMIN_USER` | `grafana-admin-secret` → `admin-user` | Use `admin` |
 | `GRAFANA_ADMIN_PASSWORD` | `grafana-admin-secret` → `admin-password` | 16+ chars |
 | `ALERTMANAGER_SMTP_PASSWORD` | `alertmanager-smtp-secret` → `smtp-password` | Zoho app password |
-| `TELEGRAM_BOT_TOKEN` | `alertmanager-smtp-secret` → `telegram-bot-token` | Same bot already used by the job-digest system (`notificationService.js`) |
+| `TELEGRAM_BOT_TOKEN` | `alertmanager-smtp-secret` → `TELEGRAM_BOT_TOKEN` (same name, not renamed) | Same bot already used by the job-digest system (`notificationService.js`) |
 | `MONITORING_DB_DSN` | `postgres-exporter-secret` → `DATA_SOURCE_NAME` | Full `postgresql://` DSN |
 
 **Not Infisical-managed:** the Telegram `chat_id` in `alertmanager/01-configmap.yaml` (`telegram_configs[0].chat_id`) is a literal placeholder (`REPLACE_WITH_YOUR_TELEGRAM_CHAT_ID`) — it's a numeric identifier, not a credential, so it's set directly in the ConfigMap like `smtp_from`/`smtp_auth_username` already are.
