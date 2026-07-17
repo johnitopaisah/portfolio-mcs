@@ -31,6 +31,11 @@ spec:
     repoURL: https://github.com/johnitopaisah/portfolio-mcs
     targetRevision: develop
     path: monitoring/exporters
+    directory:
+      recurse: true   # every exporter lives in its own subdirectory — without
+                       # this, ArgoCD's directory source finds nothing at all
+                       # to sync (confirmed live: 0 managed resources despite
+                       # "Synced"/"Healthy" status pre-dating this fix)
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
