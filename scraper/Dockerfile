@@ -15,7 +15,14 @@ ENV NODE_ENV=production
 # never touch it.
 ENV PLAYWRIGHT_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
-RUN apk upgrade --no-cache && \
+# Cache-bust: BuildKit/GHA cache keys this RUN on its instruction text alone,
+# not wall-clock time — a layer cached before an upstream CVE fix was
+# published will keep being reused (and keep serving the vulnerable package)
+# indefinitely otherwise. Bump ARG's value whenever Trivy's scan step flags a
+# "fixed" OS-level CVE that a plain re-run doesn't clear.
+ARG APK_CACHE_BUST=2026-07-17-libjxl-CVE-2026-1837
+RUN echo "cache-bust: ${APK_CACHE_BUST}" && \
+    apk upgrade --no-cache && \
     apk add --no-cache ca-certificates chromium nss freetype harfbuzz ttf-freefont
 
 RUN addgroup -g 1001 -S nodejs && \
