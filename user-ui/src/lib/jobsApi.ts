@@ -7,11 +7,30 @@
  * In dev, set 
  */
 
+import { reportSuccess, reportFailure, isOutageStatus } from './backendStatus';
+
 function apiBase(): string {
   const url = process.env.NEXT_PUBLIC_API_URL;
   if (!url) throw new Error('NEXT_PUBLIC_API_URL is not set');
   // Strip trailing slash so callers can use /jobs without //
   return url.replace(/\/$/, '');
+}
+
+// Shared fetch wrapper — every export below goes through this so
+// backend-reachability tracking (MaintenanceOverlay) only needs wiring
+// in one place instead of five near-identical fetch blocks.
+async function apiFetch(path: string, init: RequestInit, errorLabel: string) {
+  let res: Response;
+  try {
+    res = await fetch(`${apiBase()}${path}`, init);
+  } catch (err) {
+    reportFailure();
+    throw err;
+  }
+  if (isOutageStatus(res.status)) reportFailure();
+  else reportSuccess();
+  if (!res.ok) throw new Error(`${errorLabel}: ${res.status}`);
+  return res.json();
 }
 
 // ── Types ─────────────────────────────────────────────────────
@@ -92,58 +111,48 @@ export async function getJobs(
   if (filters?.sortBy)  params.set('sortBy',  filters.sortBy);
   if (filters?.order)   params.set('order',   filters.order);
 
-  const res = await fetch(`${apiBase()}/api/jobs?${params}`, {
+  return apiFetch(`/api/jobs?${params}`, {
     headers: { 'Content-Type': 'application/json' },
     next: { revalidate: 60 },  // ISR: re-fetch every 60s on Next.js edge/server
-  });
-  if (!res.ok) throw new Error(`getJobs: ${res.status}`);
-  return res.json();
+  }, 'getJobs');
 }
 
 /**
  * Top KEEP jobs from the last 48 hours.
  */
 export async function getTopJobs(limit = 10): Promise<Job[]> {
-  const res = await fetch(`${apiBase()}/api/jobs/top?limit=${limit}`, {
+  return apiFetch(`/api/jobs/top?limit=${limit}`, {
     headers: { 'Content-Type': 'application/json' },
     next: { revalidate: 60 },
-  });
-  if (!res.ok) throw new Error(`getTopJobs: ${res.status}`);
-  return res.json();
+  }, 'getTopJobs');
 }
 
 /**
  * Most recently posted jobs regardless of AI decision.
  */
 export async function getLatestJobs(limit = 10): Promise<Job[]> {
-  const res = await fetch(`${apiBase()}/api/jobs/latest?limit=${limit}`, {
+  return apiFetch(`/api/jobs/latest?limit=${limit}`, {
     headers: { 'Content-Type': 'application/json' },
     next: { revalidate: 60 },
-  });
-  if (!res.ok) throw new Error(`getLatestJobs: ${res.status}`);
-  return res.json();
+  }, 'getLatestJobs');
 }
 
 /**
  * Summary counts (keep / review / drop / last_24h / avg_score).
  */
 export async function getJobStats(): Promise<JobStats> {
-  const res = await fetch(`${apiBase()}/api/jobs/stats`, {
+  return apiFetch('/api/jobs/stats', {
     headers: { 'Content-Type': 'application/json' },
     next: { revalidate: 30 },
-  });
-  if (!res.ok) throw new Error(`getJobStats: ${res.status}`);
-  return res.json();
+  }, 'getJobStats');
 }
 
 /**
  * Single job by ID.
  */
 export async function getJobById(id: string): Promise<Job> {
-  const res = await fetch(`${apiBase()}/api/jobs/${id}`, {
+  return apiFetch(`/api/jobs/${id}`, {
     headers: { 'Content-Type': 'application/json' },
     next: { revalidate: 120 },
-  });
-  if (!res.ok) throw new Error(`getJobById: ${res.status}`);
-  return res.json();
+  }, 'getJobById');
 }

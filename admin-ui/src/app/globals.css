@@ -228,6 +228,25 @@
   50%       { opacity: 1;    transform: scaleX(1);    }
 }
 
+/* ── Maintenance overlay gears ─────────────────────────────── */
+@keyframes maintenance-gear-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes maintenance-gear-spin-reverse {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(-360deg); }
+}
+.maintenance-gear-a { animation: maintenance-gear-spin 6s linear infinite; }
+.maintenance-gear-b { animation: maintenance-gear-spin-reverse 4.5s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .maintenance-gear-a,
+  .maintenance-gear-b {
+    animation: none;
+  }
+}
+
 @layer components {
   /* ── Frosted glass card ── */
   .card {

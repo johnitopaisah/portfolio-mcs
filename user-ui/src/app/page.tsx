@@ -9,24 +9,48 @@ import CertificationsSection from '@/components/CertificationsSection';
 import RefereesSection from '@/components/RefereesSection';
 import ContactSection from '@/components/ContactSection';
 import BlogTeaserSection from '@/components/BlogTeaserSection';
+import BackendStatusSeed from '@/components/BackendStatusSeed';
 
 export const dynamic = 'force-dynamic';
 
+function unwrap<T>(result: PromiseSettledResult<T>, fallback: T): T {
+  return result.status === 'fulfilled' ? result.value : fallback;
+}
+
 export default async function HomePage() {
-  const [profile, projects, skills, experiences, education, certifications, referees, socialLinks, blogPosts] = await Promise.all([
-    api.getProfile().catch(() => null),
-    api.getProjects().catch(() => []),
-    api.getSkills().catch(() => []),
-    api.getExperiences().catch(() => []),
-    api.getEducation().catch(() => []),
-    api.getCertifications().catch(() => []),
-    api.getReferies().catch(() => []),
-    api.getSocialLinks().catch(() => []),
-    api.getBlogPosts().catch(() => []),
+  const results = await Promise.allSettled([
+    api.getProfile(),
+    api.getProjects(),
+    api.getSkills(),
+    api.getExperiences(),
+    api.getEducation(),
+    api.getCertifications(),
+    api.getReferies(),
+    api.getSocialLinks(),
+    api.getBlogPosts(),
   ]);
+
+  // A real backend can't legitimately fail all 9 different endpoints at
+  // once — this is the signal that the API/DB is unreachable, not just
+  // one broken query. Seeds MaintenanceOverlay so a fresh page load
+  // during an outage shows the overlay immediately instead of a flash of
+  // this page's empty/broken-looking fallback content below.
+  const allFailed = results.every((r) => r.status === 'rejected');
+
+  const [profileR, projectsR, skillsR, experiencesR, educationR, certificationsR, refereesR, socialLinksR, blogPostsR] = results;
+  const profile = unwrap(profileR, null);
+  const projects = unwrap(projectsR, []);
+  const skills = unwrap(skillsR, []);
+  const experiences = unwrap(experiencesR, []);
+  const education = unwrap(educationR, []);
+  const certifications = unwrap(certificationsR, []);
+  const referees = unwrap(refereesR, []);
+  const socialLinks = unwrap(socialLinksR, []);
+  const blogPosts = unwrap(blogPostsR, []);
 
   return (
     <>
+      <BackendStatusSeed down={allFailed} />
       <Navbar availabilityStatus={profile?.availability_status} />
       <main>
         <HeroSection profile={profile} certifications={certifications} />

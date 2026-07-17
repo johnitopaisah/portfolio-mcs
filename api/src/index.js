@@ -9,6 +9,7 @@ const swaggerUi         = require('swagger-ui-express');
 const swaggerSpec       = require('./swagger');
 const { register }      = require('./metrics');
 const metricsMiddleware = require('./metricsMiddleware');
+const pool              = require('./db/client');
 const { startDailyDigest }           = require('./services/visitorDigest');
 const { startDailyJobDigest }        = require('./services/jobIngestion/notificationService');
 const { startConsentReminderWorker } = require('./workers/consentReminderWorker');
@@ -68,9 +69,17 @@ app.get('/metrics', async (_req, res) => {
 });
 
 // ── Health ──────────────────────────────────────────────────
-app.get('/api/health', (_req, res) =>
-  res.json({ status: 'ok', timestamp: new Date().toISOString() })
-);
+// Pings the DB too, not just the Express process — the frontend's
+// backend-unreachable detection (MaintenanceOverlay) polls this endpoint
+// and needs a DB-down outage to look the same as an API-down one.
+app.get('/api/health', async (_req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  } catch (err) {
+    res.status(503).json({ status: 'degraded', error: 'database unreachable', timestamp: new Date().toISOString() });
+  }
+});
 
 // ── Swagger UI ───────────────────────────────────────────────
 app.use(

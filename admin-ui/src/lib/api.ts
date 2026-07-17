@@ -2,6 +2,8 @@
 // NEXT_PUBLIC_API_URL must be set — no localhost fallback.
 // In local dev, create admin-ui/.env.local with:
 
+import { reportSuccess, reportFailure, isOutageStatus } from './backendStatus';
+
 function getApiBase(): string {
   const url = process.env.NEXT_PUBLIC_API_URL;
   if (!url) throw new Error('NEXT_PUBLIC_API_URL is not configured');
@@ -13,9 +15,26 @@ function getToken(): string | null {
   return localStorage.getItem('admin_token');
 }
 
+// A network-level fetch() throw, or a 502/503/504 response, means the
+// backend is unreachable — feeds MaintenanceOverlay. A 401/404/other 4xx
+// or 5xx proves the server responded, so it's a normal app error, not an
+// outage signal.
+async function fetchWithStatus(url: string, init: RequestInit): Promise<Response> {
+  let res: Response;
+  try {
+    res = await fetch(url, init);
+  } catch (err) {
+    reportFailure();
+    throw err;
+  }
+  if (isOutageStatus(res.status)) reportFailure();
+  else reportSuccess();
+  return res;
+}
+
 async function request(path: string, options: RequestInit = {}) {
   const token = getToken();
-  const res = await fetch(`${getApiBase()}${path}`, {
+  const res = await fetchWithStatus(`${getApiBase()}${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -39,7 +58,7 @@ async function request(path: string, options: RequestInit = {}) {
 // Multipart request (for file uploads)
 async function upload(path: string, formData: FormData, method = 'POST') {
   const token = getToken();
-  const res = await fetch(`${getApiBase()}${path}`, {
+  const res = await fetchWithStatus(`${getApiBase()}${path}`, {
     method,
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: formData,
@@ -208,7 +227,7 @@ export const adminApi = {
 
   getDocumentSourceHtml: async (appId: number | string, docId: number): Promise<string> => {
     const token = getToken();
-    const res = await fetch(
+    const res = await fetchWithStatus(
       `${getApiBase()}/api/applications/${appId}/documents/${docId}/preview`,
       { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } }
     );
@@ -225,7 +244,7 @@ export const adminApi = {
     }
   ): Promise<string> => {
     const token = getToken();
-    const res = await fetch(
+    const res = await fetchWithStatus(
       `${getApiBase()}/api/applications/${appId}/documents/${docId}/reformat`,
       {
         method: 'POST',
@@ -292,7 +311,7 @@ export const adminApi = {
 
   previewDocument: async (appId: number | string, docId: number): Promise<string> => {
     const token = getToken();
-    const res = await fetch(
+    const res = await fetchWithStatus(
       `${getApiBase()}/api/applications/${appId}/documents/${docId}/preview`,
       { headers: token ? { Authorization: `Bearer ${token}` } : {} }
     );
@@ -328,7 +347,7 @@ export const adminApi = {
 
   getAiOriginalDocument: async (appId: number | string, docId: number): Promise<string> => {
     const token = getToken();
-    const res = await fetch(
+    const res = await fetchWithStatus(
       `${getApiBase()}/api/applications/${appId}/documents/${docId}/ai-original`,
       { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } }
     );
@@ -340,7 +359,7 @@ export const adminApi = {
 
   downloadCvDocument: async (appId: number | string, docId: number, filename: string): Promise<void> => {
     const token = getToken();
-    const res = await fetch(
+    const res = await fetchWithStatus(
       `${getApiBase()}/api/applications/${appId}/documents/${docId}/download`,
       { headers: token ? { Authorization: `Bearer ${token}` } : {} }
     );

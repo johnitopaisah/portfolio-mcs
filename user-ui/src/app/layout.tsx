@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { RumReporter } from '@/components/RumReporter';
+import MaintenanceOverlay from '@/components/MaintenanceOverlay';
 
 export const metadata: Metadata = {
   title: { default: 'John Itopa ISAH — DevOps & Cloud Engineer', template: '%s | John Itopa ISAH' },
@@ -44,6 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
         <RumReporter />
+        <MaintenanceOverlay />
         <ThemeProvider>
           {children}
         </ThemeProvider>
