@@ -10,6 +10,7 @@ const { extractJobFromPage } = require('./extraction/claudeExtract');
 const { matchesLocation } = require('./locationFilter');
 const { matchesPostedWithin } = require('./postedWithinFilter');
 const { calculateDeduplicationHash } = require('./dedupHash');
+const metrics = require('./metrics');
 
 // Bounds Claude spend per run, same philosophy as the existing scoring
 // pipeline's LLM_CALLS_PER_RUN — cheap tiers (URL-seen check, then a
@@ -355,6 +356,14 @@ async function recordIngestionLog(atsPlatform, stats, durationMs, error) {
       durationMs,
     ]
   );
+
+  // Mirror the same numbers into Prometheus (pushed at end of run — see
+  // index.js) so the Job Pipeline dashboard has real per-provider data.
+  const status = error ? 'failed' : 'success';
+  metrics.jobIngestionDuration.observe({ provider: atsPlatform, status }, durationMs / 1000);
+  metrics.jobsIngestedTotal.inc({ provider: atsPlatform, status }, stats.fetched);
+  metrics.jobsNewTotal.inc({ provider: atsPlatform }, stats.new);
+  metrics.jobsDuplicateTotal.inc({ provider: atsPlatform }, stats.alreadySeen);
 }
 
 async function run() {

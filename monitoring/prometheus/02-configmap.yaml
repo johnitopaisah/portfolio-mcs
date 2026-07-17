@@ -84,6 +84,32 @@ data:
         static_configs:
           - targets: ['postgres-exporter:9187']
 
+      - job_name: pushgateway
+        honor_labels: true   # keep the job/instance pushed by the client, not the gateway's own
+        static_configs:
+          - targets: ['pushgateway:9091']
+
+      # Outside-in probing: blackbox-exporter hits these over the real public
+      # internet path (DNS -> TCP -> TLS -> HTTP), the one class of failure
+      # nothing else in this stack can see (ingress/DNS/cert/CDN issues).
+      - job_name: blackbox
+        metrics_path: /probe
+        params:
+          module: [http_2xx]
+        static_configs:
+          - targets:
+              - https://johnisah.com
+              - https://api.johnisah.com/api/health
+              - https://admin.johnisah.com
+              - https://grafana.johnisah.com
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: __param_target
+          - source_labels: [__param_target]
+            target_label: instance
+          - target_label: __address__
+            replacement: blackbox-exporter:9115
+
   alert-rules.yml: |
     groups:
 
@@ -224,3 +250,197 @@ data:
             annotations:
               summary: "High admin auth failure rate"
               description: "More than 6 failed login attempts per minute — possible brute-force attempt."
+
+      # ── Batch CronJob health ────────────────────────────────
+      # kube-state-metrics already watches batch/jobs and batch/cronjobs
+      # cluster-wide (see exporters/kube-state-metrics/01-all.yaml) — these
+      # rules were the missing piece, not new scrape infrastructure.
+      - name: batch-jobs
+        rules:
+          - alert: CronJobFailed
+            expr: |
+              kube_job_status_failed{namespace=~"portfolio|backup"} > 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "CronJob run failed: {{ $labels.job_name }}"
+              description: "Job {{ $labels.job_name }} in namespace {{ $labels.namespace }} has a failed pod status."
+
+          # One rule per CronJob — the "didn't run" threshold is schedule-specific
+          # (2x the expected interval + tolerance), so a single shared expression
+          # can't cover all seven jobs correctly.
+          - alert: CronJobDidNotRun
+            expr: |
+              (time() - kube_cronjob_status_last_schedule_time{namespace="portfolio", cronjob="job-ingestion-worker"}) > 57600
+            for: 10m
+            labels:
+              severity: critical
+              cronjob: job-ingestion-worker
+            annotations:
+              summary: "job-ingestion-worker has not run in the expected 8h window"
+              description: "Last scheduled run was more than 16h ago (2x the 8h schedule)."
+
+          - alert: CronJobDidNotRun
+            expr: |
+              (time() - kube_cronjob_status_last_schedule_time{namespace="portfolio", cronjob="email-tracking-worker"}) > 3600
+            for: 10m
+            labels:
+              severity: warning
+              cronjob: email-tracking-worker
+            annotations:
+              summary: "email-tracking-worker has not run in the expected 30m window"
+              description: "Last scheduled run was more than 1h ago (2x the 30m schedule)."
+
+          - alert: CronJobDidNotRun
+            expr: |
+              (time() - kube_cronjob_status_last_schedule_time{namespace="portfolio", cronjob="followup-reminder-worker"}) > 172800
+            for: 10m
+            labels:
+              severity: warning
+              cronjob: followup-reminder-worker
+            annotations:
+              summary: "followup-reminder-worker has not run in the expected daily window"
+              description: "Last scheduled run was more than 48h ago (2x the 24h schedule)."
+
+          - alert: CronJobDidNotRun
+            expr: |
+              (time() - kube_cronjob_status_last_schedule_time{namespace="portfolio", cronjob="scraper-discovery"}) > 172800
+            for: 10m
+            labels:
+              severity: warning
+              cronjob: scraper-discovery
+            annotations:
+              summary: "scraper-discovery has not run in the expected daily window"
+              description: "Last scheduled run was more than 48h ago (2x the 24h schedule) — job discovery has stalled."
+
+          - alert: CronJobDidNotRun
+            expr: |
+              (time() - kube_cronjob_status_last_schedule_time{namespace="portfolio", cronjob="canary-checker"}) > 1209600
+            for: 10m
+            labels:
+              severity: warning
+              cronjob: canary-checker
+            annotations:
+              summary: "canary-checker has not run in the expected weekly window"
+              description: "Last scheduled run was more than 14 days ago (2x the weekly schedule)."
+
+          - alert: CronJobDidNotRun
+            expr: |
+              (time() - kube_cronjob_status_last_schedule_time{namespace="backup", cronjob="portfolio-db-backup"}) > 172800
+            for: 10m
+            labels:
+              severity: critical
+              cronjob: portfolio-db-backup
+            annotations:
+              summary: "portfolio-db-backup has not run in the expected daily window"
+              description: "Last scheduled run was more than 48h ago — database backups may be stale."
+
+          - alert: CronJobDidNotRun
+            expr: |
+              (time() - kube_cronjob_status_last_schedule_time{namespace="backup", cronjob="backup-monitoring-volumes"}) > 172800
+            for: 10m
+            labels:
+              severity: warning
+              cronjob: backup-monitoring-volumes
+            annotations:
+              summary: "backup-monitoring-volumes has not run in the expected daily window"
+              description: "Last scheduled run was more than 48h ago — Prometheus/Grafana volume backups may be stale."
+
+      # ── Infisical secret sync health ─────────────────────────
+      # Pushed every 15m by monitoring/infisical/06-checker-cronjob.yaml —
+      # the operator itself lives outside this repo, so there's no
+      # first-party /metrics endpoint to scrape directly.
+      - name: infisical-secrets
+        rules:
+          - alert: InfisicalSecretSyncFailed
+            expr: |
+              infisical_secret_synced == 0
+            for: 15m
+            labels:
+              severity: critical
+            annotations:
+              summary: "InfisicalSecret {{ $labels.namespace }}/{{ $labels.name }} is not Ready"
+              description: "Secret sync has been failing for 15+ minutes — dependent workloads may be running with stale credentials. Check `kubectl describe infisicalsecret {{ $labels.name }} -n {{ $labels.namespace }}`."
+
+      # ── External uptime & TLS (blackbox-exporter) ────────────
+      - name: external-uptime
+        rules:
+          - alert: ProbeFailed
+            expr: |
+              probe_success{job="blackbox"} == 0
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Public endpoint unreachable: {{ $labels.instance }}"
+              description: "blackbox-exporter has failed to reach {{ $labels.instance }} from outside the cluster for 2+ minutes."
+
+          - alert: TLSCertExpiringSoon
+            expr: |
+              (probe_ssl_earliest_cert_expiry{job="blackbox"} - time()) < 14 * 86400
+            for: 30m
+            labels:
+              severity: warning
+            annotations:
+              summary: "TLS cert for {{ $labels.instance }} expires in under 14 days"
+              description: "cert-manager should auto-renew before this — investigate if it doesn't renew within a few days."
+
+          - alert: TLSCertExpiringCritical
+            expr: |
+              (probe_ssl_earliest_cert_expiry{job="blackbox"} - time()) < 3 * 86400
+            for: 10m
+            labels:
+              severity: critical
+            annotations:
+              summary: "TLS cert for {{ $labels.instance }} expires in under 3 days"
+              description: "Auto-renewal has not happened in time — manual intervention likely needed before the site goes down for untrusted-cert errors."
+
+      # ── SLO error-budget burn rate (multi-window, multi-burn-rate) ──
+      # Google SRE workbook pattern: a single static "error rate > X%" alert
+      # either fires too late on a severe spike or too eagerly on noise. Two
+      # windows per alert (long window confirms sustained burn, short window
+      # confirms it's still happening now) avoids both failure modes. SLO
+      # target here matches the existing 0.1%/30d budget already shown on the
+      # Alerts & SLO dashboard.
+      - name: slo-burn-rate
+        rules:
+          - alert: ErrorBudgetBurnFast
+            expr: |
+              (
+                sum(rate(portfolio_http_requests_total{status_code=~"5.."}[1h]))
+                /
+                sum(rate(portfolio_http_requests_total[1h]))
+              ) > (14.4 * 0.001)
+              and
+              (
+                sum(rate(portfolio_http_requests_total{status_code=~"5.."}[5m]))
+                /
+                sum(rate(portfolio_http_requests_total[5m]))
+              ) > (14.4 * 0.001)
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Fast error-budget burn — will exhaust 30d budget in ~2 days at this rate"
+              description: "Error rate is burning the 0.1% monthly budget at more than 14.4x sustained over both 1h and 5m windows."
+
+          - alert: ErrorBudgetBurnSlow
+            expr: |
+              (
+                sum(rate(portfolio_http_requests_total{status_code=~"5.."}[6h]))
+                /
+                sum(rate(portfolio_http_requests_total[6h]))
+              ) > (6 * 0.001)
+              and
+              (
+                sum(rate(portfolio_http_requests_total{status_code=~"5.."}[30m]))
+                /
+                sum(rate(portfolio_http_requests_total[30m]))
+              ) > (6 * 0.001)
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Slow error-budget burn — will exhaust 30d budget in ~5 days at this rate"
+              description: "Error rate is burning the 0.1% monthly budget at more than 6x sustained over both 6h and 30m windows."

@@ -121,10 +121,24 @@ spec:
                   # ============================================================
                   echo "[$(date)] Cleaning up old monitoring backups (>14 days)..."
                   find "$BACKUP_DIR" -name "*.tar.gz" -mtime +14 -delete
-                  
+
                   echo "[$(date)] Storage usage:"
                   du -sh "$BACKUP_DIR" || true
-                  
+
+                  # ============================================================
+                  #  Push success timestamp + sizes to Pushgateway
+                  #  (this pod exits before Prometheus's next scrape — pull
+                  #  monitoring structurally can't see this job otherwise)
+                  # ============================================================
+                  if command -v curl >/dev/null 2>&1; then
+                    PROM_BYTES=$(cat /tmp/prom_size.txt 2>/dev/null || echo 0)
+                    GRAFANA_BYTES=$(cat /tmp/grafana_size.txt 2>/dev/null || echo 0)
+                    METRICS=$(printf 'backup_last_success_timestamp %s\nbackup_size_bytes %s\n' "$(date +%s)" "$((PROM_BYTES + GRAFANA_BYTES))")
+                    curl -fsS -X POST --data-binary "$METRICS" \
+                      "http://pushgateway.monitoring.svc.cluster.local:9091/metrics/job/backup-monitoring-volumes" \
+                      || echo "[$(date)] ⚠ Failed to push backup metrics to Pushgateway (non-fatal)"
+                  fi
+
                   echo "[$(date)] ✓ Monitoring volumes backup complete"
               
               resources:

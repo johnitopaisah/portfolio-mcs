@@ -10,6 +10,7 @@ require('dotenv').config();
 
 const pipeline = require('./src/pipeline');
 const pool = require('./src/db/client');
+const metrics = require('./src/metrics');
 
 // Matches the k8s CronJob's activeDeadlineSeconds (1800s) — must not exceed it,
 // but shouldn't be much shorter either. Workday boards cost meaningfully more
@@ -42,4 +43,9 @@ main()
     console.error('[Scraper] Fatal error:', err);
     process.exit(1);
   })
-  .finally(() => pool.end());
+  .finally(async () => {
+    // Push before closing the DB pool — this pod exits right after,
+    // and Prometheus's next scrape will never reach it directly.
+    await metrics.pushMetrics('scraper-discovery');
+    await pool.end();
+  });

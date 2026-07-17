@@ -73,33 +73,81 @@ data:
           - to: 'connect@johnisah.com'
             send_resolved: true
             headers:
-              Subject: '🔴 [CRITICAL] Portfolio MCS — {{ .GroupLabels.alertname }}'
+              Subject: '{{ if eq .Status "firing" }}🔴 [CRITICAL] Portfolio MCS — {{ .GroupLabels.alertname }}{{ else }}✅ [RESOLVED] Portfolio MCS — {{ .GroupLabels.alertname }}{{ end }}'
             html: |
-              <h2 style="color:#dc2626">🔴 CRITICAL ALERT</h2>
+              <h2 style="color:{{ if eq .Status "firing" }}#dc2626{{ else }}#16a34a{{ end }}">
+                {{ if eq .Status "firing" }}🔴 CRITICAL — FIRING{{ else }}✅ RESOLVED{{ end }}
+              </h2>
               <h3>{{ .GroupLabels.alertname }}</h3>
-              {{ range .Alerts }}
+              {{ range .Alerts.Firing }}
               <hr>
+              <p><strong>Status:</strong> FIRING</p>
               <p><strong>Summary:</strong> {{ .Annotations.summary }}</p>
               <p><strong>Description:</strong> {{ .Annotations.description }}</p>
               <p><strong>Started:</strong> {{ .StartsAt.Format "2006-01-02 15:04:05 UTC" }}</p>
               {{ end }}
+              {{ range .Alerts.Resolved }}
+              <hr>
+              <p><strong>Status:</strong> RESOLVED</p>
+              <p><strong>Summary:</strong> {{ .Annotations.summary }}</p>
+              <p><strong>Started:</strong>  {{ .StartsAt.Format "2006-01-02 15:04:05 UTC" }}</p>
+              <p><strong>Resolved:</strong> {{ .EndsAt.Format "2006-01-02 15:04:05 UTC" }}</p>
+              <p><strong>Duration:</strong> {{ .EndsAt.Sub .StartsAt }}</p>
+              {{ end }}
               <hr>
               <p><a href="https://grafana.johnisah.com">View Grafana Dashboard</a></p>
+        # Second channel for critical alerts — email delivery failing silently
+        # (SMTP auth issue, spam-filtered, etc.) previously meant no alert at
+        # all. Reuses the bot already provisioned for the job-digest system
+        # (see api/src/services/jobIngestion/notificationService.js).
+        telegram_configs:
+          # chat_id isn't a credential (just a numeric identifier) — it's a
+          # literal here rather than file-mounted, same convention this repo
+          # already uses for smtp_from/smtp_auth_username above.
+          - bot_token_file: /etc/alertmanager-secrets/telegram-bot-token
+            chat_id: 7071669704
+            send_resolved: true
+            parse_mode: 'HTML'
+            message: |
+              {{ if eq .Status "firing" }}🔴 <b>CRITICAL — FIRING</b>{{ else }}✅ <b>RESOLVED</b>{{ end }}
+              {{ .GroupLabels.alertname }}
+              {{ range .Alerts.Firing }}
+              {{ .Annotations.summary }}
+              {{ .Annotations.description }}
+              Started: {{ .StartsAt.Format "2006-01-02 15:04:05 UTC" }}
+              {{ end }}
+              {{ range .Alerts.Resolved }}
+              {{ .Annotations.summary }}
+              Started:  {{ .StartsAt.Format "2006-01-02 15:04:05 UTC" }}
+              Resolved: {{ .EndsAt.Format "2006-01-02 15:04:05 UTC" }}
+              Duration: {{ .EndsAt.Sub .StartsAt }}
+              {{ end }}
 
       - name: 'warning-email'
         email_configs:
           - to: 'connect@johnisah.com'
-            send_resolved: false
+            send_resolved: true
             headers:
-              Subject: '🟡 [WARNING] Portfolio MCS — {{ .GroupLabels.alertname }}'
+              Subject: '{{ if eq .Status "firing" }}🟡 [WARNING] Portfolio MCS — {{ .GroupLabels.alertname }}{{ else }}✅ [RESOLVED] Portfolio MCS — {{ .GroupLabels.alertname }}{{ end }}'
             html: |
-              <h2 style="color:#d97706">🟡 WARNING ALERT</h2>
+              <h2 style="color:{{ if eq .Status "firing" }}#d97706{{ else }}#16a34a{{ end }}">
+                {{ if eq .Status "firing" }}🟡 WARNING — FIRING{{ else }}✅ RESOLVED{{ end }}
+              </h2>
               <h3>{{ .GroupLabels.alertname }}</h3>
-              {{ range .Alerts }}
+              {{ range .Alerts.Firing }}
               <hr>
+              <p><strong>Status:</strong> FIRING</p>
               <p><strong>Summary:</strong> {{ .Annotations.summary }}</p>
               <p><strong>Description:</strong> {{ .Annotations.description }}</p>
               <p><strong>Started:</strong> {{ .StartsAt.Format "2006-01-02 15:04:05 UTC" }}</p>
+              {{ end }}
+              {{ range .Alerts.Resolved }}
+              <hr>
+              <p><strong>Status:</strong> RESOLVED</p>
+              <p><strong>Summary:</strong> {{ .Annotations.summary }}</p>
+              <p><strong>Started:</strong>  {{ .StartsAt.Format "2006-01-02 15:04:05 UTC" }}</p>
+              <p><strong>Resolved:</strong> {{ .EndsAt.Format "2006-01-02 15:04:05 UTC" }}</p>
+              <p><strong>Duration:</strong> {{ .EndsAt.Sub .StartsAt }}</p>
               {{ end }}
               <hr>
               <p><a href="https://grafana.johnisah.com">View Grafana Dashboard</a></p>

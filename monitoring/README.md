@@ -13,11 +13,14 @@ Production-grade observability stack for Portfolio MCS. Runs in the `monitoring`
 | Component | Image | Purpose |
 |---|---|---|
 | Prometheus | `prom/prometheus:v2.51.0` | Time-series metrics store, 30-day retention, 5Gi PVC |
-| Grafana | `grafana/grafana:10.4.0` | 7 dashboards at grafana.johnisah.com, 2Gi PVC |
-| Alertmanager | `prom/alertmanager:v0.27.0` | Routes alerts → email via Zoho SMTP |
+| Grafana | `grafana/grafana:10.4.0` | 13 dashboards at grafana.johnisah.com, 2Gi PVC |
+| Alertmanager | `prom/alertmanager:v0.27.0` | Routes alerts → email (Zoho SMTP) + Telegram for critical severity |
 | node-exporter | `prom/node-exporter:v1.7.0` | DaemonSet — OS/hardware metrics from all nodes |
-| kube-state-metrics | `registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.12.0` | Kubernetes object state |
+| kube-state-metrics | `registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.12.0` | Kubernetes object state — also backs CronJob/backup health, no app code needed |
 | postgres-exporter | `quay.io/prometheuscommunity/postgres-exporter:v0.15.0` | PostgreSQL internals |
+| Pushgateway | `prom/pushgateway:v1.9.0` | Bridges short-lived CronJobs (scraper, jobWorker, backups, secret checker) into the pull-based scrape model |
+| blackbox-exporter | `prom/blackbox-exporter:v0.25.0` | Outside-in HTTP/TLS probes of the four public hostnames |
+| infisical-secret-checker | `bitnami/kubectl:latest` (CronJob) | Polls InfisicalSecret Ready status every 15m, pushes to Pushgateway |
 
 ---
 
@@ -41,8 +44,11 @@ monitoring/
 │
 ├── infisical/                      Infisical CRDs — syncs monitoring secrets
 │   ├── 01-grafana-secret.yaml      → grafana-admin-secret
-│   ├── 02-alertmanager-secret.yaml → alertmanager-smtp-secret
-│   └── 03-postgres-exporter-secret.yaml → postgres-exporter-secret
+│   ├── 02-alertmanager-secret.yaml → alertmanager-smtp-secret (SMTP password + Telegram bot token)
+│   ├── 03-postgres-exporter-secret.yaml → postgres-exporter-secret
+│   ├── 04-checker-serviceaccount.yaml   InfisicalSecret health-check CronJob
+│   ├── 05-checker-rbac.yaml             ClusterRole: get/list infisicalsecrets (all namespaces)
+│   └── 06-checker-cronjob.yaml          Every 15m — pushes Ready status to Pushgateway
 │
 ├── prometheus/
 │   ├── 00-namespace.yaml
@@ -53,6 +59,12 @@ monitoring/
 │   ├── 05-service.yaml
 │   ├── 06-ingress.yaml
 │   └── backup-manager.sh
+│
+├── pushgateway/                    Bridges short-lived CronJobs into Prometheus's pull model
+│   ├── 00-serviceaccount.yaml
+│   ├── 01-pvc.yaml                 1Gi — persists pushed samples across pod restarts
+│   ├── 02-deployment.yaml
+│   └── 03-service.yaml
 │
 ├── grafana/
 │   ├── 00-serviceaccount.yaml
@@ -70,11 +82,17 @@ monitoring/
 │       ├── 04-infrastructure.yaml
 │       ├── 05-business-metrics.yaml
 │       ├── 06-alerts-slo.yaml
-│       └── 07-visitor-analytics.yaml
+│       ├── 07-visitor-analytics.yaml
+│       ├── 08-web-api.yaml
+│       ├── 09-job-pipeline.yaml         Scraper ingestion + AI filtering + alert delivery
+│       ├── 10-batch-jobs.yaml           CronJob health, backup/DR, Infisical sync status
+│       ├── 11-llm-observability.yaml    Per-provider LLM latency/errors/tokens/cost
+│       ├── 12-frontend-rum.yaml         Core Web Vitals + JS errors (admin-ui, user-ui)
+│       └── 13-external-uptime.yaml      Outside-in probes + TLS cert expiry
 │
 ├── alertmanager/
 │   ├── 01-serviceaccount.yaml
-│   ├── 01-configmap.yaml           Routing rules + Zoho SMTP receiver
+│   ├── 01-configmap.yaml           Routing rules + Zoho SMTP + Telegram receivers
 │   ├── 03-deployment.yaml
 │   └── 04-service.yaml
 │
@@ -85,9 +103,14 @@ monitoring/
     │   └── 03-service.yaml
     ├── kube-state-metrics/
     │   └── 01-all.yaml             RBAC + Deployment + Service
-    └── postgres-exporter/
+    ├── postgres-exporter/
+    │   ├── 01-serviceaccount.yaml
+    │   └── 02-deployment.yaml
+    └── blackbox-exporter/
         ├── 01-serviceaccount.yaml
-        └── 02-deployment.yaml
+        ├── 02-configmap.yaml       http_2xx probe module
+        ├── 03-deployment.yaml
+        └── 04-service.yaml
 ```
 
 ---
@@ -101,8 +124,14 @@ monitoring/
 | 3 | **Database Health** | Active connections, cache hit ratio, query duration, dead tuple rate, table sizes |
 | 4 | **Infrastructure** | Node CPU/memory/disk per node, pod resource consumption, PVC usage |
 | 5 | **Business Metrics** | Contact form submissions, auth events, project views, content update activity |
-| 6 | **Alerts & SLO** | Active alerts by severity, 30-day availability SLO, error budget burn rate |
+| 6 | **Alerts & SLO** | Active alerts by severity, 30-day availability SLO, multi-window error-budget burn rate |
 | 7 | **Visitor Analytics** | Unique visitors, top countries, top pages, referrer breakdown, session trends |
+| 8 | **Web API** | Node.js runtime health (heap, event-loop, GC), per-route breakdown, DB pool |
+| 9 | **Job Pipeline** | Scraper ingestion/dedup by platform, AI filtering decisions, relevance scores, alert delivery |
+| 10 | **Batch Jobs & Backups** | Every CronJob's last-run/failure status, backup age & size, Infisical secret sync |
+| 11 | **LLM Observability** | Per-provider (Claude/Groq/Gemini) latency, errors, token usage, estimated spend |
+| 12 | **Frontend RUM** | Core Web Vitals (LCP/CLS/INP/FCP/TTFB), JS error rate, slowest routes |
+| 13 | **External Uptime & TLS** | Outside-in probe status, TLS cert days-remaining, probe latency breakdown |
 
 ---
 
@@ -117,7 +146,10 @@ All secrets in the `monitoring` namespace are managed by the Infisical operator 
 | `GRAFANA_ADMIN_USER` | `grafana-admin-secret` → `admin-user` | Use `admin` |
 | `GRAFANA_ADMIN_PASSWORD` | `grafana-admin-secret` → `admin-password` | 16+ chars |
 | `ALERTMANAGER_SMTP_PASSWORD` | `alertmanager-smtp-secret` → `smtp-password` | Zoho app password |
+| `TELEGRAM_BOT_TOKEN` | `alertmanager-smtp-secret` → `telegram-bot-token` | Same bot already used by the job-digest system (`notificationService.js`) |
 | `MONITORING_DB_DSN` | `postgres-exporter-secret` → `DATA_SOURCE_NAME` | Full `postgresql://` DSN |
+
+**Not Infisical-managed:** the Telegram `chat_id` in `alertmanager/01-configmap.yaml` (`telegram_configs[0].chat_id`) is a literal placeholder (`REPLACE_WITH_YOUR_TELEGRAM_CHAT_ID`) — it's a numeric identifier, not a credential, so it's set directly in the ConfigMap like `smtp_from`/`smtp_auth_username` already are.
 
 ---
 
@@ -158,12 +190,16 @@ kubectl apply -f monitoring/prometheus/02-configmap.yaml
 kubectl apply -f monitoring/prometheus/03-pvc.yaml
 kubectl apply -f monitoring/prometheus/04-statefulset.yaml
 kubectl apply -f monitoring/prometheus/05-service.yaml
+kubectl apply -f monitoring/pushgateway/
 kubectl apply -f monitoring/exporters/node-exporter/
 kubectl apply -f monitoring/exporters/kube-state-metrics/
 kubectl apply -f monitoring/exporters/postgres-exporter/
+kubectl apply -f monitoring/exporters/blackbox-exporter/
 kubectl apply -f monitoring/alertmanager/
 kubectl apply -f monitoring/grafana/
 ```
+
+Also apply the CronJob egress additions and the new `allow-scraper` policy in `k8s/policies/04-network-policy.yaml` (scraper CronJobs had no explicit NetworkPolicy before this pass) if the CNI enforces NetworkPolicy in your cluster.
 
 ---
 
@@ -178,22 +214,39 @@ After deployment, all these targets should show **UP** at `http://localhost:9090
 | `node-exporter` | 1 per node |
 | `kube-state-metrics` | 1 |
 | `postgres-exporter` | 1 |
+| `pushgateway` | 1 |
+| `blackbox` | 4 (one per probed target) |
+
+`pushgateway` and `blackbox` are always **UP** once their pods are running — they're the thing being scraped, not proxies for another target's liveness. To confirm CronJob-sourced metrics are actually flowing, check the Pushgateway UI (`kubectl port-forward -n monitoring svc/pushgateway 9091:9091`, then open `http://localhost:9091`) after the relevant CronJob's next scheduled run.
 
 ---
 
 ## Alert rules
 
-Alerts are defined in `monitoring/prometheus/02-configmap.yaml` and routed to Alertmanager → Zoho SMTP → `connect@johnisah.com`.
+Alerts are defined in `monitoring/prometheus/02-configmap.yaml` and routed to Alertmanager → email (Zoho SMTP, `connect@johnisah.com`) — critical severity also fires to Telegram.
 
 | Alert | Condition | Severity |
 |---|---|---|
-| `APIHighErrorRate` | HTTP 5xx rate > 5% for 5 min | critical |
-| `APIHighLatency` | P99 latency > 2s for 5 min | warning |
-| `PodCrashLooping` | Pod restart rate > 0.2/min | critical |
-| `NodeHighCPU` | Node CPU > 85% for 10 min | warning |
-| `NodeHighMemory` | Node memory > 90% for 10 min | warning |
-| `PostgreSQLDown` | postgres-exporter target DOWN | critical |
-| `DiskSpaceLow` | PVC usage > 80% | warning |
+| `APIDown` | `up{job="portfolio-api"} == 0` for 2 min | critical |
+| `DatabaseDown` | `pg_up == 0` for 1 min | critical |
+| `HighErrorRate` | HTTP 5xx rate > 10% for 5 min | critical |
+| `DiskCritical` | Node disk free < 10% for 5 min | critical |
+| `PodCrashLooping` | Pod restart rate > 0.05/hr for 5 min | critical |
+| `HighLatency` | p95 latency > 500ms for 5 min | warning |
+| `ElevatedErrorRate` | HTTP 5xx rate > 2% for 10 min | warning |
+| `MemoryPressure` | Node memory > 80% for 10 min | warning |
+| `DBConnectionsSaturated` | Connections > 75% of max for 10 min | warning |
+| `DBCacheHitRatioLow` | Cache hit ratio < 90% for 15 min | warning |
+| `PrometheusStorageLow` | TSDB storage > 70% of 5Gi PVC for 10 min | warning |
+| `AuthFailureSpike` | Admin login failures > 0.1/s for 5 min | warning |
+| `CronJobFailed` | Any of the 7 CronJobs reports a failed run for 5 min | critical |
+| `CronJobDidNotRun` | A CronJob missed 2x its own schedule (per-job threshold) | critical/warning |
+| `ErrorBudgetBurnFast` | 30d error budget burning >14.4x over both 1h & 5m windows | critical |
+| `ErrorBudgetBurnSlow` | 30d error budget burning >6x over both 6h & 30m windows | warning |
+| `ProbeFailed` | Public endpoint unreachable from outside the cluster for 2 min | critical |
+| `TLSCertExpiringSoon` | TLS cert expires in < 14 days | warning |
+| `TLSCertExpiringCritical` | TLS cert expires in < 3 days | critical |
+| `InfisicalSecretSyncFailed` | An InfisicalSecret's Ready condition is false for 15 min | critical |
 
 ---
 
@@ -228,3 +281,7 @@ kubectl port-forward -n monitoring svc/alertmanager 9093:9093
 | Grafana stuck in ContainerCreating | PVC not bound | `kubectl get pvc -n monitoring` — check storageClass |
 | node-exporter pod count < node count | DaemonSet tolerations missing | `kubectl describe ds node-exporter -n monitoring` |
 | Alertmanager not sending email | SMTP auth failed | `kubectl logs -n monitoring deploy/alertmanager` |
+| Alertmanager not sending Telegram | Wrong `chat_id` placeholder still in `01-configmap.yaml`, or bot token missing | Confirm `TELEGRAM_CHAT_ID` was set as a literal (not Infisical-synced) and `TELEGRAM_BOT_TOKEN` synced into `alertmanager-smtp-secret` |
+| Job Pipeline / LLM / Batch Jobs dashboards show "No Data" | Pushgateway hasn't received a push yet | Wait for the relevant CronJob's next scheduled run, or trigger one manually: `kubectl create job --from=cronjob/job-ingestion-worker manual-test -n portfolio` |
+| `blackbox` target DOWN | blackbox-exporter pod not ready, or egress to the public internet blocked | `kubectl logs -n monitoring deploy/blackbox-exporter`; confirm `monitoring-egress-policy` allows TCP 443 |
+| `CronJobDidNotRun` firing incorrectly | CronJob's schedule changed but the alert's hardcoded threshold wasn't updated | Each threshold is 2x that job's own schedule — update the matching rule in `02-configmap.yaml` if a schedule changes |

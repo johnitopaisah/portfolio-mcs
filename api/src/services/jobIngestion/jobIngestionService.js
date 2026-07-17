@@ -6,8 +6,9 @@
  * apply to every job regardless of which pipeline discovered it.
  */
 
-const pool   = require('../../db/client');
-const config = require('./config');
+const pool       = require('../../db/client');
+const config     = require('./config');
+const jobMetrics = require('../../metrics/jobMetrics');
 
 class JobIngestionService {
 
@@ -28,6 +29,10 @@ class JobIngestionService {
       [maxAge]
     );
     console.log(`[JobIngestion] Expired ${result.rowCount} old jobs`);
+
+    const { rows } = await pool.query(`SELECT COUNT(*)::int AS count FROM jobs WHERE is_active = TRUE`);
+    jobMetrics.jobsActive.set(rows[0].count);
+
     return result.rowCount;
   }
 

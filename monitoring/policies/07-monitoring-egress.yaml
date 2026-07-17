@@ -48,7 +48,9 @@ spec:
             matchLabels:
               kubernetes.io/metadata.name: monitoring
 
-    # Alertmanager → Zoho SMTP for email alerts (implicit TLS port 465)
+    # Alertmanager → Zoho SMTP for email alerts (implicit TLS port 465),
+    # and → Telegram Bot API (api.telegram.org, HTTPS) for the second
+    # critical-alert channel.
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0
@@ -59,6 +61,8 @@ spec:
       ports:
         - protocol: TCP
           port: 465
+        - protocol: TCP
+          port: 443
 
     # Prometheus → Kubernetes API (for kubernetes_sd_configs service discovery)
     - to:

@@ -11,6 +11,8 @@
  */
 
 const pool = require('../../db/client');
+const jobMetrics = require('../../metrics/jobMetrics');
+const llmMetrics = require('../../metrics/llmMetrics');
 
 // ── Profile cache ─────────────────────────────────────────────
 let _profileCache = null;
@@ -336,87 +338,129 @@ async function scoreWithClaude(job, profile) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 300,
-      messages: [{ role: 'user', content: buildScoringPrompt(job, profile) }],
-    }),
-    signal: AbortSignal.timeout(12000),
-  });
+  const t0 = Date.now();
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 300,
+        messages: [{ role: 'user', content: buildScoringPrompt(job, profile) }],
+      }),
+      signal: AbortSignal.timeout(12000),
+    });
 
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`Claude API ${response.status}: ${err.slice(0, 200)}`);
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`Claude API ${response.status}: ${err.slice(0, 200)}`);
+    }
+
+    const data = await response.json();
+    llmMetrics.recordLLMUsage('claude', {
+      promptTokens: data.usage?.input_tokens || 0,
+      completionTokens: data.usage?.output_tokens || 0,
+    });
+    llmMetrics.llmRequestsTotal.inc({ provider: 'claude', status: 'success' });
+
+    const result = parseLLMResponse(data.content?.[0]?.text || '');
+    return { ...result, _engine: 'claude-haiku-4-5' };
+  } catch (err) {
+    llmMetrics.llmRequestsTotal.inc({ provider: 'claude', status: 'failed' });
+    throw err;
+  } finally {
+    llmMetrics.llmRequestDurationSeconds.observe({ provider: 'claude' }, (Date.now() - t0) / 1000);
   }
-
-  const data = await response.json();
-  const result = parseLLMResponse(data.content?.[0]?.text || '');
-  return { ...result, _engine: 'claude-haiku-4-5' };
 }
 
 async function scoreWithGroq(job, profile) {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error('GROQ_API_KEY not set');
 
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      // llama-3.3-70b-versatile: 12k TPM free tier (vs 6k for 8b-instant)
-      model: 'llama-3.3-70b-versatile',
-      max_tokens: 300,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: 'You are a job relevance scorer. Always respond with valid JSON only.' },
-        { role: 'user',   content: buildScoringPrompt(job, profile) },
-      ],
-    }),
-    signal: AbortSignal.timeout(15000),
-  });
+  const t0 = Date.now();
+  try {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        // llama-3.3-70b-versatile: 12k TPM free tier (vs 6k for 8b-instant)
+        model: 'llama-3.3-70b-versatile',
+        max_tokens: 300,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: 'You are a job relevance scorer. Always respond with valid JSON only.' },
+          { role: 'user',   content: buildScoringPrompt(job, profile) },
+        ],
+      }),
+      signal: AbortSignal.timeout(15000),
+    });
 
-  if (!response.ok) {
-    const errText = await response.text();
-    const error = new Error(`Groq API ${response.status}: ${errText.slice(0, 200)}`);
-    if (errText.includes('tokens per day') || errText.includes('TPD')) {
-      error.tpdExhausted = true;
+    if (!response.ok) {
+      const errText = await response.text();
+      const error = new Error(`Groq API ${response.status}: ${errText.slice(0, 200)}`);
+      if (errText.includes('tokens per day') || errText.includes('TPD')) {
+        error.tpdExhausted = true;
+      }
+      throw error;
     }
-    throw error;
-  }
 
-  const data = await response.json();
-  const result = parseLLMResponse(data.choices?.[0]?.message?.content || '');
-  return { ...result, _engine: 'groq/llama-3.3-70b' };
+    const data = await response.json();
+    llmMetrics.recordLLMUsage('groq', {
+      promptTokens: data.usage?.prompt_tokens || 0,
+      completionTokens: data.usage?.completion_tokens || 0,
+    });
+    llmMetrics.llmRequestsTotal.inc({ provider: 'groq', status: 'success' });
+
+    const result = parseLLMResponse(data.choices?.[0]?.message?.content || '');
+    return { ...result, _engine: 'groq/llama-3.3-70b' };
+  } catch (err) {
+    llmMetrics.llmRequestsTotal.inc({ provider: 'groq', status: 'failed' });
+    throw err;
+  } finally {
+    llmMetrics.llmRequestDurationSeconds.observe({ provider: 'groq' }, (Date.now() - t0) / 1000);
+  }
 }
 
 async function scoreWithGemini(job, profile) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY not set');
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: buildScoringPrompt(job, profile) }] }],
-        generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 300 },
-      }),
-      signal: AbortSignal.timeout(15000),
+  const t0 = Date.now();
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: buildScoringPrompt(job, profile) }] }],
+          generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 300 },
+        }),
+        signal: AbortSignal.timeout(15000),
+      }
+    );
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`Gemini API ${response.status}: ${err.slice(0, 200)}`);
     }
-  );
 
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`Gemini API ${response.status}: ${err.slice(0, 200)}`);
+    const data = await response.json();
+    llmMetrics.recordLLMUsage('gemini', {
+      promptTokens: data.usageMetadata?.promptTokenCount || 0,
+      completionTokens: data.usageMetadata?.candidatesTokenCount || 0,
+    });
+    llmMetrics.llmRequestsTotal.inc({ provider: 'gemini', status: 'success' });
+
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const result = parseLLMResponse(text);
+    return { ...result, _engine: 'gemini-2.0-flash' };
+  } catch (err) {
+    llmMetrics.llmRequestsTotal.inc({ provider: 'gemini', status: 'failed' });
+    throw err;
+  } finally {
+    llmMetrics.llmRequestDurationSeconds.observe({ provider: 'gemini' }, (Date.now() - t0) / 1000);
   }
-
-  const data = await response.json();
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  const result = parseLLMResponse(text);
-  return { ...result, _engine: 'gemini-2.0-flash' };
 }
 
 // Unified LLM scorer — picks engine based on config.engine + available API keys
@@ -440,7 +484,14 @@ async function scoreWithLLM(job, engine) {
 // ═══════════════════════════════════════════════════════════════
 //  MAIN ANALYSIS (combines both tiers)
 // ═══════════════════════════════════════════════════════════════
+function recordFilterMetrics(t0, decision, score) {
+  jobMetrics.jobsFiltered.inc({ decision });
+  jobMetrics.jobRelevanceScore.observe({ decision }, score);
+  jobMetrics.aiFilteringDuration.observe((Date.now() - t0) / 1000);
+}
+
 async function analyzeJob(rawJob, forcePatternOnly = false) {
+  const t0 = Date.now();
   const config  = await getPatternConfigFromDB();
   const pattern = patternScore(rawJob, config);
 
@@ -452,6 +503,7 @@ async function analyzeJob(rawJob, forcePatternOnly = false) {
 
   if (!useLLM) {
     const decision = pattern.score >= 65 ? 'KEEP' : pattern.score >= 40 ? 'REVIEW' : 'DROP';
+    recordFilterMetrics(t0, decision, pattern.score);
     return {
       relevance_score:  pattern.score,
       ai_decision:      decision,
@@ -466,6 +518,7 @@ async function analyzeJob(rawJob, forcePatternOnly = false) {
   try {
     const llm = await scoreWithLLM(rawJob, config.engine);
     const blendedScore = Math.round(llm.relevance_score * 0.7 + pattern.score * 0.3);
+    recordFilterMetrics(t0, llm.ai_decision, blendedScore);
     return {
       ...llm,
       relevance_score: blendedScore,
@@ -475,6 +528,7 @@ async function analyzeJob(rawJob, forcePatternOnly = false) {
   } catch (err) {
     console.warn(`[AIFilter] LLM failed for job ${rawJob.id}, using pattern:`, err.message);
     const decision = pattern.score >= 65 ? 'KEEP' : pattern.score >= 40 ? 'REVIEW' : 'DROP';
+    recordFilterMetrics(t0, decision, pattern.score);
     return {
       relevance_score: pattern.score,
       ai_decision:     decision,

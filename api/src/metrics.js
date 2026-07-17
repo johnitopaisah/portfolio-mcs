@@ -176,6 +176,26 @@ const refereeConsentResponsesTotal = new client.Counter({
   registers: [register],
 });
 
+// ── Frontend RUM (Real User Monitoring) ───────────────────────
+// Reported by admin-ui/user-ui via POST /api/rum — this endpoint runs in the
+// always-on API pod, so unlike the CronJob-side metrics elsewhere in this
+// codebase, these are scraped normally with no Pushgateway involved.
+
+const webVitalsSeconds = new client.Histogram({
+  name: 'portfolio_web_vitals_seconds',
+  help: 'Core Web Vitals reported by the browser, in seconds (metric: LCP | CLS | INP | FCP | TTFB)',
+  labelNames: ['metric', 'app', 'route'],
+  buckets: [0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 2.5, 4, 6, 10],
+  registers: [register],
+});
+
+const frontendErrorsTotal = new client.Counter({
+  name: 'portfolio_frontend_errors_total',
+  help: 'Uncaught JS errors reported by the browser, by app and a short hash of the error message',
+  labelNames: ['app', 'message_hash'], // hashed, not raw text — bounds cardinality
+  registers: [register],
+});
+
 module.exports = {
   register,
   httpRequestsTotal,
@@ -202,4 +222,6 @@ module.exports = {
   visitorBotsFiltered,
   refereeContactRequestsTotal,
   refereeConsentResponsesTotal,
+  webVitalsSeconds,
+  frontendErrorsTotal,
 };

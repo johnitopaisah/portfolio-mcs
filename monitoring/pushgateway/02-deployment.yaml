@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pushgateway
+  namespace: monitoring
+  labels:
+    app: pushgateway
+    app.kubernetes.io/name: pushgateway
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/component: metrics
+    app.kubernetes.io/managed-by: argocd
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate   # single RWO volume — avoid two pods fighting over /data
+  selector:
+    matchLabels:
+      app: pushgateway
+  template:
+    metadata:
+      labels:
+        app: pushgateway
+        app.kubernetes.io/name: pushgateway
+        app.kubernetes.io/part-of: portfolio-monitoring
+        app.kubernetes.io/component: metrics
+    spec:
+      serviceAccountName: pushgateway
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        fsGroup: 65534
+      containers:
+        - name: pushgateway
+          image: prom/pushgateway:v1.9.0
+          args:
+            # Persist pushed samples to disk so a pod restart between two
+            # CronJob runs (e.g. the 8h job-worker cycle) doesn't blank
+            # the dashboards — Pushgateway has no scrape/pull path of its own.
+            - --persistence.file=/data/pushgateway.data
+            - --persistence.interval=5m
+          ports:
+            - name: http
+              containerPort: 9091
+              protocol: TCP
+          resources:
+            requests:
+              cpu: "25m"
+              memory: "32Mi"
+            limits:
+              cpu: "100m"
+              memory: "128Mi"
+          volumeMounts:
+            - name: pushgateway-data
+              mountPath: /data
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: 9091
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: 9091
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: pushgateway-data
+          persistentVolumeClaim:
+            claimName: pushgateway-pvc

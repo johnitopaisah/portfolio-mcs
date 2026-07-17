@@ -18,6 +18,7 @@ const path                 = require('path');
 const jobIngestionService  = require('../services/jobIngestion/jobIngestionService');
 const aiFilteringService   = require('../services/jobIngestion/aiFilteringService');
 const notificationService  = require('../services/jobIngestion/notificationService');
+const jobMetrics           = require('../metrics/jobMetrics');
 const pool                 = require('../db/client');
 
 const WORKER_TIMEOUT    = 30 * 60 * 1000; // 30 min hard limit
@@ -69,9 +70,16 @@ async function runJobWorker() {
     console.log(`\n[Worker] ✅ Completed in ${secs}s`);
     console.log('[Worker] ======================================\n');
 
+    // Must happen before process.exit() — a `finally` block below would
+    // never actually run, since process.exit() tears down the process
+    // before control returns to it (the same reason pool.end() below is
+    // unreliable). This is the only long-lived signal Prometheus gets from
+    // this run at all, so it can't be left to a code path that may not fire.
+    await jobMetrics.pushMetrics('job-ingestion-worker');
     process.exit(0);
   } catch (err) {
     console.error('\n[Worker] ❌ Fatal error:', err);
+    await jobMetrics.pushMetrics('job-ingestion-worker');
     process.exit(1);
   } finally {
     try { await pool.end(); }

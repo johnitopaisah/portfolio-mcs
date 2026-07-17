@@ -112,6 +112,7 @@ spec:
 ---
 
 # ── 2. User UI ───────────────────────────────────────────────
+
 # Ingress:  Traefik only (external users)
 # Egress:   CoreDNS + API (Next.js SSR calls to portfolio-api)
 apiVersion: networking.k8s.io/v1
@@ -324,6 +325,17 @@ spec:
         - protocol: TCP
           port: 5432
 
+    # Pushgateway — jobWorker/emailWorker/followUpWorker push metrics here
+    # before exiting, since these CronJob pods are gone before Prometheus's
+    # next scrape could otherwise reach them.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 9091
+
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0
@@ -332,3 +344,79 @@ spec:
           port: 443
         - protocol: TCP
           port: 465
+
+---
+
+# ── 6. Job Scraper (discovery + canary) ─────────────────────
+# Ingress:  none (CronJob pods never receive traffic)
+# Egress:   CoreDNS, DB (direct writes to jobs_raw), SearXNG (in-namespace
+#           discovery search), external HTTPS (career-site fetches, Claude
+#           extraction API), Pushgateway (metrics)
+#
+# NOTE: this policy did not previously exist — the scraper CronJobs
+# (scraper-discovery, canary-checker) had no explicit allow rule despite
+# running under the namespace's default-deny-all.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-scraper
+  namespace: portfolio
+  labels:
+    app.kubernetes.io/part-of: portfolio-mcs
+    app.kubernetes.io/managed-by: argocd
+spec:
+  podSelector:
+    matchLabels:
+      app: portfolio-mcs
+      component: scraper
+  policyTypes:
+    - Ingress
+    - Egress
+
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: portfolio
+          podSelector:
+            matchLabels:
+              component: database
+      ports:
+        - protocol: TCP
+          port: 5432
+
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: portfolio
+          podSelector:
+            matchLabels:
+              component: scraper
+      ports:
+        - protocol: TCP
+          port: 8080   # SearXNG
+
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 9091   # Pushgateway
+
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
