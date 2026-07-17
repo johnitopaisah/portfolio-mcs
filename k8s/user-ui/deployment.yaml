@@ -56,7 +56,7 @@ spec:
 
       containers:
         - name: user-ui
-          image: ghcr.io/johnitopaisah/portfolio-mcs/user-ui:v0.1.12
+          image: ghcr.io/johnitopaisah/portfolio-mcs/user-ui:v0.1.12-rc1
           imagePullPolicy: Always
           ports:
             - name:          http
