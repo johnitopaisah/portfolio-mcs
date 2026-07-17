@@ -79,6 +79,11 @@ export async function middleware(request: NextRequest) {
         body:    ['GET', 'HEAD'].includes(request.method) ? undefined : request.body,
         // @ts-ignore — needed for streaming request bodies
         duplex:  'half',
+        // Without this, a fully unreachable API (e.g. scaled to 0 — see
+        // the outage that also crash-looped this pod's SSR fetches) can
+        // hang a real user's request indefinitely instead of returning
+        // the 502 below in a reasonable time.
+        signal:  AbortSignal.timeout(10_000),
       });
 
       const responseHeaders = new Headers(response.headers);

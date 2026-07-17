@@ -33,7 +33,7 @@ async function validateToken(token: string): Promise<TokenPayload> {
   try {
     const res = await fetch(
       `${apiUrl}/api/referee-invitations/validate?token=${encodeURIComponent(token)}`,
-      { cache: 'no-store' }
+      { cache: 'no-store', signal: AbortSignal.timeout(3000) }
     );
     if (!res.ok) return { valid: false, reason: 'expired' };
     return res.json();
