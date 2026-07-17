@@ -4,6 +4,10 @@ metadata:
   name: node-exporter
   namespace: monitoring
   labels:
+    app: node-exporter   # Prometheus's SD relabel_config matches on this
+                         # plain "app" service label, not the app.kubernetes.io/*
+                         # convention below — without it, service discovery
+                         # keeps zero endpoints and this target never appears.
     app.kubernetes.io/name: node-exporter
     app.kubernetes.io/part-of: portfolio-monitoring
     app.kubernetes.io/component: exporter
