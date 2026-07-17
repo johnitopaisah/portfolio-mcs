@@ -25,6 +25,14 @@ spec:
     repoURL: https://github.com/johnitopaisah/portfolio-mcs
     targetRevision: develop
     path: monitoring/infisical
+    directory:
+      exclude: '00-machine-identity.example.yaml'
+      # This file is a placeholder ("REPLACE_ME" values) meant to be copied
+      # and filled in manually, never applied as-is. Without this exclude,
+      # ArgoCD synced it literally — with selfHeal+prune, it silently
+      # overwrote the real infisical-machine-identity secret with
+      # "REPLACE_ME" for 29 days, which is why every InfisicalSecret in
+      # this namespace failed to authenticate the entire time.
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
