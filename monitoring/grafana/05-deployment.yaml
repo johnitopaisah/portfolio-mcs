@@ -146,6 +146,26 @@ spec:
             - name: dashboard-08
               mountPath: /var/lib/grafana/dashboards/08-web-api-dashboard.json
               subPath: 08-web-api-dashboard.json
+            # ── Job Pipeline dashboard (09) ────────────────────
+            - name: dashboard-09
+              mountPath: /var/lib/grafana/dashboards/09-job-pipeline.json
+              subPath: 09-job-pipeline.json
+            # ── Batch Jobs & Backups dashboard (10) ────────────
+            - name: dashboard-10
+              mountPath: /var/lib/grafana/dashboards/10-batch-jobs.json
+              subPath: 10-batch-jobs.json
+            # ── LLM Observability dashboard (11) ───────────────
+            - name: dashboard-11
+              mountPath: /var/lib/grafana/dashboards/11-llm-observability.json
+              subPath: 11-llm-observability.json
+            # ── Frontend RUM dashboard (12) ────────────────────
+            - name: dashboard-12
+              mountPath: /var/lib/grafana/dashboards/12-frontend-rum.json
+              subPath: 12-frontend-rum.json
+            # ── External Uptime & TLS dashboard (13) ───────────
+            - name: dashboard-13
+              mountPath: /var/lib/grafana/dashboards/13-external-uptime.json
+              subPath: 13-external-uptime.json
 
       volumes:
         - name: grafana-data
@@ -183,3 +203,23 @@ spec:
         - name: dashboard-08
           configMap:
             name: grafana-dashboard-08-web-api
+        # ── Job Pipeline dashboard (09) ────────────────────────
+        - name: dashboard-09
+          configMap:
+            name: grafana-dashboard-09-job-pipeline
+        # ── Batch Jobs & Backups dashboard (10) ────────────────
+        - name: dashboard-10
+          configMap:
+            name: grafana-dashboard-10-batch-jobs
+        # ── LLM Observability dashboard (11) ───────────────────
+        - name: dashboard-11
+          configMap:
+            name: grafana-dashboard-11-llm
+        # ── Frontend RUM dashboard (12) ────────────────────────
+        - name: dashboard-12
+          configMap:
+            name: grafana-dashboard-12-frontend-rum
+        # ── External Uptime & TLS dashboard (13) ───────────────
+        - name: dashboard-13
+          configMap:
+            name: grafana-dashboard-13-external-uptime
