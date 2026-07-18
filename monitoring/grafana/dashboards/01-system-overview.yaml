@@ -30,7 +30,7 @@ data:
               "thresholds": { "steps": [{ "color": "red", "value": 0 }, { "color": "green", "value": 1 }] }
             }
           },
-          "targets": [{ "expr": "up{job=\"portfolio-api\"}", "legendFormat": "API" }]
+          "targets": [{ "expr": "min(up{job=\"portfolio-api\"})", "legendFormat": "API" }]
         },
         {
           "id": 2, "type": "stat", "title": "Database Status",

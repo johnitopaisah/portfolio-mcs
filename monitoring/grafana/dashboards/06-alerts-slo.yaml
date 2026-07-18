@@ -43,7 +43,7 @@ data:
             }
           },
           "targets": [{
-            "expr": "avg_over_time(up{job=\"portfolio-api\"}[30d])",
+            "expr": "avg_over_time(max(up{job=\"portfolio-api\"})[30d:1m])",
             "legendFormat": "Availability"
           }]
         },
@@ -73,7 +73,7 @@ data:
             }
           },
           "targets": [{
-            "expr": "(0.001 * 30 * 24 * 60) - ((1 - avg_over_time(up{job=\"portfolio-api\"}[30d])) * 30 * 24 * 60)",
+            "expr": "(0.001 * 30 * 24 * 60) - ((1 - avg_over_time(max(up{job=\"portfolio-api\"})[30d:1m])) * 30 * 24 * 60)",
             "legendFormat": "Budget remaining (min)"
           }]
         },

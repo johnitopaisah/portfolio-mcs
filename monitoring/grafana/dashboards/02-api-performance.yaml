@@ -75,7 +75,7 @@ data:
           "id": 7, "type": "gauge", "title": "Requests In-Flight",
           "gridPos": { "x": 0, "y": 24, "w": 6, "h": 4 },
           "fieldConfig": { "defaults": { "min": 0, "max": 100, "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 20 }, { "color": "red", "value": 50 }] } } },
-          "targets": [{ "expr": "portfolio_http_requests_in_flight" }]
+          "targets": [{ "expr": "sum(portfolio_http_requests_in_flight)" }]
         },
         {
           "id": 8, "type": "timeseries", "title": "DB Query Duration (p95)",

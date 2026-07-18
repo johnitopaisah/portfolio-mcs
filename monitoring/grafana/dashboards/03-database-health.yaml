@@ -70,8 +70,8 @@ data:
           "fieldConfig": { "defaults": { "unit": "none", "color": { "mode": "palette-classic" } } },
           "targets": [
             { "expr": "sum(pg_stat_database_numbackends{datname=\"portfolio_db\"})", "legendFormat": "Active connections" },
-            { "expr": "portfolio_db_pool_connections_active", "legendFormat": "Pool active" },
-            { "expr": "portfolio_db_pool_connections_idle", "legendFormat": "Pool idle" }
+            { "expr": "sum(portfolio_db_pool_connections_active)", "legendFormat": "Pool active" },
+            { "expr": "sum(portfolio_db_pool_connections_idle)", "legendFormat": "Pool idle" }
           ]
         },
         {
