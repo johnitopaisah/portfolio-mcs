@@ -73,14 +73,7 @@ jobs:
             src/discovery/linkedin.js \
             src/parsers/greenhouse.js \
             src/parsers/lever.js \
-            src/parsers/ashby.js \
-            src/parsers/workday.js \
-            src/parsers/smartrecruiters.js \
-            src/discovery/customSite.js \
-            src/extraction/fetchPage.js \
-            src/extraction/claudeExtract.js \
-            src/canary.js \
-            scripts/run-canary.js; do
+            src/parsers/ashby.js; do
             test -f "$f" && echo "✅ $f" || (echo "❌ Missing: $f" && exit 1)
           done
 
@@ -184,18 +177,15 @@ jobs:
         run: |
           TAG="${{ needs.validate.outputs.tag }}"
           BASE="ghcr.io/johnitopaisah/portfolio-mcs"
-          # Both CronJobs run the identical scraper image — keep them in lockstep
-          # so canary-checker never drifts behind scraper-discovery again.
-          sed -i "s|${BASE}/scraper:.*|${BASE}/scraper:${TAG}|g" k8s/scraper/03-cronjob-discovery.yaml k8s/scraper/04-cronjob-canary.yaml
+          sed -i "s|${BASE}/scraper:.*|${BASE}/scraper:${TAG}|g" k8s/scraper/03-cronjob-discovery.yaml
           echo "✅ k8s/scraper/03-cronjob-discovery.yaml → ${BASE}/scraper:${TAG}"
-          echo "✅ k8s/scraper/04-cronjob-canary.yaml → ${BASE}/scraper:${TAG}"
 
       - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           TAG="${{ needs.validate.outputs.tag }}"
-          git add k8s/scraper/03-cronjob-discovery.yaml k8s/scraper/04-cronjob-canary.yaml
+          git add k8s/scraper/03-cronjob-discovery.yaml
           git diff --cached --quiet && echo "No manifest change needed" && exit 0
           git commit -m "chore: bump scraper image to ${TAG} [skip ci]"
           PUSHED=false
