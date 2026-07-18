@@ -120,52 +120,16 @@ spec:
               mountPath: /etc/grafana/provisioning/datasources
             - name: dashboard-provider
               mountPath: /etc/grafana/provisioning/dashboards
-            - name: dashboard-01
-              mountPath: /var/lib/grafana/dashboards/01-system-overview.json
-              subPath: 01-system-overview.json
-            - name: dashboard-02
-              mountPath: /var/lib/grafana/dashboards/02-api-performance.json
-              subPath: 02-api-performance.json
-            - name: dashboard-03
-              mountPath: /var/lib/grafana/dashboards/03-database-health.json
-              subPath: 03-database-health.json
-            - name: dashboard-04
-              mountPath: /var/lib/grafana/dashboards/04-infrastructure.json
-              subPath: 04-infrastructure.json
-            - name: dashboard-05
-              mountPath: /var/lib/grafana/dashboards/05-business-metrics.json
-              subPath: 05-business-metrics.json
-            - name: dashboard-06
-              mountPath: /var/lib/grafana/dashboards/06-alerts-slo.json
-              subPath: 06-alerts-slo.json
-            # ── Visitor Analytics dashboard (07) ──────────────
-            - name: dashboard-07
-              mountPath: /var/lib/grafana/dashboards/07-visitor-analytics.json
-              subPath: 07-visitor-analytics.json
-            # ── Web API dashboard (08) ─────────────────────────
-            - name: dashboard-08
-              mountPath: /var/lib/grafana/dashboards/08-web-api-dashboard.json
-              subPath: 08-web-api-dashboard.json
-            # ── Job Pipeline dashboard (09) ────────────────────
-            - name: dashboard-09
-              mountPath: /var/lib/grafana/dashboards/09-job-pipeline.json
-              subPath: 09-job-pipeline.json
-            # ── Batch Jobs & Backups dashboard (10) ────────────
-            - name: dashboard-10
-              mountPath: /var/lib/grafana/dashboards/10-batch-jobs.json
-              subPath: 10-batch-jobs.json
-            # ── LLM Observability dashboard (11) ───────────────
-            - name: dashboard-11
-              mountPath: /var/lib/grafana/dashboards/11-llm-observability.json
-              subPath: 11-llm-observability.json
-            # ── Frontend RUM dashboard (12) ────────────────────
-            - name: dashboard-12
-              mountPath: /var/lib/grafana/dashboards/12-frontend-rum.json
-              subPath: 12-frontend-rum.json
-            # ── External Uptime & TLS dashboard (13) ───────────
-            - name: dashboard-13
-              mountPath: /var/lib/grafana/dashboards/13-external-uptime.json
-              subPath: 13-external-uptime.json
+            # All 13 dashboard ConfigMaps are combined into one projected
+            # volume mounted as a directory (no subPath). subPath mounts are
+            # bound to the ConfigMap's content at pod-creation time and never
+            # refresh — every dashboard edit would silently require a manual
+            # pod restart to take effect. A directory-mounted projected
+            # volume uses the normal ConfigMap auto-refresh path instead
+            # (kubelet syncs it periodically), so dashboard edits show up
+            # without restarting Grafana.
+            - name: dashboard-files
+              mountPath: /var/lib/grafana/dashboards
 
       volumes:
         - name: grafana-data
@@ -177,49 +141,32 @@ spec:
         - name: dashboard-provider
           configMap:
             name: grafana-dashboard-provider
-        - name: dashboard-01
-          configMap:
-            name: grafana-dashboard-01-overview
-        - name: dashboard-02
-          configMap:
-            name: grafana-dashboard-02-api
-        - name: dashboard-03
-          configMap:
-            name: grafana-dashboard-03-database
-        - name: dashboard-04
-          configMap:
-            name: grafana-dashboard-04-infrastructure
-        - name: dashboard-05
-          configMap:
-            name: grafana-dashboard-05-business
-        - name: dashboard-06
-          configMap:
-            name: grafana-dashboard-06-alerts
-        # ── Visitor Analytics dashboard (07) ──────────────────
-        - name: dashboard-07
-          configMap:
-            name: grafana-dashboard-07-visitors
-        # ── Web API dashboard (08) ─────────────────────────────
-        - name: dashboard-08
-          configMap:
-            name: grafana-dashboard-08-web-api
-        # ── Job Pipeline dashboard (09) ────────────────────────
-        - name: dashboard-09
-          configMap:
-            name: grafana-dashboard-09-job-pipeline
-        # ── Batch Jobs & Backups dashboard (10) ────────────────
-        - name: dashboard-10
-          configMap:
-            name: grafana-dashboard-10-batch-jobs
-        # ── LLM Observability dashboard (11) ───────────────────
-        - name: dashboard-11
-          configMap:
-            name: grafana-dashboard-11-llm
-        # ── Frontend RUM dashboard (12) ────────────────────────
-        - name: dashboard-12
-          configMap:
-            name: grafana-dashboard-12-frontend-rum
-        # ── External Uptime & TLS dashboard (13) ───────────────
-        - name: dashboard-13
-          configMap:
-            name: grafana-dashboard-13-external-uptime
+        - name: dashboard-files
+          projected:
+            sources:
+              - configMap:
+                  name: grafana-dashboard-01-overview
+              - configMap:
+                  name: grafana-dashboard-02-api
+              - configMap:
+                  name: grafana-dashboard-03-database
+              - configMap:
+                  name: grafana-dashboard-04-infrastructure
+              - configMap:
+                  name: grafana-dashboard-05-business
+              - configMap:
+                  name: grafana-dashboard-06-alerts
+              - configMap:
+                  name: grafana-dashboard-07-visitors
+              - configMap:
+                  name: grafana-dashboard-08-web-api
+              - configMap:
+                  name: grafana-dashboard-09-job-pipeline
+              - configMap:
+                  name: grafana-dashboard-10-batch-jobs
+              - configMap:
+                  name: grafana-dashboard-11-llm
+              - configMap:
+                  name: grafana-dashboard-12-frontend-rum
+              - configMap:
+                  name: grafana-dashboard-13-external-uptime
