@@ -68,7 +68,8 @@ data:
           "options": { "pieType": "donut", "legend": { "displayMode": "table", "placement": "right" } },
           "targets": [{
             "expr": "sum by (provider) (increase(jobs_ingested_total[24h]))",
-            "legendFormat": "{{provider}}"
+            "legendFormat": "{{provider}}",
+            "instant": true
           }]
         },
         {
@@ -77,7 +78,8 @@ data:
           "options": { "pieType": "donut", "legend": { "displayMode": "table", "placement": "right" } },
           "targets": [{
             "expr": "sum by (decision) (increase(jobs_filtered_total[24h]))",
-            "legendFormat": "{{decision}}"
+            "legendFormat": "{{decision}}",
+            "instant": true
           }]
         },
         {
@@ -86,7 +88,8 @@ data:
           "fieldConfig": { "defaults": { "unit": "short" } },
           "targets": [{
             "expr": "sum by (channel) (increase(job_alerts_sent_total[24h]))",
-            "legendFormat": "{{channel}}"
+            "legendFormat": "{{channel}}",
+            "instant": true
           }]
         },
         {

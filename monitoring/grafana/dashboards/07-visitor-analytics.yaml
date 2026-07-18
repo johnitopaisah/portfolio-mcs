@@ -209,7 +209,8 @@ data:
           "targets": [
             {
               "expr": "sort_desc(sum by (browser) (increase(portfolio_visitors_by_browser_total[7d])))",
-              "legendFormat": "{{ browser }}"
+              "legendFormat": "{{ browser }}",
+              "instant": true
             }
           ]
         },
@@ -227,7 +228,7 @@ data:
             }
           },
           "targets": [
-            { "expr": "topk(1, sort_desc(sum by (referrer) (increase(portfolio_visitors_by_referrer_total[24h]))))", "legendFormat": "{{ referrer }}" }
+            { "expr": "topk(1, sort_desc(sum by (referrer) (increase(portfolio_visitors_by_referrer_total[24h]))))", "legendFormat": "{{ referrer }}", "instant": true }
           ]
         },
 
@@ -244,7 +245,7 @@ data:
             }
           },
           "targets": [
-            { "expr": "topk(1, sort_desc(sum by (country) (increase(portfolio_visitors_by_country_total[24h]))))", "legendFormat": "{{ country }}" }
+            { "expr": "topk(1, sort_desc(sum by (country) (increase(portfolio_visitors_by_country_total[24h]))))", "legendFormat": "{{ country }}", "instant": true }
           ]
         },
 
@@ -261,7 +262,7 @@ data:
             }
           },
           "targets": [
-            { "expr": "topk(1, sort_desc(sum by (device) (increase(portfolio_visitors_by_device_total[24h]))))", "legendFormat": "{{ device }}" }
+            { "expr": "topk(1, sort_desc(sum by (device) (increase(portfolio_visitors_by_device_total[24h]))))", "legendFormat": "{{ device }}", "instant": true }
           ]
         },
 
@@ -281,7 +282,8 @@ data:
           "targets": [
             {
               "expr": "topk(1, sort_desc(sum by (browser) (increase(portfolio_visitors_by_browser_total[24h]))))",
-              "legendFormat": "{{ browser }}"
+              "legendFormat": "{{ browser }}",
+              "instant": true
             }
           ]
         },
@@ -356,7 +358,8 @@ data:
           "targets": [
             {
               "expr": "topk(10, sort_desc(sum by (referrer) (increase(portfolio_visitors_by_referrer_total[24h]))))",
-              "legendFormat": "{{ referrer }}"
+              "legendFormat": "{{ referrer }}",
+              "instant": true
             }
           ]
         },
@@ -388,7 +391,8 @@ data:
           "targets": [
             {
               "expr": "topk(10, sort_desc(sum by (country) (increase(portfolio_visitors_by_country_total[7d]))))",
-              "legendFormat": "{{ country }}"
+              "legendFormat": "{{ country }}",
+              "instant": true
             }
           ]
         },
@@ -419,7 +423,8 @@ data:
           "targets": [
             {
               "expr": "sort_desc(sum by (device) (increase(portfolio_visitors_by_device_total[7d])))",
-              "legendFormat": "{{ device }}"
+              "legendFormat": "{{ device }}",
+              "instant": true
             }
           ]
         },
@@ -446,7 +451,8 @@ data:
           "targets": [
             {
               "expr": "sum by (device) (increase(portfolio_visitors_by_device_total[24h]))",
-              "legendFormat": "{{ device }}"
+              "legendFormat": "{{ device }}",
+              "instant": true
             }
           ]
         },
@@ -478,7 +484,8 @@ data:
           "targets": [
             {
               "expr": "topk(15, sort_desc(sum by (referrer) (increase(portfolio_visitors_by_referrer_total[7d]))))",
-              "legendFormat": "{{ referrer }}"
+              "legendFormat": "{{ referrer }}",
+              "instant": true
             }
           ]
         }

@@ -243,7 +243,8 @@ data:
           "targets": [{
             "datasource": { "uid": "$datasource" },
             "expr": "sum by (method, route) (increase(portfolio_http_requests_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[1m]))",
-            "legendFormat": "{{method}} {{route}}"
+            "legendFormat": "{{method}} {{route}}",
+            "instant": true
           }]
         },
 
@@ -265,7 +266,8 @@ data:
           "targets": [{
             "datasource": { "uid": "$datasource" },
             "expr": "sum by (route) (rate(portfolio_http_requests_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\", status_code=~\"5..\"}[2m]))",
-            "legendFormat": "{{route}}"
+            "legendFormat": "{{route}}",
+            "instant": true
           }]
         },
 
