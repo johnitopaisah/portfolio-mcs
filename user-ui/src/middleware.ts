@@ -14,6 +14,22 @@ import type { NextRequest } from 'next/server';
 
 const SKIP_LOG = /^\/((_next|__nextjs|favicon\.ico|robots\.txt|sitemap\.xml))/;
 
+// Kubernetes hits GET / every 5-15s per pod as a liveness/readiness check —
+// not a real visit. Stopping it here, before pingVisitor() ever fires,
+// means no session-cookie logic, no network call, and no wasted work on
+// the API side (geo lookup, rate-limit bucket) for traffic that was never
+// going to count anyway. Keep this pattern in sync with
+// api/src/services/parseVisitor.js's BOT_RE — that file is the
+// authoritative bot-detection list; this is a separate deployable
+// (Next.js middleware can't import a Node module from the api/ package)
+// so the pattern is duplicated, not shared.
+const NON_HUMAN_UA_RE = /bot|crawl|spider|slurp|wget|curl|python|go-http|java\/|ruby|php\/|perl\/|httpclient|axios|node-fetch|got\/|undici|puppeteer|headless|phantom|playwright|selenium|lighthouse|pagespeed|pingdom|uptimerobot|statuscake|datadog|newrelic|dynatrace|kube-probe|alb-healthcheck|ecs-introspection|amazonaws|blackbox.exporter|googlebot|bingbot|yandex|baidu|duckduck|facebot|twitterbot|linkedinbot|whatsapp|telegram|discord|slackbot|applebot|archive\.org_bot/i;
+
+function isLikelyNonHuman(request: NextRequest): boolean {
+  const ua = request.headers.get('user-agent');
+  return !ua || NON_HUMAN_UA_RE.test(ua);
+}
+
 // 30-minute session window (milliseconds)
 const SESSION_TTL_SECONDS = 30 * 60;
 
@@ -119,7 +135,7 @@ export async function middleware(request: NextRequest) {
   // ── Visitor tracking — homepage hits only ──────────────────
   // Only track GET / (the portfolio landing page).
   // All section navigation is client-side and doesn't re-hit the middleware.
-  if (request.method === 'GET' && pathname === '/') {
+  if (request.method === 'GET' && pathname === '/' && !isLikelyNonHuman(request)) {
     let sessionId = request.cookies.get('portfolio-sid')?.value || '';
     const isNewSession = !sessionId;
 

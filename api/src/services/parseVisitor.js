@@ -5,7 +5,7 @@
 // ============================================================
 
 // ── Bot detection ─────────────────────────────────────────────
-const BOT_RE = /bot|crawl|spider|slurp|wget|curl|python|go-http|java\/|ruby|php\/|perl\/|httpclient|axios|node-fetch|got\/|undici|puppeteer|headless|phantom|playwright|selenium|lighthouse|pagespeed|pingdom|uptimerobot|statuscake|datadog|newrelic|dynatrace|kube-probe|alb-healthcheck|ecs-introspection|amazonaws|googlebot|bingbot|yandex|baidu|duckduck|facebot|twitterbot|linkedinbot|whatsapp|telegram|discord|slackbot|applebot|archive\.org_bot/i;
+const BOT_RE = /bot|crawl|spider|slurp|wget|curl|python|go-http|java\/|ruby|php\/|perl\/|httpclient|axios|node-fetch|got\/|undici|puppeteer|headless|phantom|playwright|selenium|lighthouse|pagespeed|pingdom|uptimerobot|statuscake|datadog|newrelic|dynatrace|kube-probe|alb-healthcheck|ecs-introspection|amazonaws|blackbox.exporter|googlebot|bingbot|yandex|baidu|duckduck|facebot|twitterbot|linkedinbot|whatsapp|telegram|discord|slackbot|applebot|archive\.org_bot/i;
 
 function isBot(ua) {
   if (!ua || ua === '-') return true;
