@@ -1,0 +1,81 @@
+# ============================================================
+#  CronJob — Infisical Secret Sync Health Check
+#  Every 15 min: reads every InfisicalSecret CR's Ready condition
+#  and pushes 0/1 gauges to the shared Pushgateway. Closes the gap
+#  where a broken secret sync was previously only caught by a
+#  manual `kubectl get infisicalsecrets` check (see README
+#  Troubleshooting table).
+# ============================================================
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: infisical-secret-checker
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: infisical-secret-checker
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/managed-by: argocd
+spec:
+  schedule: "*/15 * * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  suspend: false
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 120
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: infisical-secret-checker
+        spec:
+          serviceAccountName: infisical-secret-checker
+          restartPolicy: OnFailure
+          containers:
+            - name: checker
+              image: bitnami/kubectl:latest
+              command: ["/bin/bash"]
+              args:
+                - -c
+                - |
+                  set -e
+                  echo "[$(date)] Checking InfisicalSecret sync status across all namespaces..."
+
+                  METRICS=""
+                  while read -r ns name ready; do
+                    [ -z "$ns" ] && continue
+                    value=1
+                    [ "$ready" != "True" ] && value=0
+                    echo "  $ns/$name — Ready=$ready"
+                    METRICS="${METRICS}infisical_secret_synced{namespace=\"${ns}\",name=\"${name}\"} ${value}
+                  "
+                  done < <(kubectl get infisicalsecrets.secrets.infisical.com -A \
+                    -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{" "}{.status.conditions[?(@.type=="secrets.infisical.com/ReadyToSyncSecrets")].status}{"\n"}{end}')
+
+                  if [ -z "$METRICS" ]; then
+                    echo "[$(date)] ⚠ No InfisicalSecret resources found — nothing to push"
+                    exit 0
+                  fi
+
+                  if command -v curl >/dev/null 2>&1; then
+                    printf '%s' "$METRICS" | curl -fsS -X POST --data-binary @- \
+                      "http://pushgateway.monitoring.svc.cluster.local:9091/metrics/job/infisical-secret-checker" \
+                      || echo "[$(date)] ⚠ Failed to push to Pushgateway (non-fatal)"
+                  else
+                    echo "[$(date)] ⚠ curl not available in this image — cannot push metrics"
+                  fi
+
+                  echo "[$(date)] Done"
+              resources:
+                requests:
+                  cpu: "25m"
+                  memory: "32Mi"
+                limits:
+                  cpu: "100m"
+                  memory: "64Mi"
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: false
+                capabilities:
+                  drop:
+                    - ALL

@@ -14,8 +14,16 @@ ENV NODE_ENV=production
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
-# Upgrade all packages first to pick up security patches, then install deps
-RUN apk upgrade --no-cache && \
+# Upgrade all packages first to pick up security patches, then install deps.
+#
+# Cache-bust: BuildKit/GHA cache keys this RUN on its instruction text alone,
+# not wall-clock time — a layer cached before an upstream CVE fix was
+# published will keep being reused (and keep serving the vulnerable package)
+# indefinitely otherwise. Bump ARG's value whenever Trivy's scan step flags a
+# "fixed" OS-level CVE that a plain re-run doesn't clear.
+ARG APK_CACHE_BUST=2026-07-17-libjxl-CVE-2026-1837
+RUN echo "cache-bust: ${APK_CACHE_BUST}" && \
+    apk upgrade --no-cache && \
     apk add --no-cache postgresql-client chromium nss freetype harfbuzz ca-certificates ttf-freefont
 
 RUN addgroup -g 1001 -S nodejs && \

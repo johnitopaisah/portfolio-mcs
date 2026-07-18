@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { reportSuccess, reportFailure, isOutageStatus } from '@/lib/backendStatus';
 
 interface SocialLink {
   id: string;
@@ -103,11 +104,23 @@ export default function ContactSection({ socialLinks }: Props) {
     e.preventDefault();
     setStatus('sending');
     try {
-      const res = await fetch('/api/contact', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
+      let res: Response;
+      try {
+        res = await fetch('/api/contact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(form),
+        });
+      } catch (err) {
+        reportFailure(); // fetch() itself threw — genuine network/DNS/connection failure
+        throw err;
+      }
+      // A resolved response (even a validation 400) proves the server is
+      // reachable — only 502/503/504 (proxy/upstream unreachable) counts
+      // as a backend-down signal, so one rejected submission doesn't
+      // trigger the full-page maintenance overlay.
+      if (isOutageStatus(res.status)) reportFailure();
+      else reportSuccess();
       if (!res.ok) throw new Error();
       setStatus('success');
       setForm({ name: '', email: '', subject: '', message: '' });

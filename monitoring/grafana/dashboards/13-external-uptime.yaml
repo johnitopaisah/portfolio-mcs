@@ -1,0 +1,90 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-13-external-uptime
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/component: visualization
+    app.kubernetes.io/managed-by: argocd
+    dashboard: external-uptime
+data:
+  13-external-uptime.json: |
+    {
+      "uid": "portfolio-external-uptime",
+      "title": "External Uptime & TLS",
+      "description": "Outside-in probes (blackbox-exporter) against johnisah.com, api.johnisah.com, admin.johnisah.com, and grafana.johnisah.com — the one class of failure (DNS/ingress/CDN/cert) nothing else in this stack observes directly.",
+      "tags": ["portfolio-mcs", "uptime", "tls", "blackbox"],
+      "timezone": "browser",
+      "refresh": "1m",
+      "time": { "from": "now-24h", "to": "now" },
+      "panels": [
+        {
+          "id": 1, "type": "table", "title": "Current Status by Target",
+          "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+          "targets": [{
+            "expr": "probe_success{job=\"blackbox\"}",
+            "legendFormat": "{{instance}}",
+            "instant": true,
+            "format": "table"
+          }]
+        },
+        {
+          "id": 2, "type": "table", "title": "TLS Cert Days Remaining",
+          "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+          "options": { "sortBy": [{ "displayName": "Value", "desc": false }] },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "d",
+              "thresholds": { "steps": [{ "color": "red", "value": 0 }, { "color": "yellow", "value": 14 }, { "color": "green", "value": 30 }] }
+            }
+          },
+          "targets": [{
+            "expr": "(probe_ssl_earliest_cert_expiry{job=\"blackbox\"} - time()) / 86400",
+            "legendFormat": "{{instance}}",
+            "instant": true,
+            "format": "table"
+          }]
+        },
+        {
+          "id": 3, "type": "timeseries", "title": "Uptime Over Time (per target)",
+          "gridPos": { "x": 0, "y": 8, "w": 24, "h": 8 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none", "min": 0, "max": 1,
+              "thresholds": { "steps": [{ "color": "red", "value": 0 }, { "color": "green", "value": 1 }] },
+              "custom": { "fillOpacity": 10, "lineWidth": 2 }
+            }
+          },
+          "targets": [{ "expr": "probe_success{job=\"blackbox\"}", "legendFormat": "{{instance}}" }]
+        },
+        {
+          "id": 4, "type": "timeseries", "title": "Probe Duration Breakdown (DNS / TCP / TLS handshake)",
+          "gridPos": { "x": 0, "y": 16, "w": 24, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "s", "color": { "mode": "palette-classic" } } },
+          "targets": [
+            { "expr": "probe_duration_seconds{job=\"blackbox\"}", "legendFormat": "{{instance}} total" },
+            { "expr": "probe_http_duration_seconds{job=\"blackbox\", phase=\"resolve\"}", "legendFormat": "{{instance}} DNS" },
+            { "expr": "probe_http_duration_seconds{job=\"blackbox\", phase=\"connect\"}", "legendFormat": "{{instance}} TCP connect" },
+            { "expr": "probe_http_duration_seconds{job=\"blackbox\", phase=\"tls\"}", "legendFormat": "{{instance}} TLS handshake" }
+          ]
+        },
+        {
+          "id": 5, "type": "timeseries", "title": "TLS Cert Expiry Trend (30d)",
+          "gridPos": { "x": 0, "y": 24, "w": 24, "h": 8 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "d",
+              "thresholds": { "steps": [{ "color": "red", "value": 0 }, { "color": "yellow", "value": 14 }, { "color": "green", "value": 30 }] },
+              "color": { "mode": "palette-classic" }
+            }
+          },
+          "targets": [{ "expr": "(probe_ssl_earliest_cert_expiry{job=\"blackbox\"} - time()) / 86400", "legendFormat": "{{instance}}" }],
+          "time": { "from": "now-30d", "to": "now" }
+        }
+      ],
+      "schemaVersion": 38,
+      "version": 1
+    }

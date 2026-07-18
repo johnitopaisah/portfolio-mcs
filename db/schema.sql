@@ -270,15 +270,6 @@ CREATE TABLE IF NOT EXISTS jobs (
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- job_tags — searchable tags per job
-CREATE TABLE IF NOT EXISTS job_tags (
-  id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-  job_id          UUID        NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
-  tag             TEXT        NOT NULL,       -- "kubernetes", "aws", "go", etc.
-  category        TEXT        NOT NULL,       -- "tech", "seniority", "location"
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
 -- user_preferences — user job search preferences
 CREATE TABLE IF NOT EXISTS user_preferences (
   id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -357,10 +348,6 @@ CREATE INDEX IF NOT EXISTS idx_jobs_title_tsvector ON jobs USING GIN (to_tsvecto
 CREATE INDEX IF NOT EXISTS idx_jobs_is_active ON jobs (is_active) WHERE is_active = TRUE;
 CREATE INDEX IF NOT EXISTS idx_jobs_external_id ON jobs (external_id);
 
-CREATE INDEX IF NOT EXISTS idx_job_tags_job_id ON job_tags (job_id);
-CREATE INDEX IF NOT EXISTS idx_job_tags_tag ON job_tags (tag);
-CREATE INDEX IF NOT EXISTS idx_job_tags_category ON job_tags (category);
-
 CREATE INDEX IF NOT EXISTS idx_user_prefs_user_id ON user_preferences (user_id);
 
 CREATE INDEX IF NOT EXISTS idx_user_alerts_user_id ON user_alerts (user_id, sent_at DESC);
@@ -384,3 +371,55 @@ CREATE OR REPLACE TRIGGER trg_companies_updated_at
 
 CREATE OR REPLACE TRIGGER trg_user_prefs_updated_at
   BEFORE UPDATE ON user_preferences FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- ============================================================
+--  REFEREE CONTACT REQUESTS — recruiter requests referee contact
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS referee_contact_requests (
+  id                             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  referee_id                     UUID        NOT NULL REFERENCES referees(id) ON DELETE CASCADE,
+  requester_name                 TEXT        NOT NULL,
+  requester_email                TEXT        NOT NULL,
+  requester_email_verified       BOOLEAN     NOT NULL DEFAULT false,
+  requester_company              TEXT,
+  requester_linkedin_url         TEXT,
+  requester_purpose              TEXT        NOT NULL DEFAULT 'recruiting'
+                                   CONSTRAINT rcr_purpose_check CHECK (requester_purpose IN ('recruiting','collaboration','other')),
+  requester_message              TEXT,
+  status                         TEXT        NOT NULL DEFAULT 'submitted'
+                                   CONSTRAINT rcr_status_check CHECK (status IN (
+                                     'submitted','approved','rejected',
+                                     'consent_requested','consent_given','consent_denied',
+                                     'fulfilled','declined','expired'
+                                   )),
+  -- email verification (requester confirms their email before admin sees it)
+  verification_token             UUID        UNIQUE DEFAULT gen_random_uuid(),
+  verification_token_expires_at  TIMESTAMPTZ,
+  -- referee consent (admin sends to referee, referee clicks yes/no)
+  consent_token                  UUID        UNIQUE,
+  consent_token_expires_at       TIMESTAMPTZ,
+  consent_resend_count           INT         NOT NULL DEFAULT 0,  -- max 2 admin resends after denial
+  consent_reminder_count         INT         NOT NULL DEFAULT 0,  -- auto reminders (every 3 days, max 3)
+  consent_last_reminded_at       TIMESTAMPTZ,
+  consent_requested_at           TIMESTAMPTZ,
+  consent_responded_at           TIMESTAMPTZ,
+  -- admin fields
+  admin_note                     TEXT,   -- sent alongside contact details on fulfillment
+  resend_note                    TEXT,   -- required note when admin resends after denial
+  -- timestamps
+  fulfilled_at                   TIMESTAMPTZ,
+  declined_at                    TIMESTAMPTZ,
+  expires_at                     TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '30 days'),
+  created_at                     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_rcr_referee_id         ON referee_contact_requests (referee_id);
+CREATE INDEX IF NOT EXISTS idx_rcr_status             ON referee_contact_requests (status);
+CREATE INDEX IF NOT EXISTS idx_rcr_created_at         ON referee_contact_requests (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_rcr_verification_token ON referee_contact_requests (verification_token)
+  WHERE verification_token IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_rcr_consent_token      ON referee_contact_requests (consent_token)
+  WHERE consent_token IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_rcr_consent_reminder   ON referee_contact_requests (status, consent_last_reminded_at)
+  WHERE status = 'consent_requested';

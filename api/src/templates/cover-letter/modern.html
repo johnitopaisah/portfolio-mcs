@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Cover Letter — {{NAME}}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Arial, Helvetica, sans-serif;
+    font-size: 10.5pt;
+    color: #1a1a1a;
+    background: #fff;
+    max-width: 800px;
+    margin: 0 auto;
+    line-height: 1.6;
+  }
+  .cl-header {
+    background: {{ACCENT_COLOR}};
+    color: #fff;
+    padding: 26px 36px 20px;
+    margin-bottom: 28px;
+  }
+  .cl-header h1 { font-size: 20pt; font-weight: 700; margin-bottom: 3px; }
+  .cl-header .headline { font-size: 10.5pt; opacity: 0.85; margin-bottom: 10px; }
+  .cl-header .contacts { font-size: 9pt; opacity: 0.8; display: flex; flex-wrap: wrap; gap: 4px 18px; }
+  .cl-header .contacts a { color: #fff; text-decoration: none; }
+  .body { padding: 0 36px 36px; }
+  .date { font-size: 10pt; color: #666; margin-bottom: 20px; }
+  .recipient { margin-bottom: 20px; }
+  .recipient .company { font-size: 11pt; font-weight: 700; color: #000; }
+  .recipient .role { font-size: 10.5pt; color: {{ACCENT_COLOR}}; }
+  .subject { font-size: 11pt; font-weight: 700; color: #000; margin-bottom: 22px; padding-bottom: 8px; border-bottom: 2px solid {{ACCENT_COLOR}}; }
+  .cl-body { color: #222; font-size: 10.5pt; }
+  .cl-para { margin-bottom: 16px; line-height: 1.7; }
+  .cl-para.opening { font-size: 11pt; }
+  .ps-line { margin-top: 20px; font-size: 10pt; color: #555; font-style: italic; }
+  .signature { margin-top: 24px; }
+  .signature .closing { font-size: 10.5pt; color: #222; margin-bottom: 12px; }
+  .signature .sig-name { font-size: 12pt; font-weight: 700; color: #000; }
+  @media print { body {} a { color: inherit !important; } }
+</style>
+</head>
+<body>
+<div class="cl-header">
+  <h1>{{NAME}}</h1>
+  <div class="headline">{{HEADLINE}}</div>
+  <div class="contacts">
+    <a href="mailto:{{EMAIL}}">{{EMAIL}}</a>
+    {{PHONE_ITEM}}
+    {{LOCATION_ITEM}}
+    {{WEBSITE_ITEM}}
+    <a href="{{LINKEDIN_URL}}" target="_blank">LinkedIn</a>
+    <a href="{{GITHUB_URL}}" target="_blank">GitHub</a>
+  </div>
+</div>
+<div class="body">
+  <div class="date">{{DATE}}</div>
+  <div class="recipient">
+    <div class="company">{{COMPANY_NAME}}</div>
+    <div class="role">Re: {{ROLE_TITLE}}</div>
+  </div>
+  <div class="subject">{{SUBJECT_LINE}}</div>
+  <div class="cl-body">
+    <p class="cl-para opening">{{OPENING_HOOK}}</p>
+    <p class="cl-para">{{WHY_YOU}}</p>
+    <p class="cl-para">{{WHY_THEM}}</p>
+    <p class="cl-para">{{WHY_NOW}}</p>
+    <p class="cl-para">{{CALL_TO_ACTION}}</p>
+  </div>
+  {{PS_LINE}}
+  <div class="signature">
+    <div class="closing">Sincerely,</div>
+    <div class="sig-name">{{NAME}}</div>
+  </div>
+</div>
+</body>
+</html>

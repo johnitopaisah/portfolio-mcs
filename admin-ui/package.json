@@ -9,6 +9,18 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@tiptap/core": "^3.27.1",
+    "@tiptap/extension-bullet-list": "^3.27.1",
+    "@tiptap/extension-heading": "^3.27.1",
+    "@tiptap/extension-list-item": "^3.27.1",
+    "@tiptap/extension-ordered-list": "^3.27.1",
+    "@tiptap/extension-paragraph": "^3.27.1",
+    "@tiptap/extension-text-align": "^3.27.1",
+    "@tiptap/extension-text-style": "^3.27.1",
+    "@tiptap/extension-underline": "^3.27.1",
+    "@tiptap/pm": "^3.27.1",
+    "@tiptap/react": "^3.27.1",
+    "@tiptap/starter-kit": "^3.27.1",
     "clsx": "^2.1.1",
     "next": "^15.3.9",
     "react": "^18.3.1",

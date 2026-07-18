@@ -8,6 +8,7 @@ interface EmailResponse {
   id: number;
   application_id: number | null;
   gmail_message_id: string;
+  source_account: string;
   sender_email: string;
   sender_name: string;
   subject: string;
@@ -15,6 +16,7 @@ interface EmailResponse {
   received_at: string;
   ai_classification: string;
   confidence_score: number | null;
+  reviewed_correct: boolean | null;
   raw_label: string;
   company_name: string | null;
   job_title: string | null;
@@ -26,23 +28,44 @@ interface AppOption {
   job_title: string;
 }
 
+interface SyncStatus {
+  source_account: string;
+  status: 'SUCCESS' | 'FAILED';
+  emails_fetched: number;
+  emails_new: number;
+  error_message: string | null;
+  created_at: string;
+}
+
 const CLASSIFICATIONS = [
   'INTERVIEW_INVITE', 'REJECTION', 'TECHNICAL_TEST',
   'OFFER', 'FOLLOW_UP_NEEDED', 'GENERAL_RESPONSE', 'UNKNOWN',
 ] as const;
 
+const SOURCES = [
+  { value: '',       label: 'All mailboxes' },
+  { value: 'gmail',  label: 'Gmail' },
+  { value: 'imap',   label: 'Professional' },
+];
+
 // ── Helpers ───────────────────────────────────────────────────
 function classBadge(cls: string): { label: string; bg: string } {
   const map: Record<string, { label: string; bg: string }> = {
-    INTERVIEW_INVITE: { label: 'Interview Invite', bg: 'bg-green-100 text-green-700'    },
-    OFFER:            { label: 'Offer',            bg: 'bg-emerald-100 text-emerald-700' },
-    TECHNICAL_TEST:   { label: 'Technical Test',   bg: 'bg-blue-100 text-blue-700'      },
-    REJECTION:        { label: 'Rejection',        bg: 'bg-red-100 text-red-600'         },
-    FOLLOW_UP_NEEDED: { label: 'Follow Up Needed', bg: 'bg-yellow-100 text-yellow-700'  },
-    GENERAL_RESPONSE: { label: 'General Response', bg: 'bg-gray-100 text-gray-600'      },
-    UNKNOWN:          { label: 'Unknown',          bg: 'bg-gray-200 text-gray-500'       },
+    INTERVIEW_INVITE: { label: 'Interview Invite', bg: 'bg-green-900/40 text-green-400 border border-green-700/40'     },
+    OFFER:            { label: 'Offer',            bg: 'bg-emerald-900/40 text-emerald-400 border border-emerald-700/40' },
+    TECHNICAL_TEST:   { label: 'Technical Test',   bg: 'bg-blue-900/40 text-blue-400 border border-blue-700/40'        },
+    REJECTION:        { label: 'Rejection',        bg: 'bg-red-900/40 text-red-400 border border-red-700/40'           },
+    FOLLOW_UP_NEEDED: { label: 'Follow Up Needed', bg: 'bg-yellow-900/40 text-yellow-400 border border-yellow-700/40'  },
+    GENERAL_RESPONSE: { label: 'General Response', bg: 'bg-gray-800 text-gray-400 border border-gray-700/50'           },
+    UNKNOWN:          { label: 'Unknown',          bg: 'bg-gray-800 text-gray-500 border border-gray-700/40'           },
   };
   return map[cls] ?? map['UNKNOWN'];
+}
+
+function sourceBadge(source: string): { label: string; bg: string } {
+  return source === 'imap'
+    ? { label: 'Professional', bg: 'bg-purple-900/40 text-purple-300 border border-purple-700/40' }
+    : { label: 'Gmail',        bg: 'bg-sky-900/40 text-sky-300 border border-sky-700/40' };
 }
 
 function confidenceColor(score: number | null): string {
@@ -83,6 +106,40 @@ function TableSkeleton() {
           ))}
         </div>
       ))}
+    </div>
+  );
+}
+
+// ── Sync health badges ──────────────────────────────────────────
+function SyncHealthBar() {
+  const [statuses, setStatuses] = useState<SyncStatus[]>([]);
+
+  useEffect(() => {
+    adminApi.getEmailSyncStatus()
+      .then((data: { sources: SyncStatus[] }) => setStatuses(data.sources || []))
+      .catch(() => setStatuses([]));
+  }, []);
+
+  if (statuses.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {statuses.map(s => {
+        const ok = s.status === 'SUCCESS';
+        const label = s.source_account === 'imap' ? 'Professional' : 'Gmail';
+        return (
+          <div
+            key={s.source_account}
+            title={ok ? `${s.emails_new} new of ${s.emails_fetched} fetched` : (s.error_message || 'Sync failed')}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs border ${
+              ok ? 'bg-gray-900 border-gray-800 text-gray-400' : 'bg-red-950/40 border-red-800/50 text-red-400'
+            }`}
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${ok ? 'bg-green-500' : 'bg-red-500'}`} />
+            {label} · {ok ? `synced ${relativeTime(s.created_at)}` : 'sync failed'}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -173,18 +230,152 @@ function LinkAppCell({
   );
 }
 
+// ── Filter bar ──────────────────────────────────────────────────
+interface Filters {
+  source_account: string;
+  classification: string[];
+  matched: '' | 'true' | 'false';
+  search: string;
+  date_from: string;
+  date_to: string;
+  domain: string;
+  confidence_min: string;
+  confidence_max: string;
+}
+
+const EMPTY_FILTERS: Filters = {
+  source_account: '', classification: [], matched: '',
+  search: '', date_from: '', date_to: '', domain: '',
+  confidence_min: '', confidence_max: '',
+};
+
+function FilterBar({ filters, onChange }: { filters: Filters; onChange: (f: Filters) => void }) {
+  const [showMore, setShowMore] = useState(false);
+
+  function toggleClassification(c: string) {
+    const next = filters.classification.includes(c)
+      ? filters.classification.filter(x => x !== c)
+      : [...filters.classification, c];
+    onChange({ ...filters, classification: next });
+  }
+
+  const activeCount = Object.entries(filters).filter(([k, v]) =>
+    k === 'classification' ? (v as string[]).length > 0 : v !== ''
+  ).length;
+
+  return (
+    <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          value={filters.search}
+          onChange={e => onChange({ ...filters, search: e.target.value })}
+          placeholder="Search subject, sender, body…"
+          className="flex-1 min-w-48 px-3 py-1.5 text-xs rounded-lg bg-gray-800 border border-gray-700
+            text-white placeholder-gray-500 outline-none focus:border-indigo-500"
+        />
+        <select
+          value={filters.source_account}
+          onChange={e => onChange({ ...filters, source_account: e.target.value })}
+          className="px-2 py-1.5 text-xs rounded-lg bg-gray-800 border border-gray-700 text-gray-300 cursor-pointer"
+        >
+          {SOURCES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+        </select>
+        <select
+          value={filters.matched}
+          onChange={e => onChange({ ...filters, matched: e.target.value as Filters['matched'] })}
+          className="px-2 py-1.5 text-xs rounded-lg bg-gray-800 border border-gray-700 text-gray-300 cursor-pointer"
+        >
+          <option value="">All match status</option>
+          <option value="true">Matched</option>
+          <option value="false">Unmatched</option>
+        </select>
+        <button
+          onClick={() => setShowMore(s => !s)}
+          className="px-2 py-1.5 text-xs rounded-lg bg-gray-800 border border-gray-700 text-gray-400 hover:text-white"
+        >
+          {showMore ? 'Less filters' : 'More filters'}
+        </button>
+        {activeCount > 0 && (
+          <button
+            onClick={() => onChange(EMPTY_FILTERS)}
+            className="px-2 py-1.5 text-xs rounded-lg text-red-400 hover:text-red-300"
+          >
+            Clear ({activeCount})
+          </button>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {CLASSIFICATIONS.map(c => {
+          const active = filters.classification.includes(c);
+          return (
+            <button
+              key={c}
+              onClick={() => toggleClassification(c)}
+              className={`px-2 py-1 text-xs rounded-md border transition-colors ${
+                active
+                  ? 'bg-indigo-900/50 border-indigo-600 text-indigo-300'
+                  : 'bg-gray-800 border-gray-700 text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              {c.replace(/_/g, ' ')}
+            </button>
+          );
+        })}
+      </div>
+
+      {showMore && (
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-800">
+          <label className="text-xs text-gray-500">From</label>
+          <input type="date" value={filters.date_from}
+            onChange={e => onChange({ ...filters, date_from: e.target.value })}
+            className="px-2 py-1 text-xs rounded-lg bg-gray-800 border border-gray-700 text-gray-300" />
+          <label className="text-xs text-gray-500">To</label>
+          <input type="date" value={filters.date_to}
+            onChange={e => onChange({ ...filters, date_to: e.target.value })}
+            className="px-2 py-1 text-xs rounded-lg bg-gray-800 border border-gray-700 text-gray-300" />
+          <label className="text-xs text-gray-500">Domain</label>
+          <input value={filters.domain} placeholder="greenhouse.io"
+            onChange={e => onChange({ ...filters, domain: e.target.value })}
+            className="w-36 px-2 py-1 text-xs rounded-lg bg-gray-800 border border-gray-700 text-gray-300 placeholder-gray-600" />
+          <label className="text-xs text-gray-500">Confidence</label>
+          <input type="number" min={0} max={1} step={0.05} value={filters.confidence_min} placeholder="min"
+            onChange={e => onChange({ ...filters, confidence_min: e.target.value })}
+            className="w-16 px-2 py-1 text-xs rounded-lg bg-gray-800 border border-gray-700 text-gray-300 placeholder-gray-600" />
+          <span className="text-xs text-gray-600">–</span>
+          <input type="number" min={0} max={1} step={0.05} value={filters.confidence_max} placeholder="max"
+            onChange={e => onChange({ ...filters, confidence_max: e.target.value })}
+            className="w-16 px-2 py-1 text-xs rounded-lg bg-gray-800 border border-gray-700 text-gray-300 placeholder-gray-600" />
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────
 export default function EmailTrackingPage() {
   const [emails,  setEmails]  = useState<EmailResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [page,    setPage]    = useState(1);
   const [total,   setTotal]   = useState(0);
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const LIMIT = 50;
 
-  const fetchEmails = useCallback(async (p: number) => {
+  const fetchEmails = useCallback(async (p: number, f: Filters) => {
     setLoading(true);
     try {
-      const data = await adminApi.getEmailResponses(p, LIMIT);
+      const data = await adminApi.getEmailResponses({
+        page: p, limit: LIMIT,
+        source_account: f.source_account || undefined,
+        classification: f.classification.length ? f.classification.join(',') : undefined,
+        matched: f.matched || undefined,
+        search: f.search || undefined,
+        date_from: f.date_from || undefined,
+        date_to: f.date_to || undefined,
+        domain: f.domain || undefined,
+        confidence_min: f.confidence_min || undefined,
+        confidence_max: f.confidence_max || undefined,
+      });
       setEmails(data.emails);
       setTotal(data.total);
     } catch {
@@ -194,18 +385,30 @@ export default function EmailTrackingPage() {
     }
   }, []);
 
-  useEffect(() => { fetchEmails(page); }, [fetchEmails, page]);
+  useEffect(() => { fetchEmails(page, filters); }, [fetchEmails, page, filters]);
+
+  function handleFilterChange(f: Filters) {
+    setFilters(f);
+    setPage(1);
+  }
 
   async function handleReclassify(id: number, classification: string) {
-    // Optimistic update
     setEmails(prev => prev.map(e =>
       e.id === id ? { ...e, ai_classification: classification } : e
     ));
     try {
       await adminApi.reclassifyEmailResponse(id, classification);
     } catch {
-      // Revert on failure
-      fetchEmails(page);
+      fetchEmails(page, filters);
+    }
+  }
+
+  async function handleFeedback(id: number, correct: boolean) {
+    setEmails(prev => prev.map(e => e.id === id ? { ...e, reviewed_correct: correct } : e));
+    try {
+      await adminApi.submitEmailFeedback(id, correct);
+    } catch {
+      fetchEmails(page, filters);
     }
   }
 
@@ -225,10 +428,10 @@ export default function EmailTrackingPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white mb-1">Email Tracking</h1>
-          <p className="text-gray-500 text-sm">Inbound recruitment emails classified by AI</p>
+          <p className="text-gray-500 text-sm">Inbound recruitment emails classified by AI, across all mailboxes</p>
         </div>
         <button
-          onClick={() => fetchEmails(page)}
+          onClick={() => fetchEmails(page, filters)}
           className="px-3 py-1.5 text-xs rounded-lg bg-gray-800 border border-gray-700
             text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
         >
@@ -236,13 +439,16 @@ export default function EmailTrackingPage() {
         </button>
       </div>
 
+      <SyncHealthBar />
+      <FilterBar filters={filters} onChange={handleFilterChange} />
+
       {/* Content */}
       {loading ? (
         <TableSkeleton />
       ) : emails.length === 0 ? (
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-12 text-center">
           <p className="text-gray-500 text-sm">
-            No emails tracked yet. Run the email worker to fetch and classify inbound emails.
+            No emails match these filters. Try clearing some filters, or run the email worker to fetch new mail.
           </p>
         </div>
       ) : (
@@ -252,7 +458,7 @@ export default function EmailTrackingPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-800">
-                    {['Sender', 'Company', 'Subject', 'Classification', 'Confidence', 'Linked Application', 'Received'].map(h => (
+                    {['Mailbox', 'Sender', 'Company', 'Subject', 'Classification', 'Confidence', 'Linked Application', 'Received', 'Accurate?'].map(h => (
                       <th key={h}
                         className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
                         {h}
@@ -264,11 +470,19 @@ export default function EmailTrackingPage() {
                   {emails.map((email, idx) => {
                     const isLast = idx === emails.length - 1;
                     const badge  = classBadge(email.ai_classification);
+                    const srcBadge = sourceBadge(email.source_account);
                     return (
                       <tr
                         key={email.id}
                         className={`transition-colors hover:bg-gray-800/40 ${!isLast ? 'border-b border-gray-800/50' : ''}`}
                       >
+                        {/* Mailbox source */}
+                        <td className="px-4 py-3.5 whitespace-nowrap">
+                          <span className={`text-xs px-2 py-0.5 rounded-md font-medium ${srcBadge.bg}`}>
+                            {srcBadge.label}
+                          </span>
+                        </td>
+
                         {/* Sender */}
                         <td className="px-4 py-3.5 whitespace-nowrap">
                           <div className="text-gray-200 font-medium text-xs">
@@ -342,6 +556,30 @@ export default function EmailTrackingPage() {
                         {/* Received */}
                         <td className="px-4 py-3.5 text-gray-500 whitespace-nowrap text-xs">
                           {email.received_at ? relativeTime(email.received_at) : '—'}
+                        </td>
+
+                        {/* Feedback */}
+                        <td className="px-4 py-3.5 whitespace-nowrap">
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleFeedback(email.id, true)}
+                              title="Classification was correct"
+                              className={`px-1.5 py-0.5 rounded text-xs ${
+                                email.reviewed_correct === true ? 'bg-green-900/50 text-green-400' : 'text-gray-600 hover:text-green-400'
+                              }`}
+                            >
+                              👍
+                            </button>
+                            <button
+                              onClick={() => handleFeedback(email.id, false)}
+                              title="Classification was wrong"
+                              className={`px-1.5 py-0.5 rounded text-xs ${
+                                email.reviewed_correct === false ? 'bg-red-900/50 text-red-400' : 'text-gray-600 hover:text-red-400'
+                              }`}
+                            >
+                              👎
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );

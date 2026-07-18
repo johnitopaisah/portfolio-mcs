@@ -1,7 +1,10 @@
 ---
 # ============================================================
-#  Job Ingestion Worker — Kubernetes CronJob
-#  Runs every 8 hours: ingest → AI filter → notify → expire → purge → backup
+#  Job Filtering & Lifecycle Worker — Kubernetes CronJob
+#  Runs every 8 hours: AI filter → notify → expire → purge → backup.
+#  Raw job discovery is handled separately by scraper/'s own CronJob
+#  (k8s/scraper/03-cronjob-discovery.yaml) — this worker only scores
+#  whatever it left behind in jobs_raw.
 #  Backups land on the host node at ~/db-backups (hostPath volume).
 #  Daily digest is sent by the API process (startDailyJobDigest),
 #  not by this CronJob — so no duplicate 08:15 emails.
@@ -113,28 +116,6 @@ spec:
                 secretKeyRef:
                   name: portfolio-secrets
                   key: ANTHROPIC_API_KEY
-                  optional: true
-
-            # ── Job API credentials ────────────────────────────
-            - name: JOOBLE_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: portfolio-secrets
-                  key: JOOBLE_API_KEY
-                  optional: true
-
-            # Adzuna — free official API (250 req/day)
-            - name: ADZUNA_APP_ID
-              valueFrom:
-                secretKeyRef:
-                  name: portfolio-secrets
-                  key: ADZUNA_APP_ID
-                  optional: true
-            - name: ADZUNA_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: portfolio-secrets
-                  key: ADZUNA_API_KEY
                   optional: true
 
             # ── Notifications (Zoho SMTP) ──────────────────────

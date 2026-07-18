@@ -95,6 +95,26 @@ spec:
                   name: portfolio-secrets
                   key: GMAIL_TARGET_ADDRESS
 
+            # ── Second mailbox via IMAP (reuses NOTIFY_EMAIL_* creds —
+            #    notify.js already authenticates to this same mailbox via SMTP) ──
+            - name: IMAP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: portfolio-secrets
+                  key: IMAP_HOST
+            - name: IMAP_PORT
+              value: "993"
+            - name: NOTIFY_EMAIL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: portfolio-secrets
+                  key: NOTIFY_EMAIL_USER
+            - name: NOTIFY_EMAIL_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: portfolio-secrets
+                  key: NOTIFY_EMAIL_PASS
+
             resources:
               requests:
                 cpu:    100m

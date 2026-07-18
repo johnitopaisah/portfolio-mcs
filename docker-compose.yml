@@ -41,6 +41,17 @@ services:
       retries: 10
       start_period: 10s
 
+  # ── Search (self-hosted, for job-discovery queries — no API key/billing) ──
+  searxng:
+    image: searxng/searxng:latest
+    container_name: portfolio-searxng
+    restart: unless-stopped
+    networks: [portfolio]
+    volumes:
+      - ./searxng:/etc/searxng:ro
+    ports:
+      - "8080:8080"
+
   # ── API ─────────────────────────────────────────────────────
   api:
     build:
@@ -59,10 +70,15 @@ services:
       JWT_SECRET:      ${JWT_SECRET:?JWT_SECRET must be set in .env}
       JWT_EXPIRES_IN:  ${JWT_EXPIRES_IN:-7d}
       ALLOWED_ORIGINS: http://localhost:3000,http://localhost:3001
+      SITE_URL:           ${SITE_URL:-http://localhost:3000}
       ADMIN_URL:          ${ADMIN_URL:-http://localhost:3001}
       NOTIFY_EMAIL_USER:  ${NOTIFY_EMAIL_USER:-}
       NOTIFY_EMAIL_PASS:  ${NOTIFY_EMAIL_PASS:-}
       NOTIFY_EMAIL_TO:    ${NOTIFY_EMAIL_TO:-}
+      IMAP_HOST:          ${IMAP_HOST:-}
+      IMAP_PORT:          ${IMAP_PORT:-993}
+      IMAP_USER:          ${IMAP_USER:-}
+      IMAP_PASSWORD:      ${IMAP_PASSWORD:-}
       TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
       TWILIO_AUTH_TOKEN:  ${TWILIO_AUTH_TOKEN:-}
       TWILIO_FROM:        ${TWILIO_FROM:-}
@@ -70,6 +86,12 @@ services:
       ANTHROPIC_API_KEY:  ${ANTHROPIC_API_KEY:-}
       GROQ_API_KEY:       ${GROQ_API_KEY:-}
       GEMINI_API_KEY:     ${GEMINI_API_KEY:-}
+      MEDIUM_USERNAME:        ${MEDIUM_USERNAME:-}
+      MEDIUM_FEED_URL:        ${MEDIUM_FEED_URL:-}
+      LINKEDIN_CLIENT_ID:     ${LINKEDIN_CLIENT_ID:-}
+      LINKEDIN_CLIENT_SECRET: ${LINKEDIN_CLIENT_SECRET:-}
+      LINKEDIN_REDIRECT_URI:  ${LINKEDIN_REDIRECT_URI:-http://localhost:4000/api/admin/linkedin/callback}
+      ADMIN_UI_URL:           ${ADMIN_UI_URL:-http://localhost:3001}
     ports:
       - "4000:4000"
     healthcheck:

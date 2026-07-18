@@ -45,11 +45,24 @@ data:
     if [ $? -eq 0 ]; then
       BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
       echo "[$(date)] ✓ Backup successful: $BACKUP_FILE ($BACKUP_SIZE)"
-      
+
       # Cleanup old backups (keep last 7 days)
       find "$BACKUP_DIR" -name "portfolio_db_*.sql.gz" -mtime +7 -delete
       echo "[$(date)] Old backups cleaned up (>7 days)"
-      
+
+      # Push success timestamp + raw byte size to Pushgateway so
+      # CronJobDidNotRun/backup-age dashboards have real data — this
+      # CronJob pod exits before Prometheus's next scrape could otherwise
+      # observe it. Non-fatal: a Pushgateway hiccup must not fail the backup.
+      BACKUP_BYTES=$(wc -c < "$BACKUP_FILE")
+      METRICS=$(printf 'backup_last_success_timestamp %s\nbackup_size_bytes %s\n' "$(date +%s)" "$BACKUP_BYTES")
+      if command -v wget >/dev/null 2>&1; then
+        wget -q -O /dev/null --header="Content-Type: text/plain" \
+          --post-data="$METRICS" \
+          "http://pushgateway.monitoring.svc.cluster.local:9091/metrics/job/portfolio-db-backup" \
+          || echo "[$(date)] ⚠ Failed to push backup metrics to Pushgateway (non-fatal)"
+      fi
+
       exit 0
     else
       echo "[$(date)] ✗ Backup failed!"

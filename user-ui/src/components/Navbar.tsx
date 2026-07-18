@@ -4,12 +4,18 @@ import { useEffect, useRef, useState } from 'react';
 import { useTheme } from './ThemeProvider';
 
 const links = [
-  { href: '#about',          label: 'About'          },
-  { href: '#projects',       label: 'Projects'       },
-  { href: '#skills',         label: 'Skills'         },
-  { href: '#experience',     label: 'Experience'     },
-  { href: '#certifications', label: 'Certifications' },
-  { href: '#contact',        label: 'Contact'        },
+  { href: '/#about',          label: 'About'          },
+  { href: '/#projects',       label: 'Projects'       },
+  { href: '/#skills',         label: 'Skills'         },
+  { href: '/#experience',     label: 'Experience'     },
+  { href: '/#certifications', label: 'Certifications' },
+  { href: '/blog',            label: 'Blog'           },
+  { href: '/#contact',        label: 'Contact'        },
+];
+
+const moreLinks = [
+  { href: '/#education', label: 'Education' },
+  { href: '/#referees',  label: 'Referees'  },
 ];
 
 function SunIcon() {
@@ -81,7 +87,9 @@ function PingDot({ status }: { status: AvailStatus }) {
 export default function Navbar({ availabilityStatus }: { availabilityStatus?: AvailStatus }) {
   const [open, setOpen]           = useState(false);
   const [resumeOpen, setResumeOpen] = useState(false);
+  const [moreOpen, setMoreOpen]   = useState(false);
   const resumeRef                 = useRef<HTMLDivElement>(null);
+  const moreRef                   = useRef<HTMLLIElement>(null);
   const { theme, toggle }         = useTheme();
 
   const showStatus = availabilityStatus && availabilityStatus !== 'not_open';
@@ -91,6 +99,9 @@ export default function Navbar({ availabilityStatus }: { availabilityStatus?: Av
     function handleOutside(e: MouseEvent) {
       if (resumeRef.current && !resumeRef.current.contains(e.target as Node)) {
         setResumeOpen(false);
+      }
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
+        setMoreOpen(false);
       }
     }
     document.addEventListener('mousedown', handleOutside);
@@ -118,30 +129,15 @@ export default function Navbar({ availabilityStatus }: { availabilityStatus?: Av
 
           {showStatus && (
             <>
-              {/* Divider — desktop only */}
-              <span className="hidden md:block w-px h-4 rounded-full"
-                style={{ background: 'var(--border)' }} />
-
-              {/* Full pill — desktop */}
-              <div className="hidden md:inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold"
-                style={isActive
-                  ? { background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.28)', color: '#22c55e' }
-                  : { background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.28)', color: '#f59e0b' }
-                }>
-                <PingDot status={availabilityStatus!} />
-                {isActive ? 'Available for opportunities' : 'Open to the right opportunity'}
-              </div>
-
-              {/* Dot only — mobile (saves navbar space) */}
-              <div className="md:hidden">
-                <PingDot status={availabilityStatus!} />
-              </div>
+              <span className="w-px h-4 rounded-full" style={{ background: 'var(--border)' }} />
+              {/* Dot only on all screen sizes — full text is in the Hero */}
+              <PingDot status={availabilityStatus!} />
             </>
           )}
         </div>
 
         {/* Desktop links */}
-        <ul className="hidden md:flex items-center gap-7">
+        <ul className="hidden md:flex items-center gap-6">
           {links.map(l => (
             <li key={l.href}>
               <Link href={l.href}
@@ -154,6 +150,40 @@ export default function Navbar({ availabilityStatus }: { availabilityStatus?: Av
               </Link>
             </li>
           ))}
+
+          {/* More dropdown */}
+          <li ref={moreRef} className="relative">
+            <button
+              onClick={() => setMoreOpen(o => !o)}
+              className="text-sm transition-colors duration-200 relative group flex items-center gap-1"
+              style={{ color: moreOpen ? 'var(--text-1)' : 'var(--text-2)' }}
+              onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = 'var(--text-1)')}
+              onMouseLeave={e => { if (!moreOpen) (e.currentTarget as HTMLElement).style.color = 'var(--text-2)'; }}>
+              More
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2.5" strokeLinecap="round"
+                style={{ transform: moreOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+                <path d="m6 9 6 6 6-6"/>
+              </svg>
+              <span className="absolute -bottom-0.5 left-0 w-0 h-px bg-violet-500 group-hover:w-full transition-all duration-300" />
+            </button>
+
+            {moreOpen && (
+              <div className="absolute top-full left-0 mt-2 overflow-hidden rounded-xl shadow-xl z-50"
+                style={{ border: '1px solid var(--border-card)', background: 'var(--bg-card)', minWidth: '140px', backdropFilter: 'blur(12px)' }}>
+                {moreLinks.map((l, i) => (
+                  <Link key={l.href} href={l.href}
+                    onClick={() => setMoreOpen(false)}
+                    className="flex items-center px-4 py-2.5 text-sm transition-colors"
+                    style={{ color: 'var(--text-2)', borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-1)'; (e.currentTarget as HTMLElement).style.background = 'rgba(124,58,237,0.06)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-2)'; (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
+                    {l.label}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </li>
         </ul>
 
         {/* Right controls */}
@@ -263,7 +293,7 @@ export default function Navbar({ availabilityStatus }: { availabilityStatus?: Av
       {open && (
         <div className="md:hidden border-t px-4 py-4 space-y-1"
           style={{ background: 'var(--nav-bg)', borderColor: 'var(--nav-border)' }}>
-          {links.map(l => (
+          {[...links, ...moreLinks].map(l => (
             <Link key={l.href} href={l.href} onClick={() => setOpen(false)}
               className="block text-sm py-2.5 px-3 rounded-lg transition-colors"
               style={{ color: 'var(--text-2)' }}

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>CV — {{NAME}}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Times New Roman', Times, Georgia, serif;
+    font-size: 11pt;
+    color: #000;
+    background: #fff;
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 24px 36px;
+    line-height: 1.45;
+  }
+  /* Harvard: classic academic, centered header, strong typographic hierarchy */
+  .header { text-align: center; margin-bottom: 18px; }
+  .header h1 { font-size: 20pt; font-weight: 700; color: #000; letter-spacing: 0.5px; margin-bottom: 3px; }
+  .header .headline { font-size: 11pt; color: #333; margin-bottom: 7px; }
+  .header .contacts { font-size: 9.5pt; color: #444; }
+  .header .contacts span.sep { margin: 0 8px; color: #999; }
+  .header .contacts a { color: #222; text-decoration: none; }
+  .header-rule { border: none; border-top: 1px solid #000; margin: 12px 0 14px; }
+  .section { margin-bottom: 14px; }
+  .section-title {
+    font-size: 10.5pt; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.8px; color: #000;
+    border-bottom: 1px solid #000; padding-bottom: 2px; margin-bottom: 8px;
+  }
+  .summary-text { font-size: 11pt; color: #111; line-height: 1.6; }
+  .skills-text { font-size: 10.5pt; color: #111; line-height: 1.6; }
+  .exp-entry { margin-bottom: 11px; }
+  .exp-entry:last-child { margin-bottom: 0; }
+  .exp-row1 { display: flex; justify-content: space-between; align-items: baseline; }
+  .exp-role { font-size: 11pt; font-weight: 700; color: #000; }
+  .exp-dates { font-size: 10pt; color: #333; }
+  .exp-company { font-size: 10.5pt; color: #333; font-style: italic; margin-bottom: 4px; }
+  .exp-entry ul { margin: 0 0 0 18px; }
+  .exp-entry ul li { font-size: 10.5pt; color: #111; margin-bottom: 2px; line-height: 1.45; }
+  .edu-entry { margin-bottom: 10px; }
+  .edu-row1 { display: flex; justify-content: space-between; align-items: baseline; }
+  .edu-degree { font-size: 11pt; font-weight: 700; color: #000; }
+  .edu-dates { font-size: 10pt; color: #333; }
+  .edu-institution { font-size: 10.5pt; color: #333; font-style: italic; }
+  .edu-detail { font-size: 10pt; color: #444; margin-top: 2px; }
+  .cert-list { margin: 0 0 0 18px; }
+  .cert-list li { font-size: 10.5pt; color: #111; margin-bottom: 3px; }
+  .proj-entry { margin-bottom: 10px; }
+  .proj-row1 { display: flex; justify-content: space-between; align-items: baseline; }
+  .proj-title { font-size: 11pt; font-weight: 700; color: #000; }
+  .proj-dates { font-size: 10pt; color: #333; }
+  .proj-tech { font-size: 10pt; color: #444; font-style: italic; margin-bottom: 2px; }
+  .proj-desc { font-size: 10.5pt; color: #111; line-height: 1.5; }
+  .ref-entry { margin-bottom: 8px; }
+  .ref-name { font-size: 11pt; font-weight: 700; }
+  .ref-detail { font-size: 10.5pt; color: #444; }
+  @media print { body { padding: 0; } a { color: #222 !important; } }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>{{NAME}}</h1>
+  <div class="headline">{{HEADLINE}}</div>
+  <div class="contacts">
+    <a href="mailto:{{EMAIL}}">{{EMAIL}}</a>
+    {{PHONE_SEP}}<span class="sep">|</span>{{PHONE}}
+    {{LOCATION_SEP}}<span class="sep">|</span>{{LOCATION}}
+    {{WEBSITE_SEP}}<span class="sep">|</span>{{WEBSITE}}
+    <span class="sep">|</span><a href="{{GITHUB_URL}}" target="_blank">GitHub</a>
+    <span class="sep">|</span><a href="{{LINKEDIN_URL}}" target="_blank">LinkedIn</a>
+  </div>
+</div>
+<hr class="header-rule" />
+{{SECTION_SUMMARY}}
+{{SECTION_SKILLS}}
+{{SECTION_EXPERIENCE}}
+{{SECTION_EDUCATION}}
+{{SECTION_CERTIFICATIONS}}
+{{SECTION_PROJECTS}}
+{{SECTION_REFERENCES}}
+</body>
+</html>

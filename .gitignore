@@ -7,6 +7,8 @@ build/
 dist/
 .claude
 
+db/portfolio_backup_*.sql
+
 bootstrapping/infisical*
 bootstrapping/nginx*
 
@@ -43,6 +45,15 @@ k8s/secrets/*.yaml
 # Never ignore the CI workflows
 !.github/
 !.github/workflows/
+
+# Terraform — never commit real values or local state
+terraform/terraform.tfvars
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/.kube/
+terraform/crash.log
 
 # All .md files except README.md (planning/implementation notes should not be committed)
 *.md

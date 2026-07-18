@@ -1,0 +1,1 @@
+ALTER TABLE referees ADD COLUMN IF NOT EXISTS star_config JSONB;

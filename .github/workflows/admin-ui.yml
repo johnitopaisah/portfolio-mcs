@@ -100,7 +100,7 @@ jobs:
             src/app/dashboard/certifications/page.tsx \
             src/app/dashboard/messages/page.tsx \
             src/app/dashboard/profile/page.tsx \
-            src/app/jobs/page.tsx \
+            src/app/dashboard/jobs/page.tsx \
             src/components/Sidebar.tsx \
             src/lib/api.ts; do
             test -f "$f" && echo "✅ $f" || (echo "❌ Missing: $f" && exit 1)

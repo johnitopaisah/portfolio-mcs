@@ -12,6 +12,13 @@ metadata:
 spec:
   serviceName: portfolio-db   # must match the headless Service name
   replicas: 1
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      partition: 0
   selector:
     matchLabels:
       app: portfolio-mcs
@@ -23,6 +30,10 @@ spec:
         component: database
     spec:
       terminationGracePeriodSeconds: 60
+
+      # Pin to node 1 — hostpath PVC data lives on devops-minikube, not m02
+      nodeSelector:
+        kubernetes.io/hostname: devops-minikube
 
       # Allow the postgres process (uid 999) to write to the mounted PVC
       securityContext:

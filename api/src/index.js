@@ -9,8 +9,12 @@ const swaggerUi         = require('swagger-ui-express');
 const swaggerSpec       = require('./swagger');
 const { register }      = require('./metrics');
 const metricsMiddleware = require('./metricsMiddleware');
-const { startDailyDigest }    = require('./services/visitorDigest');
-const { startDailyJobDigest } = require('./services/jobIngestion/notificationService');
+const pool              = require('./db/client');
+const { startDailyDigest }           = require('./services/visitorDigest');
+const { startDailyJobDigest }        = require('./services/jobIngestion/notificationService');
+const { startConsentReminderWorker } = require('./workers/consentReminderWorker');
+const { startBlogStalenessWorker }   = require('./workers/blogStalenessWorker');
+const { runAllRules, captureWeeklySnapshot } = require('./services/automationService');
 
 const { errorHandler } = require('./middleware/errorHandler');
 
@@ -65,9 +69,17 @@ app.get('/metrics', async (_req, res) => {
 });
 
 // ── Health ──────────────────────────────────────────────────
-app.get('/api/health', (_req, res) =>
-  res.json({ status: 'ok', timestamp: new Date().toISOString() })
-);
+// Pings the DB too, not just the Express process — the frontend's
+// backend-unreachable detection (MaintenanceOverlay) polls this endpoint
+// and needs a DB-down outage to look the same as an API-down one.
+app.get('/api/health', async (_req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  } catch (err) {
+    res.status(503).json({ status: 'degraded', error: 'database unreachable', timestamp: new Date().toISOString() });
+  }
+});
 
 // ── Swagger UI ───────────────────────────────────────────────
 app.use(
@@ -110,12 +122,30 @@ app.use('/api/skills',         require('./routes/skills'));
 app.use('/api/experiences',    require('./routes/experiences'));
 app.use('/api/certifications', require('./routes/certifications'));
 app.use('/api/contact',        require('./routes/contact'));
+app.use('/api/rum',            require('./routes/rum'));
 app.use('/api/social-links',   require('./routes/socialLinks'));
+app.use('/api/blog',           require('./routes/blog'));
 app.use('/api/visitors',       require('./routes/visitors'));
 app.use('/api/jobs',           require('./routes/jobs'));
-app.use('/api/admin/jobs',     require('./routes/admin/jobs'));
-app.use('/api/admin/ai',      require('./routes/admin/ai'));
+app.use('/api/admin/jobs',      require('./routes/admin/jobs'));
+app.use('/api/admin/ai',       require('./routes/admin/ai'));
+app.use('/api/admin/targets',  require('./routes/admin/targets'));
+app.use('/api/admin/linkedin', require('./routes/linkedin'));
 app.use('/api/applications', require('./routes/applications'));
+app.use('/api/education',             require('./routes/education'));
+app.use('/api/referees',                  require('./routes/referees'));
+app.use('/api/referee-invitations',       require('./routes/refereeInvitations'));
+app.use('/api/referee-contact-requests',  require('./routes/refereeContactRequests'));
+
+// ── Feature expansion routes ─────────────────────────────────
+app.use('/api/user-settings',    require('./routes/userSettings'));
+app.use('/api/cv-identity',      require('./routes/cvIdentity'));
+app.use('/api/portfolio-items',  require('./routes/portfolioItems'));
+app.use('/api/company-research', require('./routes/companyResearch'));
+app.use('/api/star-stories',     require('./routes/starStories'));
+app.use('/api/email-templates',  require('./routes/emailTemplates'));
+app.use('/api/interview-prep',   require('./routes/interviewPrep'));
+app.use('/api/dashboard',        require('./routes/dashboard'));
 
 // ── 404 + Error handler ─────────────────────────────────────
 app.use((req, res) => res.status(404).json({ error: `${req.method} ${req.path} not found` }));
@@ -133,4 +163,34 @@ app.listen(PORT, () => {
   } else {
     console.warn('[JobDigest] NOTIFY_EMAIL_USER not set — job digest disabled');
   }
+
+  // Consent reminder worker — checks every 24h for overdue consent requests
+  startConsentReminderWorker();
+
+  // Blog staleness reminder — checks every 24h, emails if Sync Now hasn't run in 14+ days
+  startBlogStalenessWorker();
+
+  // Automation rules — run every hour
+  setInterval(() => {
+    runAllRules().catch(e => console.error('[Automation] Hourly run failed:', e));
+  }, 60 * 60 * 1000);
+  // Run once on startup (deferred 10s to let DB settle)
+  setTimeout(() => {
+    runAllRules().catch(e => console.error('[Automation] Startup run failed:', e));
+  }, 10_000);
+
+  // Weekly snapshot — every Sunday at 23:55
+  function scheduleWeeklySnapshot() {
+    const now  = new Date();
+    const next = new Date();
+    next.setDate(now.getDate() + ((7 - now.getDay()) % 7 || 7));
+    next.setHours(23, 55, 0, 0);
+    const delay = next - now;
+    setTimeout(async () => {
+      try { await captureWeeklySnapshot(); } catch (e) { console.error('[Snapshot]', e); }
+      scheduleWeeklySnapshot(); // schedule next
+    }, delay);
+    console.log(`[Snapshot] Next weekly snapshot in ${Math.round(delay / 3600000)}h`);
+  }
+  scheduleWeeklySnapshot();
 });

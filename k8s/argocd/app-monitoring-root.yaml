@@ -9,8 +9,8 @@
 #  monitoring/argocd/ and creates:
 #    - AppProject: portfolio-monitoring
 #    - Applications: monitoring-infisical, monitoring-policies,
-#      monitoring-prometheus, monitoring-exporters,
-#      monitoring-alertmanager, monitoring-grafana
+#      monitoring-prometheus, monitoring-pushgateway,
+#      monitoring-exporters, monitoring-alertmanager, monitoring-grafana
 #
 #  Sync wave ordering mirrors portfolio-root:
 #    monitoring-root (wave 0) is created before child apps

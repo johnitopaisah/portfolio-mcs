@@ -1,0 +1,107 @@
+# ============================================================
+#  Scraper Discovery Worker — Kubernetes CronJob
+#  Runs daily: search discovery (SearXNG) → poll known ATS
+#  boards (Greenhouse/Lever/Ashby/Workday/SmartRecruiters) →
+#  LinkedIn lead capture → custom-site Claude extraction →
+#  dedup/filter → store into jobs_raw.
+#
+#  Daily, not every-few-hours: postings don't churn that fast,
+#  and this keeps discovery well within SearXNG's underlying
+#  search-engine rate limits (see AGENTS notes on the incident
+#  that motivated this cadence).
+#
+#  Coexists with job-ingestion-worker (k8s/jobs/) — the old
+#  job-board sources keep running untouched until this pipeline
+#  has proven itself in production.
+# ============================================================
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: portfolio-scraper
+  namespace: portfolio
+  labels:
+    app: portfolio-mcs
+    component: scraper
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: scraper-discovery
+  namespace: portfolio
+  labels:
+    app: portfolio-mcs
+    component: scraper
+spec:
+  schedule: "0 3 * * *"
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 1
+  suspend: false
+  concurrencyPolicy: Forbid
+
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 1800  # 30 min hard limit
+      template:
+        metadata:
+          labels:
+            app: portfolio-mcs
+            component: scraper
+        spec:
+          restartPolicy: Never
+          serviceAccountName: portfolio-scraper
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            runAsGroup: 1001
+
+          imagePullSecrets:
+            - name: ghcr-pull-secret
+
+          containers:
+          - name: scraper
+            image: ghcr.io/johnitopaisah/portfolio-mcs/scraper:v0.1.2-rc1
+            imagePullPolicy: Always
+            command: ["node", "index.js"]
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 1001
+              runAsGroup: 1001
+              allowPrivilegeEscalation: false
+
+            env:
+            - name: NODE_ENV
+              value: "production"
+
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: portfolio-secrets
+                  key: DATABASE_URL
+
+            # Custom-site extraction tier only — already exists in
+            # portfolio-secrets (shared by the old job-ingestion-worker),
+            # no new Infisical entry needed.
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: portfolio-secrets
+                  key: ANTHROPIC_API_KEY
+                  optional: true
+
+            # In-cluster SearXNG Service — not a secret, just an internal DNS name.
+            - name: SEARXNG_URL
+              value: "http://searxng:8080"
+
+            resources:
+              requests:
+                cpu:    150m
+                memory: 256Mi
+              limits:
+                cpu:    500m
+                # Bumped from 256Mi — the Playwright/Chromium fallback (only
+                # used for JS-rendered custom career pages) needs headroom
+                # a plain-HTTP-only pod never did.
+                memory: 512Mi

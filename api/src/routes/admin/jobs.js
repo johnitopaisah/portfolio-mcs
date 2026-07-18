@@ -8,7 +8,6 @@
 const express       = require('express');
 const pool          = require('../../db/client');
 const { requireAuth } = require('../../middleware/auth');
-const jobIngestionService = require('../../services/jobIngestion/jobIngestionService');
 const { filterUnprocessedJobs, getFilteringStats, recalibrateFromFeedback }
   = require('../../services/jobIngestion/aiFilteringService');
 const { sendDailyJobDigest, getAlertStats }
@@ -18,11 +17,42 @@ const { getIngestionStats, getRecentLogs }
 
 const router = express.Router();
 
-// All admin routes require auth — the JWT from admin-ui login
-// requireAuth sets req.user; that's enough (only one admin user exists)
 router.use(requireAuth);
 
-// ── GET /api/admin/jobs/stats ────────────────────────────────
+/**
+ * @swagger
+ * /api/admin/jobs/stats:
+ *   get:
+ *     summary: Get job pipeline statistics
+ *     description: Returns aggregate job counts, average relevance score, AI filtering stats, and alert stats for the given time window.
+ *     tags: [Admin: Job Pipeline]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: hours
+ *         schema: { type: integer, default: 24 }
+ *         description: Look-back window in hours
+ *     responses:
+ *       200:
+ *         description: Pipeline statistics
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 jobs:
+ *                   type: object
+ *                   properties:
+ *                     total_jobs:     { type: integer }
+ *                     active_jobs:    { type: integer }
+ *                     avg_relevance:  { type: number }
+ *                     jobs_this_week: { type: integer }
+ *                 filtering: { type: object }
+ *                 alerts:    { type: object }
+ *       401:
+ *         description: Unauthorised
+ */
 router.get('/stats', async (req, res) => {
   try {
     const { hours = 24 } = req.query;
@@ -45,7 +75,42 @@ router.get('/stats', async (req, res) => {
   }
 });
 
-// ── GET /api/admin/jobs/logs ─────────────────────────────────
+/**
+ * @swagger
+ * /api/admin/jobs/logs:
+ *   get:
+ *     summary: Get ingestion run logs
+ *     description: Returns paginated ingestion run logs ordered by most recent first.
+ *     tags: [Admin: Job Pipeline]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, default: 50 }
+ *       - in: query
+ *         name: offset
+ *         schema: { type: integer, default: 0 }
+ *     responses:
+ *       200:
+ *         description: Paginated log entries
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items: { type: object }
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     limit:  { type: integer }
+ *                     offset: { type: integer }
+ *                     total:  { type: integer }
+ *       401:
+ *         description: Unauthorised
+ */
 router.get('/logs', async (req, res) => {
   try {
     const { limit = 50, offset = 0 } = req.query;
@@ -61,15 +126,58 @@ router.get('/logs', async (req, res) => {
   }
 });
 
-// ── GET /api/admin/jobs/sources-status ───────────────────────
+/**
+ * @swagger
+ * /api/admin/jobs/sources-status:
+ *   get:
+ *     summary: Get job source health status
+ *     description: >
+ *       Returns the health status of each career-site discovery source
+ *       (Greenhouse, Lever, Ashby, Workday, SmartRecruiters, LinkedIn lead
+ *       capture, custom-site Claude extraction) including whether required
+ *       API keys are set and the outcome of the most recent scraper run for
+ *       that source.
+ *     tags: [Admin: Job Pipeline]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Array of source status objects
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   source:      { type: string, example: greenhouse_search }
+ *                   label:       { type: string, example: Greenhouse }
+ *                   keyRequired: { type: boolean }
+ *                   keySet:      { type: boolean, nullable: true }
+ *                   missingKeys: { type: array, items: { type: string }, nullable: true }
+ *                   status:
+ *                     type: string
+ *                     enum: [active, pending, error, issue, not_set]
+ *                   lastRun:
+ *                     type: object
+ *                     nullable: true
+ *                     properties:
+ *                       status:       { type: string }
+ *                       jobsFetched:  { type: integer }
+ *                       jobsNew:      { type: integer }
+ *                       errorMessage: { type: string, nullable: true }
+ *                       runAt:        { type: string, format: date-time }
+ *       401:
+ *         description: Unauthorised
+ */
 const JOB_SOURCES = [
-  { key: 'joobleApi',  label: 'Jooble',               envs: ['JOOBLE_API_KEY'] },
-  { key: 'adzuna',     label: 'Adzuna',                envs: ['ADZUNA_APP_ID', 'ADZUNA_API_KEY'] },
-  { key: 'arbeitnow',  label: 'Arbeitnow',             envs: [] },
-  { key: 'remoteOk',   label: 'RemoteOK',              envs: [] },
-  { key: 'remotive',   label: 'Remotive',              envs: [] },
-  { key: 'apec',       label: 'APEC',                  envs: [] },
-  { key: 'wttj',       label: 'Welcome to the Jungle', envs: [] },
+  { key: 'greenhouse_search',      label: 'Greenhouse',              envs: [] },
+  { key: 'lever_search',           label: 'Lever',                    envs: [] },
+  { key: 'ashby_search',           label: 'Ashby',                    envs: [] },
+  { key: 'workday_search',         label: 'Workday',                  envs: [] },
+  { key: 'smartrecruiters_search', label: 'SmartRecruiters',          envs: [] },
+  { key: 'linkedin_search',        label: 'LinkedIn (lead capture)',  envs: [] },
+  { key: 'custom_site_search',     label: 'Custom Site (Claude)',     envs: ['ANTHROPIC_API_KEY'] },
 ];
 
 router.get('/sources-status', async (req, res) => {
@@ -127,7 +235,30 @@ router.get('/sources-status', async (req, res) => {
   }
 });
 
-// ── GET /api/admin/jobs/ingestion-stats ──────────────────────
+/**
+ * @swagger
+ * /api/admin/jobs/ingestion-stats:
+ *   get:
+ *     summary: Get detailed ingestion statistics
+ *     description: Returns per-source ingestion metrics for the given look-back window.
+ *     tags: [Admin: Job Pipeline]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: hours
+ *         schema: { type: integer, default: 24 }
+ *         description: Look-back window in hours
+ *     responses:
+ *       200:
+ *         description: Ingestion statistics object
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *       401:
+ *         description: Unauthorised
+ */
 router.get('/ingestion-stats', async (req, res) => {
   try {
     const { hours = 24 } = req.query;
@@ -138,15 +269,30 @@ router.get('/ingestion-stats', async (req, res) => {
   }
 });
 
-// ── POST /api/admin/jobs/ingest ──────────────────────────────
-router.post('/ingest', async (req, res) => {
-  jobIngestionService.ingestAllJobs().catch(err =>
-    console.error('[Admin:Ingest] Background error:', err)
-  );
-  res.json({ message: 'Ingestion started in background', status: 'pending' });
-});
-
-// ── POST /api/admin/jobs/filter ──────────────────────────────
+/**
+ * @swagger
+ * /api/admin/jobs/filter:
+ *   post:
+ *     summary: Trigger AI filtering pass
+ *     description: >
+ *       Runs the AI scoring/filtering pass over all unprocessed jobs in the
+ *       background. Returns immediately with `status: pending`.
+ *     tags: [Admin: Job Pipeline]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Filtering started
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message: { type: string, example: AI filtering started in background }
+ *                 status:  { type: string, example: pending }
+ *       401:
+ *         description: Unauthorised
+ */
 router.post('/filter', async (req, res) => {
   filterUnprocessedJobs().catch(err =>
     console.error('[Admin:Filter] Background error:', err)
@@ -154,10 +300,31 @@ router.post('/filter', async (req, res) => {
   res.json({ message: 'AI filtering started in background', status: 'pending' });
 });
 
-// ── POST /api/admin/jobs/send-alerts ─────────────────────────
+/**
+ * @swagger
+ * /api/admin/jobs/send-alerts:
+ *   post:
+ *     summary: Send job digest notification
+ *     description: >
+ *       Runs the daily job digest inline (not in background) and returns a
+ *       summary of what was sent. Useful for manual testing of notifications.
+ *     tags: [Admin: Job Pipeline]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Digest sent
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message: { type: string, example: Job digest sent }
+ *       401:
+ *         description: Unauthorised
+ */
 router.post('/send-alerts', async (req, res) => {
   try {
-    // Run inline (not background) so we can report what was sent
     const result = await sendDailyJobDigest();
     res.json({ message: 'Job digest sent', ...result });
   } catch (err) {
@@ -166,9 +333,28 @@ router.post('/send-alerts', async (req, res) => {
   }
 });
 
-// ── POST /api/admin/jobs/calibrate ───────────────────────────
-// Returns a calibration report based on your applied/skipped feedback.
-// Called by the admin UI Calibration tab.
+/**
+ * @swagger
+ * /api/admin/jobs/calibrate:
+ *   post:
+ *     summary: Generate calibration report from feedback
+ *     description: >
+ *       Analyses your applied/skipped feedback history to produce threshold
+ *       recommendations. Does not modify any settings automatically.
+ *     tags: [Admin: Job Pipeline]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Calibration report
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               description: Calibration report with recommended threshold adjustments
+ *       401:
+ *         description: Unauthorised
+ */
 router.post('/calibrate', async (req, res) => {
   try {
     const report = await recalibrateFromFeedback();
@@ -179,7 +365,42 @@ router.post('/calibrate', async (req, res) => {
   }
 });
 
-// ── GET /api/admin/jobs/raw ──────────────────────────────────
+/**
+ * @swagger
+ * /api/admin/jobs/raw:
+ *   get:
+ *     summary: Browse raw (pre-dedup) job records
+ *     description: Returns paginated raw job records that passed deduplication.
+ *     tags: [Admin: Job Pipeline]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, default: 50 }
+ *       - in: query
+ *         name: offset
+ *         schema: { type: integer, default: 0 }
+ *     responses:
+ *       200:
+ *         description: Paginated raw job records
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items: { type: object }
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     limit:  { type: integer }
+ *                     offset: { type: integer }
+ *                     total:  { type: integer }
+ *       401:
+ *         description: Unauthorised
+ */
 router.get('/raw', async (req, res) => {
   try {
     const { limit = 50, offset = 0 } = req.query;
@@ -200,8 +421,37 @@ router.get('/raw', async (req, res) => {
   }
 });
 
-// ── GET /api/admin/jobs/pipeline/progress ────────────────────
-// Must be registered before /:id routes
+/**
+ * @swagger
+ * /api/admin/jobs/pipeline/progress:
+ *   get:
+ *     summary: Get pipeline progress counters
+ *     description: >
+ *       Returns aggregate counters for the admin pipeline dashboard — total
+ *       pipeline size, new/saved/applied/reviewed counts, jobs added today,
+ *       applications this week, and average relevance score.
+ *     tags: [Admin: Job Pipeline]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Pipeline progress counters
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 total_pipeline:    { type: integer }
+ *                 new_count:         { type: integer }
+ *                 saved_count:       { type: integer }
+ *                 applied_count:     { type: integer }
+ *                 reviewed_count:    { type: integer }
+ *                 added_today:       { type: integer }
+ *                 applied_this_week: { type: integer }
+ *                 avg_score:         { type: number }
+ *       401:
+ *         description: Unauthorised
+ */
 router.get('/pipeline/progress', async (req, res) => {
   try {
     const result = await pool.query(`
@@ -237,7 +487,76 @@ router.get('/pipeline/progress', async (req, res) => {
   }
 });
 
-// ── GET /api/admin/jobs/pipeline ─────────────────────────────
+/**
+ * @swagger
+ * /api/admin/jobs/pipeline:
+ *   get:
+ *     summary: Browse the job pipeline
+ *     description: >
+ *       Returns paginated jobs in the pipeline with filtering, sorting, and
+ *       tab-based views. The `tab` parameter selects between new/saved/applied
+ *       views. All filter parameters are optional and combinable.
+ *     tags: [Admin: Job Pipeline]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: tab
+ *         schema: { type: string, enum: [new, saved, applied], default: new }
+ *       - in: query
+ *         name: sort
+ *         schema: { type: string, enum: [score, date], default: score }
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, default: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, default: 20 }
+ *       - in: query
+ *         name: source
+ *         schema: { type: string }
+ *         description: Filter by source API key (e.g. joobleApi)
+ *       - in: query
+ *         name: visa
+ *         schema: { type: string, enum: ['true'] }
+ *         description: Set to "true" to show only visa-sponsored roles
+ *       - in: query
+ *         name: seniority
+ *         schema: { type: string }
+ *         description: Filter by seniority level (e.g. Senior, Mid, Junior)
+ *       - in: query
+ *         name: min_score
+ *         schema: { type: integer }
+ *         description: Minimum relevance score
+ *       - in: query
+ *         name: location
+ *         schema: { type: string }
+ *         description: Partial location match (ILIKE)
+ *       - in: query
+ *         name: ai_decision
+ *         schema: { type: string, enum: [KEEP, REVIEW, DROP] }
+ *         description: Filter by AI decision
+ *     responses:
+ *       200:
+ *         description: Paginated pipeline jobs
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items: { $ref: '#/components/schemas/Job' }
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     page:  { type: integer }
+ *                     limit: { type: integer }
+ *                     total: { type: integer }
+ *                     pages: { type: integer }
+ *       401:
+ *         description: Unauthorised
+ */
 router.get('/pipeline', async (req, res) => {
   try {
     const {
@@ -250,8 +569,6 @@ router.get('/pipeline', async (req, res) => {
     const params = [];
 
     if (tab === 'new') {
-      // Skip the KEEP/REVIEW guard when an explicit ai_decision filter is provided
-      // so that ai_decision=DROP can show dropped jobs without conflicting conditions
       if (!ai_decision) conditions.push("j.ai_decision IN ('KEEP','REVIEW')");
       conditions.push("(jf.decision IS NULL OR jf.decision NOT IN ('applied','saved','interested'))");
     } else if (tab === 'saved') {
@@ -311,7 +628,35 @@ router.get('/pipeline', async (req, res) => {
   }
 });
 
-// ── DELETE /api/admin/jobs/:id ───────────────────────────────
+/**
+ * @swagger
+ * /api/admin/jobs/{id}:
+ *   delete:
+ *     summary: Deactivate a job
+ *     description: Soft-deletes a job by setting `is_active = false` and `expires_at = NOW()`.
+ *     tags: [Admin: Job Pipeline]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Job deactivated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message: { type: string, example: Job deactivated }
+ *                 id:      { type: string, format: uuid }
+ *       401:
+ *         description: Unauthorised
+ *       404:
+ *         $ref: '#/components/schemas/Error'
+ */
 router.delete('/:id', async (req, res) => {
   try {
     const result = await pool.query(
@@ -326,7 +671,46 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// ── PATCH /api/admin/jobs/:id ────────────────────────────────
+/**
+ * @swagger
+ * /api/admin/jobs/{id}:
+ *   patch:
+ *     summary: Override AI scoring fields on a job
+ *     description: >
+ *       Allows manual override of `relevance_score`, `ai_decision`, or
+ *       `ai_reasoning` on a specific job. Only fields provided in the body
+ *       are updated.
+ *     tags: [Admin: Job Pipeline]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               relevance_score: { type: integer, minimum: 0, maximum: 100 }
+ *               ai_decision:     { type: string, enum: [KEEP, REVIEW, DROP] }
+ *               ai_reasoning:    { type: string }
+ *     responses:
+ *       200:
+ *         description: Updated job record
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Job'
+ *       400:
+ *         $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorised
+ *       404:
+ *         $ref: '#/components/schemas/Error'
+ */
 router.patch('/:id', async (req, res) => {
   try {
     const { relevance_score, ai_decision, ai_reasoning } = req.body;
@@ -349,11 +733,43 @@ router.patch('/:id', async (req, res) => {
   }
 });
 
-// ── GET /api/admin/jobs/config ───────────────────────────────
+/**
+ * @swagger
+ * /api/admin/jobs/config:
+ *   get:
+ *     summary: Get pipeline runtime configuration
+ *     description: >
+ *       Returns read-only runtime configuration — active AI engine name,
+ *       discovery schedule, max job age, digest schedule, and which
+ *       discovery sources and integrations have API keys configured.
+ *     tags: [Admin: Job Pipeline]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Runtime configuration
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 discoverySchedule: { type: string }
+ *                 aiEngine:          { type: string }
+ *                 maxJobAgeDays:     { type: integer }
+ *                 digestTime:        { type: string, example: '08:15 Europe/Paris' }
+ *                 sources:
+ *                   type: object
+ *                   additionalProperties: { type: boolean }
+ *                 integrations:
+ *                   type: object
+ *                   additionalProperties: { type: boolean }
+ *       401:
+ *         description: Unauthorised
+ */
 router.get('/config', async (req, res) => {
   try {
     res.json({
-      pollIntervalMinutes: process.env.JOB_POLL_INTERVAL_MINUTES || '15',
+      discoverySchedule: 'daily 03:00 (scraper-discovery CronJob)',
       aiEngine: process.env.ANTHROPIC_API_KEY
         ? 'claude-haiku-4-5 (Claude Haiku)'
         : process.env.GROQ_API_KEY
@@ -363,14 +779,14 @@ router.get('/config', async (req, res) => {
             : 'pattern-v2 (no LLM key)',
       maxJobAgeDays:  14,
       digestTime:     '08:15 Europe/Paris',
-      providers: {
-        jooble:    !!process.env.JOOBLE_API_KEY,
-        remoteOk:  true,
-        adzuna:    !!(process.env.ADZUNA_APP_ID && process.env.ADZUNA_API_KEY),
-        arbeitnow: true,
-        remotive:  true,
-        apec:      true,
-        wttj:      !!(process.env.WTTJ_ALGOLIA_APP_ID && process.env.WTTJ_ALGOLIA_API_KEY),
+      sources: {
+        greenhouse:      true,
+        lever:           true,
+        ashby:           true,
+        workday:         true,
+        smartrecruiters: true,
+        linkedin:        true,
+        customSite:      !!process.env.ANTHROPIC_API_KEY,
       },
       integrations: {
         anthropic: !!process.env.ANTHROPIC_API_KEY,

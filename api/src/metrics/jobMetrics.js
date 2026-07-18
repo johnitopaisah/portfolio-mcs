@@ -5,6 +5,26 @@
 
 const client = require('prom-client');
 
+// jobWorker.js (the only process that increments the filtering/relevance/
+// alert-delivery metrics below) runs as a Kubernetes CronJob, not inside the
+// always-on API pod — it exits before Prometheus's next scrape could ever
+// reach it. pushMetrics() ships the default registry (shared with client.register,
+// same one api/src/metrics.js exposes at /metrics) to the shared Pushgateway
+// right before the process exits.
+const gateway = new client.Pushgateway(
+  process.env.PUSHGATEWAY_URL || 'http://pushgateway.monitoring.svc.cluster.local:9091',
+  {},
+  client.register
+);
+
+async function pushMetrics(jobName) {
+  try {
+    await gateway.pushAdd({ jobName });
+  } catch (err) {
+    console.error(`[Metrics] Failed to push to Pushgateway (non-fatal): ${err.message}`);
+  }
+}
+
 // ============================================================
 //  Job Ingestion Metrics
 // ============================================================
@@ -49,8 +69,13 @@ const jobsFiltered = new client.Counter({
   labelNames: ['decision'], // KEEP, REVIEW, DROP
 });
 
+// Named without the "_bucket" suffix — prom-client's Histogram class already
+// appends _bucket/_sum/_count to whatever name is given here. The original
+// name ("job_relevance_score_bucket") would have exposed as
+// "job_relevance_score_bucket_bucket", silently breaking every dashboard
+// query against it.
 const jobRelevanceScore = new client.Histogram({
-  name: 'job_relevance_score_bucket',
+  name: 'job_relevance_score',
   help: 'Distribution of job relevance scores',
   labelNames: ['decision'],
   buckets: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
@@ -116,6 +141,7 @@ const apiRateLimitExceeded = new client.Counter({
 // ============================================================
 
 module.exports = {
+  pushMetrics,
   jobsIngestionDuration,
   jobsIngestionTotal,
   jobsNewTotal,

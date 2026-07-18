@@ -16,8 +16,55 @@ const PREFS_ID = '00000000-0000-0000-0000-000000000001';
 
 router.use(requireAuth);
 
-// ── GET /api/admin/ai/status ──────────────────────────────────
-// Engine health: active engine, API key status, 24h scoring stats, last run.
+/**
+ * @swagger
+ * /api/admin/ai/status:
+ *   get:
+ *     summary: Get AI engine status
+ *     description: >
+ *       Returns the active engine configuration, API key availability, last
+ *       successful ingestion run timestamp, and 24-hour scoring statistics.
+ *     tags: [Admin: AI Engine]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: AI engine status
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 engine:
+ *                   type: string
+ *                   enum: [pattern, claude, groq, gemini]
+ *                   example: pattern
+ *                 llm_enabled:
+ *                   type: boolean
+ *                 ambiguous_min:
+ *                   type: integer
+ *                   example: 30
+ *                   description: Lower bound of the ambiguous score range sent to LLM
+ *                 ambiguous_max:
+ *                   type: integer
+ *                   example: 72
+ *                   description: Upper bound of the ambiguous score range sent to LLM
+ *                 api_keys:
+ *                   type: object
+ *                   properties:
+ *                     anthropic: { type: boolean }
+ *                     groq:      { type: boolean }
+ *                     gemini:    { type: boolean }
+ *                 last_24h:
+ *                   type: object
+ *                   description: Filtering statistics for the last 24 hours
+ *                 last_run:
+ *                   type: string
+ *                   format: date-time
+ *                   nullable: true
+ *       401:
+ *         description: Unauthorised
+ */
 router.get('/status', async (req, res) => {
   try {
     const [prefsRes, statsRes, lastRunRes] = await Promise.all([
@@ -53,8 +100,49 @@ router.get('/status', async (req, res) => {
   }
 });
 
-// ── PUT /api/admin/ai/status ──────────────────────────────────
-// Save engine settings (engine type, LLM toggle, ambiguous range).
+/**
+ * @swagger
+ * /api/admin/ai/status:
+ *   put:
+ *     summary: Save AI engine settings
+ *     description: >
+ *       Persists the active engine selection, LLM toggle, and ambiguous score
+ *       range. Uses UPSERT so it is safe to call on a fresh database.
+ *     tags: [Admin: AI Engine]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               engine:
+ *                 type: string
+ *                 enum: [pattern, claude, groq, gemini]
+ *                 example: groq
+ *               llm_enabled:
+ *                 type: boolean
+ *                 example: true
+ *               ambiguous_min:
+ *                 type: integer
+ *                 example: 30
+ *               ambiguous_max:
+ *                 type: integer
+ *                 example: 72
+ *     responses:
+ *       200:
+ *         description: Settings saved
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok: { type: boolean, example: true }
+ *       401:
+ *         description: Unauthorised
+ */
 router.put('/status', async (req, res) => {
   try {
     const { engine, llm_enabled, ambiguous_min, ambiguous_max } = req.body;
@@ -76,9 +164,44 @@ router.put('/status', async (req, res) => {
   }
 });
 
-// ── GET /api/admin/ai/pattern-config ─────────────────────────
-// Returns the editable pattern arrays. Falls back to hardcoded defaults
-// when the DB columns are empty (fresh migration, not yet customised).
+/**
+ * @swagger
+ * /api/admin/ai/pattern-config:
+ *   get:
+ *     summary: Get pattern scoring configuration
+ *     description: >
+ *       Returns the editable keyword arrays used by the pattern scorer.
+ *       Falls back to hardcoded defaults when the DB columns are empty.
+ *     tags: [Admin: AI Engine]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Pattern config
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 role_keywords:
+ *                   type: array
+ *                   items: { type: string }
+ *                   example: [DevOps, Platform Engineer, SRE]
+ *                 tech_boosts:
+ *                   type: array
+ *                   items: { type: object }
+ *                   description: Array of { term, boost } objects
+ *                 penalties:
+ *                   type: array
+ *                   items: { type: object }
+ *                   description: Array of { term, penalty } objects
+ *                 locations:
+ *                   type: array
+ *                   items: { type: string }
+ *                   example: [Paris, Remote, France]
+ *       401:
+ *         description: Unauthorised
+ */
 router.get('/pattern-config', async (req, res) => {
   try {
     const config = await getPatternConfigFromDB();
@@ -89,8 +212,58 @@ router.get('/pattern-config', async (req, res) => {
   }
 });
 
-// ── PUT /api/admin/ai/pattern-config ─────────────────────────
-// Save editable pattern arrays to DB.
+/**
+ * @swagger
+ * /api/admin/ai/pattern-config:
+ *   put:
+ *     summary: Save pattern scoring configuration
+ *     description: All four arrays are required and must be valid JSON arrays.
+ *     tags: [Admin: AI Engine]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [role_keywords, tech_boosts, penalties, locations]
+ *             properties:
+ *               role_keywords:
+ *                 type: array
+ *                 items: { type: string }
+ *                 example: [DevOps, Platform Engineer]
+ *               tech_boosts:
+ *                 type: array
+ *                 items: { type: object }
+ *               penalties:
+ *                 type: array
+ *                 items: { type: object }
+ *               locations:
+ *                 type: array
+ *                 items: { type: string }
+ *                 example: [Paris, Remote]
+ *     responses:
+ *       200:
+ *         description: Config saved
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok: { type: boolean }
+ *                 saved:
+ *                   type: object
+ *                   properties:
+ *                     role_keywords: { type: integer }
+ *                     tech_boosts:   { type: integer }
+ *                     penalties:     { type: integer }
+ *                     locations:     { type: integer }
+ *       400:
+ *         $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorised
+ */
 router.put('/pattern-config', async (req, res) => {
   try {
     const { role_keywords, tech_boosts, penalties, locations } = req.body;
@@ -120,8 +293,51 @@ router.put('/pattern-config', async (req, res) => {
   }
 });
 
-// ── POST /api/admin/ai/test-score ─────────────────────────────
-// Live-score a job description. Returns pattern breakdown + optional LLM score.
+/**
+ * @swagger
+ * /api/admin/ai/test-score:
+ *   post:
+ *     summary: Live-score a job description
+ *     description: >
+ *       Scores a job using the current pattern config and optionally the active
+ *       LLM engine. Returns the full pattern breakdown (which keywords matched,
+ *       which scored negatively) plus the LLM result if enabled.
+ *     tags: [Admin: AI Engine]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [title]
+ *             properties:
+ *               title:        { type: string, example: Platform Engineer }
+ *               company_name: { type: string, example: Acme Corp }
+ *               location:     { type: string, example: Paris, France }
+ *               description:  { type: string }
+ *               requirements: { type: string }
+ *     responses:
+ *       200:
+ *         description: Scoring result
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 pattern:
+ *                   type: object
+ *                   description: Pattern scorer breakdown (score, matched keywords, penalties applied)
+ *                 llm:
+ *                   type: object
+ *                   nullable: true
+ *                   description: LLM result if enabled and API key is set; null otherwise
+ *       400:
+ *         $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorised
+ */
 router.post('/test-score', async (req, res) => {
   try {
     const { title, company_name, location, description, requirements } = req.body;
@@ -132,7 +348,6 @@ router.post('/test-score', async (req, res) => {
     const config = await getPatternConfigFromDB();
     const patternResult = patternScoreDetailed(job, config);
 
-    // Optionally run LLM if enabled and API key is available
     let llmResult = null;
     if (config.llm_enabled && (process.env.ANTHROPIC_API_KEY || process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY)) {
       try {
@@ -149,12 +364,58 @@ router.post('/test-score', async (req, res) => {
   }
 });
 
-// ── GET /api/admin/ai/calibration ────────────────────────────
-// Score distribution histogram + false positives/negatives from feedback.
+/**
+ * @swagger
+ * /api/admin/ai/calibration:
+ *   get:
+ *     summary: Get AI calibration data
+ *     description: >
+ *       Returns a score distribution histogram, a feedback summary keyed by
+ *       decision type, and the top 15 false positives/negatives derived from
+ *       your applied/skipped feedback history.
+ *     tags: [Admin: AI Engine]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Calibration report
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 total_jobs:
+ *                   type: integer
+ *                 score_distribution:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       bucket: { type: string, example: '60–69' }
+ *                       count:  { type: integer }
+ *                       pct:    { type: integer, description: Percentage of total }
+ *                 feedback_summary:
+ *                   type: object
+ *                   description: Keyed by decision (applied, saved, skipped, etc.)
+ *                   additionalProperties:
+ *                     type: object
+ *                     properties:
+ *                       count:     { type: integer }
+ *                       avg_score: { type: number }
+ *                 false_negatives:
+ *                   type: array
+ *                   description: Jobs you applied to that scored below 65
+ *                   items: { type: object }
+ *                 false_positives:
+ *                   type: array
+ *                   description: Jobs you skipped that scored >= 65
+ *                   items: { type: object }
+ *       401:
+ *         description: Unauthorised
+ */
 router.get('/calibration', async (req, res) => {
   try {
     const [distRes, feedbackRes, falseNegRes, falsePosRes] = await Promise.all([
-      // Score distribution: 10 buckets of width 10
       pool.query(`
         SELECT
           (relevance_score / 10) * 10 AS bucket_start,
@@ -164,8 +425,6 @@ router.get('/calibration', async (req, res) => {
         GROUP BY bucket_start
         ORDER BY bucket_start
       `),
-
-      // Feedback summary per decision type
       pool.query(`
         SELECT
           jf.decision,
@@ -176,8 +435,6 @@ router.get('/calibration', async (req, res) => {
         GROUP BY jf.decision
         ORDER BY jf.decision
       `),
-
-      // False negatives: jobs you applied to that scored below 65
       pool.query(`
         SELECT j.id, j.title, j.company_name, j.location,
                j.relevance_score, j.ai_decision, j.ai_reasoning
@@ -187,8 +444,6 @@ router.get('/calibration', async (req, res) => {
         ORDER BY j.relevance_score ASC
         LIMIT 15
       `),
-
-      // False positives: jobs you skipped that scored >= 65
       pool.query(`
         SELECT j.id, j.title, j.company_name, j.location,
                j.relevance_score, j.ai_decision, j.ai_reasoning
@@ -200,7 +455,6 @@ router.get('/calibration', async (req, res) => {
       `),
     ]);
 
-    // Build full 10-bucket distribution (0-9 through 90-100) filling gaps with 0
     const distMap = {};
     for (const row of distRes.rows) {
       distMap[parseInt(row.bucket_start, 10)] = parseInt(row.count, 10);
@@ -217,7 +471,6 @@ router.get('/calibration', async (req, res) => {
       };
     });
 
-    // Feedback summary keyed by decision
     const feedbackSummary = {};
     for (const row of feedbackRes.rows) {
       feedbackSummary[row.decision] = {
@@ -236,6 +489,29 @@ router.get('/calibration', async (req, res) => {
   } catch (err) {
     console.error('[Admin:AI:Calibration]', err.message);
     res.status(500).json({ error: 'Failed to fetch calibration data' });
+  }
+});
+
+// ── Base CV: refresh snapshot from current DB data ────────────
+router.post('/refresh-base-cv', requireAuth, async (req, res) => {
+  try {
+    const baseCvService = require('../../services/cvGeneration/baseCvService');
+    const result = await baseCvService.refreshBaseCv();
+    const c = result.content_json;
+    res.json({
+      version:      result.version,
+      created_at:   result.created_at,
+      section_counts: {
+        experiences:    (c.experiences    || []).length,
+        skills:         (c.skills         || []).length,
+        certifications: (c.certifications || []).length,
+        education:      (c.education      || []).length,
+        projects:       (c.projects       || []).length,
+        references:     (c.references     || []).length,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

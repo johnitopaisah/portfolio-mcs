@@ -1,0 +1,55 @@
+# ============================================================
+#  ArgoCD Application — monitoring/pushgateway
+#
+#  Sync wave 2: alongside Prometheus — CronJobs (scraper, jobWorker,
+#  backups, infisical-secret-checker) push here, Prometheus scrapes
+#  it as a static target. Neither strictly needs the other to exist
+#  first (Prometheus just shows the target down until this is up),
+#  but keeping it in the same wave as its scrape source is the
+#  clearest ordering.
+#
+#  prune: false — ArgoCD must NEVER cascade-delete the PVC.
+#  pushgateway-pvc is what makes pushed samples survive a pod
+#  restart between two CronJob runs. No finalizer for the same reason.
+# ============================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring-pushgateway
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: monitoring-pushgateway
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/managed-by: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  # No finalizer — ArgoCD must never cascade-delete the Pushgateway PVC
+spec:
+  project: portfolio-monitoring
+  source:
+    repoURL: https://github.com/johnitopaisah/portfolio-mcs
+    targetRevision: develop
+    path: monitoring/pushgateway
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false   # protects pushgateway-pvc from accidental deletion
+    syncOptions:
+      - CreateNamespace=false
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      name: pushgateway
+      jsonPointers:
+        - /spec/replicas
+    - group: ""
+      kind: PersistentVolumeClaim
+      name: pushgateway-pvc
+      jsonPointers:
+        - /spec/storageClassName
+        - /spec/accessModes
+        - /spec/resources
+        - /spec/volumeMode

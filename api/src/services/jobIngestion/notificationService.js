@@ -13,6 +13,7 @@
 const pool       = require('../../db/client');
 const nodemailer = require('nodemailer');
 const config     = require('./config');
+const jobMetrics = require('../../metrics/jobMetrics');
 
 // ── Singleton SMTP transport ──────────────────────────────────
 // Created once, reused for all emails — avoids reopening a TCP connection
@@ -266,7 +267,9 @@ async function sendDailyJobDigest() {
       ? `[Jobs] ${jobs.length} new matches today — top score ${jobs[0]?.relevance_score}/100`
       : `[Jobs] No new matches today — ${dateStr}`;
 
-    await getTransport().sendMail({
+    const emailT0 = Date.now();
+    try {
+      await getTransport().sendMail({
       from:    `"Portfolio Jobs" <${process.env.NOTIFY_EMAIL_USER}>`,
       to:      process.env.NOTIFY_EMAIL_TO || process.env.NOTIFY_EMAIL_USER,
       subject,
@@ -282,7 +285,14 @@ async function sendDailyJobDigest() {
         ``,
         `Total processed today: ${stats.total_processed}`,
       ].join('\n'),
-    });
+      });
+      jobMetrics.jobAlertsTotal.inc({ channel: 'email', status: 'success' });
+    } catch (err) {
+      jobMetrics.jobAlertsTotal.inc({ channel: 'email', status: 'failed' });
+      throw err;
+    } finally {
+      jobMetrics.jobAlertsDuration.observe({ channel: 'email' }, (Date.now() - emailT0) / 1000);
+    }
 
     // Record email sent before attempting Telegram (so a Telegram failure
     // doesn't cause a duplicate email on the next trigger)
@@ -329,12 +339,21 @@ async function sendTelegramDigest(jobs) {
     `<i>Full digest sent to email</i>`,
   ].join('\n');
 
-  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ chat_id: chatId, text: msg, parse_mode: 'HTML' }),
-    signal:  AbortSignal.timeout(8000),
-  });
+  const t0 = Date.now();
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ chat_id: chatId, text: msg, parse_mode: 'HTML' }),
+      signal:  AbortSignal.timeout(8000),
+    });
+    jobMetrics.jobAlertsTotal.inc({ channel: 'telegram', status: 'success' });
+  } catch (err) {
+    jobMetrics.jobAlertsTotal.inc({ channel: 'telegram', status: 'failed' });
+    throw err;
+  } finally {
+    jobMetrics.jobAlertsDuration.observe({ channel: 'telegram' }, (Date.now() - t0) / 1000);
+  }
 }
 
 // ── Per-run digest (called from jobWorker after every successful run) ────────
@@ -378,22 +397,31 @@ async function sendWorkerRunDigest(hoursBack = 8) {
 
     const subject = `[Jobs] ${jobs.length} new match${jobs.length !== 1 ? 'es' : ''} · top score ${jobs[0]?.relevance_score}/100 · ${now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/Paris' })}`;
 
-    await getTransport().sendMail({
-      from:    `"Portfolio Jobs" <${process.env.NOTIFY_EMAIL_USER}>`,
-      to:      process.env.NOTIFY_EMAIL_TO || process.env.NOTIFY_EMAIL_USER,
-      subject,
-      html:    buildHtml(jobs, dateStr, stats),
-      text:    [
-        `Job Digest — ${dateStr}`,
-        `${jobs.length} new relevant jobs (min score ${MIN_SCORE}, last ${hoursBack}h):`,
-        ``,
-        ...jobs.map(j =>
-          `[${j.relevance_score}/100] ${j.title} @ ${j.company_name} (${j.location})\n  ${j.apply_url}`
-        ),
-        ``,
-        `Total processed this run: ${stats.total_processed}`,
-      ].join('\n'),
-    });
+    const emailT0 = Date.now();
+    try {
+      await getTransport().sendMail({
+        from:    `"Portfolio Jobs" <${process.env.NOTIFY_EMAIL_USER}>`,
+        to:      process.env.NOTIFY_EMAIL_TO || process.env.NOTIFY_EMAIL_USER,
+        subject,
+        html:    buildHtml(jobs, dateStr, stats),
+        text:    [
+          `Job Digest — ${dateStr}`,
+          `${jobs.length} new relevant jobs (min score ${MIN_SCORE}, last ${hoursBack}h):`,
+          ``,
+          ...jobs.map(j =>
+            `[${j.relevance_score}/100] ${j.title} @ ${j.company_name} (${j.location})\n  ${j.apply_url}`
+          ),
+          ``,
+          `Total processed this run: ${stats.total_processed}`,
+        ].join('\n'),
+      });
+      jobMetrics.jobAlertsTotal.inc({ channel: 'email', status: 'success' });
+    } catch (err) {
+      jobMetrics.jobAlertsTotal.inc({ channel: 'email', status: 'failed' });
+      throw err;
+    } finally {
+      jobMetrics.jobAlertsDuration.observe({ channel: 'email' }, (Date.now() - emailT0) / 1000);
+    }
 
     await recordNotificationSent('email', runKey);
 

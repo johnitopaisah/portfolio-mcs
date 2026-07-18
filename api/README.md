@@ -62,13 +62,12 @@ api/
 │   │   ├── geoip.js                IP → country/city lookup
 │   │   ├── parseVisitor.js         User-agent + referrer parsing
 │   │   ├── visitorDigest.js        Daily visitor analytics email (08:00 Paris)
-│   │   ├── jobIngestion/
-│   │   │   ├── jobIngestionService.js   Fetches from Jooble, RemoteOK, Adzuna
+│   │   ├── jobIngestion/                  (raw discovery lives in scraper/)
+│   │   │   ├── jobIngestionService.js   Expiry + purge lifecycle for scored jobs
 │   │   │   ├── aiFilteringService.js    Claude Haiku relevance scoring
-│   │   │   ├── deduplicationService.js  URL-hash dedup before DB insert
 │   │   │   ├── notificationService.js   Daily job digest email (08:15 Paris)
 │   │   │   ├── ingestionLogsService.js  Per-run stats logging
-│   │   │   └── config.js               Provider API keys + scoring thresholds
+│   │   │   └── config.js               Max job age + scoring thresholds
 │   │   ├── cvGeneration/
 │   │   │   ├── baseCvService.js         Fetch profile data from DB
 │   │   │   ├── cvTailoringService.js    AI-tailored CV generation
@@ -109,6 +108,14 @@ api/
 | GET | `/api/skills` | Skills list |
 | GET | `/api/experiences` | Work experience |
 | GET | `/api/certifications` | Certifications |
+| GET | `/api/education` | Education history |
+| GET | `/api/social-links` | Social / contact links |
+| GET | `/api/referees` | Visible referees (email/phone hidden when available on request) |
+| GET | `/api/referees/:id/photo` | Referee headshot binary |
+| GET | `/api/referees/:id/org-logo` | Referee organisation logo binary |
+| GET | `/api/referee-invitations/validate` | Validate a one-time invitation token |
+| POST | `/api/referee-invitations/:token/submit` | Submit referee form (multipart, consumes token) |
+| POST | `/api/referee-invitations/:token/request-modification` | Flag a submitted reference for modification |
 | POST | `/api/contact` | Submit contact message |
 | GET | `/api/jobs` | AI-curated public job listings |
 | GET | `/api/docs` | Swagger UI |
@@ -132,8 +139,19 @@ api/
 | GET/POST/PUT/DELETE | `/api/skills` | CRUD skills |
 | GET/POST/PUT/DELETE | `/api/experiences` | CRUD experiences |
 | GET/POST/PUT/DELETE | `/api/certifications` | CRUD certifications |
+| GET/POST/PUT/DELETE | `/api/education` | CRUD education entries |
+| GET/POST/PUT/DELETE | `/api/social-links` | CRUD social/contact links |
 | GET/PATCH | `/api/contact` | View/mark-read contact messages |
 | GET/POST/PUT/DELETE | `/api/applications` | Job application CRM |
+| GET | `/api/referees/all` | All referees including hidden ones + star_config |
+| POST | `/api/referees` | Create referee (multipart) |
+| PUT | `/api/referees/:id` | Update referee fields and images (multipart) |
+| PUT | `/api/referees/:id/star-config` | Replace referee star animation config (JSON) |
+| DELETE | `/api/referees/:id` | Delete referee |
+| GET | `/api/referee-invitations` | List all invitation links |
+| POST | `/api/referee-invitations` | Create a new `create` invitation link |
+| POST | `/api/referee-invitations/for-referee/:id` | Create a `modify` link for an existing referee |
+| DELETE | `/api/referee-invitations/:id` | Revoke an unused invitation link |
 | GET | `/api/admin/jobs` | Browse ingested jobs + ingestion logs |
 | POST | `/api/admin/jobs/:id/feedback` | Thumbs up/down on a job |
 | GET/PUT | `/api/admin/ai` | AI pattern config (keywords, weights) |

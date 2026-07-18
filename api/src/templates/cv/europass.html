@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>CV — {{NAME}}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 9.5pt;
+    color: #1a1a1a;
+    background: #fff;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px 30px;
+    line-height: 1.45;
+  }
+  /* Europass: EU standard format - two-column label/value layout */
+  .europass-logo {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 20px;
+    border-bottom: 3px solid {{ACCENT_COLOR}}; padding-bottom: 8px;
+  }
+  .europass-logo .logo-text {
+    font-size: 18pt; font-weight: 700; color: {{ACCENT_COLOR}}; letter-spacing: 1px;
+  }
+  .europass-logo .logo-sub { font-size: 8pt; color: #666; letter-spacing: 0.5px; text-transform: uppercase; }
+  .header-name { margin-bottom: 16px; }
+  .header-name h1 { font-size: 20pt; font-weight: 700; color: #000; }
+  .header-name .headline { font-size: 10.5pt; color: {{ACCENT_COLOR}}; font-weight: 600; margin-top: 3px; }
+  /* Europass rows: label on left, value on right */
+  .ep-section { margin-bottom: 14px; }
+  .ep-section-title {
+    font-size: 9pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
+    background: {{ACCENT_COLOR}}; color: #fff;
+    padding: 3px 10px; margin-bottom: 8px;
+  }
+  .ep-row { display: flex; gap: 0; margin-bottom: 5px; }
+  .ep-label {
+    width: 160px; min-width: 160px; font-size: 9pt; font-weight: 700;
+    color: {{ACCENT_COLOR}}; padding-right: 10px; padding-top: 1px;
+  }
+  .ep-value { flex: 1; font-size: 9.5pt; color: #111; line-height: 1.5; }
+  .ep-value a { color: #333; text-decoration: none; }
+  .ep-value ul { margin-left: 16px; }
+  .ep-value ul li { margin-bottom: 2px; }
+  .exp-entry { margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #f0f0f0; }
+  .exp-entry:last-child { border-bottom: none; margin-bottom: 0; }
+  .exp-dates-label { font-size: 9pt; font-weight: 700; color: {{ACCENT_COLOR}}; margin-bottom: 2px; }
+  .exp-role { font-size: 10pt; font-weight: 700; color: #000; }
+  .exp-company { font-size: 9.5pt; color: #333; }
+  .exp-desc-list { margin: 3px 0 0 16px; }
+  .exp-desc-list li { font-size: 9.5pt; color: #222; margin-bottom: 1px; }
+  .edu-entry { margin-bottom: 8px; }
+  .cert-item { margin-bottom: 4px; font-size: 9.5pt; }
+  .cert-name { font-weight: 700; }
+  .proj-item { margin-bottom: 6px; }
+  .proj-title { font-weight: 700; font-size: 9.5pt; }
+  .proj-desc { font-size: 9pt; color: #333; margin-top: 2px; }
+  .ref-item { margin-bottom: 6px; }
+  .ref-name { font-weight: 700; }
+  .ref-detail { font-size: 9pt; color: #555; }
+  @media print { body { padding: 0; } a { color: #333 !important; } }
+</style>
+</head>
+<body>
+<div class="europass-logo">
+  <div>
+    <div class="logo-text">Curriculum Vitae</div>
+    <div class="logo-sub">Europass Format</div>
+  </div>
+</div>
+<div class="header-name">
+  <h1>{{NAME}}</h1>
+  <div class="headline">{{HEADLINE}}</div>
+</div>
+
+<div class="ep-section">
+  <div class="ep-section-title">Personal Information</div>
+  <div class="ep-row"><div class="ep-label">Email</div><div class="ep-value"><a href="mailto:{{EMAIL}}">{{EMAIL}}</a></div></div>
+  {{PHONE_EP_ROW}}
+  {{LOCATION_EP_ROW}}
+  {{WEBSITE_EP_ROW}}
+  <div class="ep-row"><div class="ep-label">GitHub</div><div class="ep-value"><a href="{{GITHUB_URL}}" target="_blank">{{GITHUB_URL}}</a></div></div>
+  <div class="ep-row"><div class="ep-label">LinkedIn</div><div class="ep-value"><a href="{{LINKEDIN_URL}}" target="_blank">{{LINKEDIN_URL}}</a></div></div>
+</div>
+
+{{SECTION_SUMMARY}}
+{{SECTION_EXPERIENCE}}
+{{SECTION_EDUCATION}}
+{{SECTION_SKILLS}}
+{{SECTION_CERTIFICATIONS}}
+{{SECTION_PROJECTS}}
+{{SECTION_REFERENCES}}
+</body>
+</html>

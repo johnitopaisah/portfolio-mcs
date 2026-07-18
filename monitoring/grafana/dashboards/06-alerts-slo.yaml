@@ -126,6 +126,40 @@ data:
             { "expr": "histogram_quantile(0.95, sum(rate(portfolio_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p95 latency" },
             { "expr": "vector(0.5)", "legendFormat": "SLO threshold (500ms)" }
           ]
+        },
+        {
+          "id": 9, "type": "timeseries", "title": "Error-Budget Burn Rate — Fast (1h & 5m windows, pages at 14.4x)",
+          "description": "Backs the ErrorBudgetBurnFast alert. Both lines crossing the threshold together for 2m is what actually pages.",
+          "gridPos": { "x": 0, "y": 24, "w": 12, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "none", "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 2 } } },
+          "targets": [
+            {
+              "expr": "(sum(rate(portfolio_http_requests_total{status_code=~\"5..\"}[1h])) / sum(rate(portfolio_http_requests_total[1h]))) / 0.001",
+              "legendFormat": "burn rate (1h)"
+            },
+            {
+              "expr": "(sum(rate(portfolio_http_requests_total{status_code=~\"5..\"}[5m])) / sum(rate(portfolio_http_requests_total[5m]))) / 0.001",
+              "legendFormat": "burn rate (5m)"
+            },
+            { "expr": "vector(14.4)", "legendFormat": "page threshold (14.4x)" }
+          ]
+        },
+        {
+          "id": 10, "type": "timeseries", "title": "Error-Budget Burn Rate — Slow (6h & 30m windows, warns at 6x)",
+          "description": "Backs the ErrorBudgetBurnSlow alert — catches a sustained leak a fast-burn check would miss.",
+          "gridPos": { "x": 12, "y": 24, "w": 12, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "none", "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 2 } } },
+          "targets": [
+            {
+              "expr": "(sum(rate(portfolio_http_requests_total{status_code=~\"5..\"}[6h])) / sum(rate(portfolio_http_requests_total[6h]))) / 0.001",
+              "legendFormat": "burn rate (6h)"
+            },
+            {
+              "expr": "(sum(rate(portfolio_http_requests_total{status_code=~\"5..\"}[30m])) / sum(rate(portfolio_http_requests_total[30m]))) / 0.001",
+              "legendFormat": "burn rate (30m)"
+            },
+            { "expr": "vector(6)", "legendFormat": "warn threshold (6x)" }
+          ]
         }
       ],
       "schemaVersion": 38,

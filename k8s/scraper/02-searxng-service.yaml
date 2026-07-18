@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: searxng
+  namespace: portfolio
+  labels:
+    app: portfolio-mcs
+    component: searxng
+spec:
+  type: ClusterIP
+  selector:
+    app: portfolio-mcs
+    component: searxng
+  ports:
+    - name:       http
+      port:       8080
+      targetPort: 8080
+      protocol:   TCP

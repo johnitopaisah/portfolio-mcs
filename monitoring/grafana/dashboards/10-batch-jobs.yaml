@@ -1,0 +1,156 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-10-batch-jobs
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/component: visualization
+    app.kubernetes.io/managed-by: argocd
+    dashboard: batch-jobs
+data:
+  10-batch-jobs.json: |
+    {
+      "uid": "portfolio-batch-jobs",
+      "title": "Batch Jobs & Backups",
+      "description": "CronJob health (job-ingestion-worker, email-tracking-worker, followup-reminder-worker, scraper-discovery, canary-checker) and backup/DR status (portfolio-db-backup, backup-monitoring-volumes) — all short-lived jobs Prometheus can't scrape directly, surfaced via kube-state-metrics and Pushgateway.",
+      "tags": ["portfolio-mcs", "cronjobs", "backup", "batch"],
+      "timezone": "browser",
+      "refresh": "1m",
+      "time": { "from": "now-7d", "to": "now" },
+      "panels": [
+        {
+          "id": 1, "type": "table", "title": "CronJob Last Scheduled Run",
+          "gridPos": { "x": 0, "y": 0, "w": 24, "h": 8 },
+          "options": { "sortBy": [{ "displayName": "Value", "desc": false }] },
+          "fieldConfig": { "defaults": { "unit": "dateTimeFromNow" }, "overrides": [] },
+          "targets": [{
+            "expr": "kube_cronjob_status_last_schedule_time{namespace=~\"portfolio|backup\"} * 1000",
+            "legendFormat": "{{cronjob}}",
+            "instant": true,
+            "format": "table"
+          }]
+        },
+        {
+          "id": 2, "type": "timeseries", "title": "Time Since Last Scheduled Run (by CronJob)",
+          "gridPos": { "x": 0, "y": 8, "w": 24, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "s", "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 2 } } },
+          "targets": [{
+            "expr": "time() - kube_cronjob_status_last_schedule_time{namespace=~\"portfolio|backup\"}",
+            "legendFormat": "{{cronjob}}"
+          }]
+        },
+        {
+          "id": 3, "type": "stat", "title": "Failed Job Runs (7d)",
+          "gridPos": { "x": 0, "y": 16, "w": 8, "h": 6 },
+          "options": { "colorMode": "background", "reduceOptions": { "calcs": ["sum"] } },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "red", "value": 1 }] }
+            }
+          },
+          "targets": [{ "expr": "sum(increase(kube_job_status_failed{namespace=~\"portfolio|backup\"}[7d]))" }]
+        },
+        {
+          "id": 4, "type": "stat", "title": "Suspended CronJobs", "description": "Should always be 0 — a suspended CronJob silently stops running with no failure signal.",
+          "gridPos": { "x": 8, "y": 16, "w": 8, "h": 6 },
+          "options": { "colorMode": "background" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "red", "value": 1 }] }
+            }
+          },
+          "targets": [{ "expr": "sum(kube_cronjob_spec_suspend{namespace=~\"portfolio|backup\"})" }]
+        },
+        {
+          "id": 5, "type": "stat", "title": "Active Job Pods (right now)",
+          "gridPos": { "x": 16, "y": 16, "w": 8, "h": 6 },
+          "options": { "colorMode": "value" },
+          "fieldConfig": { "defaults": { "unit": "short" } },
+          "targets": [{ "expr": "sum(kube_job_status_active{namespace=~\"portfolio|backup\"})" }]
+        },
+        {
+          "id": 6, "type": "timeseries", "title": "Failed Job Runs Over Time (by job_name)",
+          "gridPos": { "x": 0, "y": 22, "w": 24, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "palette-classic" } } },
+          "targets": [{
+            "expr": "sum by (job_name) (kube_job_status_failed{namespace=~\"portfolio|backup\"})",
+            "legendFormat": "{{job_name}}"
+          }]
+        },
+        {
+          "id": 7, "type": "row", "title": "Backup & Disaster Recovery",
+          "gridPos": { "x": 0, "y": 30, "w": 24, "h": 1 }
+        },
+        {
+          "id": 8, "type": "gauge", "title": "Age of Last Successful DB Backup",
+          "description": "Pushed by k8s/backup/03-cronjob-db-backup.yaml on successful completion.",
+          "gridPos": { "x": 0, "y": 31, "w": 8, "h": 8 },
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s", "min": 0,
+              "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 100800 }, { "color": "red", "value": 172800 } ] }
+            }
+          },
+          "targets": [{ "expr": "time() - backup_last_success_timestamp{job=\"portfolio-db-backup\"}" }]
+        },
+        {
+          "id": 9, "type": "gauge", "title": "Age of Last Successful Monitoring Backup",
+          "description": "Pushed by k8s/backup/05-cronjob-monitoring-backup.yaml on successful completion.",
+          "gridPos": { "x": 8, "y": 31, "w": 8, "h": 8 },
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s", "min": 0,
+              "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 100800 }, { "color": "red", "value": 172800 } ] }
+            }
+          },
+          "targets": [{ "expr": "time() - backup_last_success_timestamp{job=\"backup-monitoring-volumes\"}" }]
+        },
+        {
+          "id": 10, "type": "stat", "title": "Latest Backup Sizes",
+          "gridPos": { "x": 16, "y": 31, "w": 8, "h": 8 },
+          "options": { "colorMode": "value", "graphMode": "none", "textMode": "value_and_name" },
+          "fieldConfig": { "defaults": { "unit": "bytes" } },
+          "targets": [{
+            "expr": "backup_size_bytes",
+            "legendFormat": "{{job}}",
+            "instant": true
+          }]
+        },
+        {
+          "id": 11, "type": "timeseries", "title": "Backup Size Trend (30d)",
+          "gridPos": { "x": 0, "y": 39, "w": 24, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "bytes", "color": { "mode": "palette-classic" } } },
+          "targets": [{ "expr": "backup_size_bytes", "legendFormat": "{{job}}" }],
+          "time": { "from": "now-30d", "to": "now" }
+        },
+        {
+          "id": 12, "type": "row", "title": "Secrets Sync (Infisical)",
+          "gridPos": { "x": 0, "y": 47, "w": 24, "h": 1 }
+        },
+        {
+          "id": 13, "type": "table", "title": "InfisicalSecret Sync Status (all namespaces)",
+          "description": "Checked every 15m by monitoring/infisical/06-checker-cronjob.yaml. 1 = Ready, 0 = not synced.",
+          "gridPos": { "x": 0, "y": 48, "w": 24, "h": 8 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": { "steps": [{ "color": "red", "value": 0 }, { "color": "green", "value": 1 }] }
+            }
+          },
+          "targets": [{
+            "expr": "infisical_secret_synced",
+            "legendFormat": "{{namespace}}/{{name}}",
+            "instant": true,
+            "format": "table"
+          }]
+        }
+      ],
+      "schemaVersion": 38,
+      "version": 1
+    }

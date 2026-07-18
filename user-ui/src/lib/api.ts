@@ -19,9 +19,24 @@ function serverApi(): string {
   return url;
 }
 
+// A timeout is required here, not optional: this runs during SSR of the
+// homepage, which is also what the k8s liveness/readiness probes hit
+// (GET /, 3-5s timeout). If the API Service has zero backing pods, a
+// bare fetch() can hang far longer than that waiting on a connection
+// that will never complete — the page then never responds in time,
+// kubelet kills the pod for being "unresponsive", and it crash-loops
+// forever without ever getting the chance to render the down state
+// Promise.allSettled/BackendStatusSeed are there to show.
+// Kept comfortably under the readiness probe's own 3s timeout (see
+// k8s/user-ui/deployment.yaml) — the probe hits GET / directly, so this
+// budget has to leave headroom for React's render + Node overhead on
+// top of the abort itself, not consume the whole 3s.
+const SSR_FETCH_TIMEOUT_MS = 2000;
+
 async function get(path: string) {
   const res = await fetch(`${serverApi()}${path}`, {
     cache: 'no-store',
+    signal: AbortSignal.timeout(SSR_FETCH_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`API ${path} → ${res.status}`);
   return res.json();
@@ -35,6 +50,9 @@ export const api = {
   getExperiences:    () => get('/api/experiences'),
   getCertifications: () => get('/api/certifications'),
   getSocialLinks:    () => get('/api/social-links'),
+  getEducation:      () => get('/api/education'),
+  getReferies:       () => get('/api/referees'),
+  getBlogPosts:      () => get('/api/blog'),
 
   // Binary asset URLs — relative paths, proxied through middleware (same-origin).
   // Never cross-origin from the browser's perspective.
@@ -44,4 +62,7 @@ export const api = {
   skillIconUrl:    (id: string) => `/api/skills/${id}/icon`,
   expLogoUrl:      (id: string) => `/api/experiences/${id}/logo`,
   certImageUrl:    (id: string) => `/api/certifications/${id}/image`,
+  educationLogoUrl: (id: string) => `/api/education/${id}/logo`,
+  refereePhotoUrl:  (id: string) => `/api/referees/${id}/photo`,
+  refereeOrgLogoUrl: (id: string) => `/api/referees/${id}/org-logo`,
 };

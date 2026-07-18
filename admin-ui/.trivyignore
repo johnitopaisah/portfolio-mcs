@@ -17,6 +17,9 @@ CVE-2026-26996
 CVE-2026-27903
 CVE-2026-27904
 
+# sigstore 2.3.1 → fix: 4.1.1 (major bump; npm hasn't upgraded its internal sigstore yet)
+CVE-2026-48815
+
 # tar 6.2.1 → fix requires major upgrade to 7.x (npm hasn't adopted yet)
 CVE-2026-23745
 CVE-2026-23950

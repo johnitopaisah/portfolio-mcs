@@ -1,0 +1,79 @@
+# ============================================================
+#  SearXNG — self-hosted, free discovery search backend.
+#  Internal only (ClusterIP, no ingress) — used solely by the
+#  scraper CronJob. settings.yml (with its secret_key already
+#  baked in) comes from the existing Infisical-synced
+#  portfolio-secrets Secret, key SEARXNG_SETTINGS_YML — nothing
+#  sensitive is committed to git.
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: searxng
+  namespace: portfolio
+  labels:
+    app: portfolio-mcs
+    component: searxng
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate   # single replica, avoid two pods racing on startup
+  selector:
+    matchLabels:
+      app: portfolio-mcs
+      component: searxng
+  template:
+    metadata:
+      labels:
+        app: portfolio-mcs
+        component: searxng
+    spec:
+
+      enableServiceLinks: false
+
+      securityContext:
+        fsGroup: 977   # searxng group id in the upstream image
+
+      volumes:
+        - name: searxng-settings
+          secret:
+            secretName: portfolio-secrets
+            items:
+              - key:  SEARXNG_SETTINGS_YML
+                path: settings.yml
+
+      containers:
+        - name: searxng
+          image: searxng/searxng:latest
+          imagePullPolicy: Always
+
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+
+          volumeMounts:
+            - name: searxng-settings
+              mountPath: /etc/searxng
+              readOnly: false   
+              
+          resources:
+            requests:
+              cpu:    100m
+              memory: 256Mi
+            limits:
+              cpu:    500m
+              memory: 512Mi
+
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds:       10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds:       30

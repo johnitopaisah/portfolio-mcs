@@ -33,6 +33,7 @@ k8s/
 │   ├── app-user-ui.yaml
 │   ├── app-admin-ui.yaml
 │   ├── app-jobs.yaml
+│   ├── app-scraper.yaml
 │   ├── app-policies.yaml
 │   └── app-monitoring-root.yaml    Delegates monitoring stack to monitoring/argocd/
 │
@@ -72,10 +73,16 @@ k8s/
 │   └── hpa-admin-ui.yaml           HPA: min 1, max 2
 │
 ├── jobs/                           Automated background workers
-│   ├── 01-cronjob-ingestion.yaml   Job ingestion — runs every 15 min
-│   ├── 02-configmap-secrets.yaml   Worker config + job API keys
+│   ├── 01-cronjob-ingestion.yaml   Job filtering/notify/expire/purge/backup — every 8h
 │   ├── 03-cronjob-email.yaml       Gmail sync — hourly
 │   └── 04-cronjob-followup.yaml    Application follow-up check — daily
+│
+├── scraper/                        Career-site job discovery (Greenhouse/Lever/
+│   │                               Ashby/Workday/SmartRecruiters/LinkedIn/custom-site)
+│   ├── 01-searxng-deployment.yaml  Self-hosted SearXNG (metasearch, no API key)
+│   ├── 02-searxng-service.yaml     ClusterIP — searxng:8080
+│   ├── 03-cronjob-discovery.yaml   Discovery + poll known boards — daily 03:00
+│   └── 04-cronjob-canary.yaml      ATS parser contract check — weekly
 │
 ├── policies/
 │   ├── 01-pdb-api.yaml             PodDisruptionBudget — api (minAvailable: 1)

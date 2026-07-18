@@ -16,4 +16,4 @@ spec:
   storageClassName: standard   # Minikube default storage class
   resources:
     requests:
-      storage: 5Gi
+      storage: 1Gi
