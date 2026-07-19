@@ -21,6 +21,10 @@ spec:
       namespace: portfolio          # workloads
     - server: https://kubernetes.default.svc
       namespace: argocd             # App of Apps child Applications
+    - server: https://kubernetes.default.svc
+      namespace: backup             # backup CronJobs
+    - server: https://kubernetes.default.svc
+      namespace: monitoring         # backup's Role/RoleBinding for exec into Prometheus/Grafana pods
 
   # Cluster-scoped resources this project may touch
   clusterResourceWhitelist:

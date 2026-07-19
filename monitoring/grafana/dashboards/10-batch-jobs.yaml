@@ -24,7 +24,15 @@ data:
           "id": 1, "type": "table", "title": "CronJob Last Scheduled Run",
           "gridPos": { "x": 0, "y": 0, "w": 24, "h": 8 },
           "options": { "sortBy": [{ "displayName": "Value", "desc": false }] },
-          "fieldConfig": { "defaults": { "unit": "dateTimeFromNow" }, "overrides": [] },
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Value" },
+                "properties": [{ "id": "unit", "value": "dateTimeFromNow" }]
+              }
+            ]
+          },
           "targets": [{
             "expr": "kube_cronjob_status_last_schedule_time{namespace=~\"portfolio|backup\"} * 1000",
             "legendFormat": "{{cronjob}}",
