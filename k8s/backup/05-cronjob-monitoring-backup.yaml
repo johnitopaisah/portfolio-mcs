@@ -54,8 +54,7 @@ spec:
                 - -c
                 - |
                   set -e
-                  gcloud components install kubectl --quiet
-                  apt-get update -qq && apt-get install -y -qq wget
+                  apt-get update -qq && apt-get install -y -qq kubectl wget
                   source /scripts/backup-monitoring.sh
 
               env:
