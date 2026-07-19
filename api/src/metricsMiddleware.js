@@ -11,14 +11,6 @@ const {
   httpRequestsInFlight,
 } = require('./metrics');
 
-// Keep cardinality low — replace dynamic path segments with placeholders.
-function normaliseRoute(path) {
-  return path
-    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, ':id')
-    .replace(/\/\d+/g, '/:id')
-    .replace(/\/$/, '') || '/';
-}
-
 function prometheusMiddleware(req, res, next) {
   if (req.path === '/metrics') return next();
 
@@ -27,9 +19,17 @@ function prometheusMiddleware(req, res, next) {
 
   res.on('finish', () => {
     const durationSeconds = Number(process.hrtime.bigint() - start) / 1e9;
+    // req.route is only set once Express has matched a registered route
+    // handler, so it gives the parameterised pattern (e.g. /api/jobs/:id)
+    // instead of the literal URL. Anything that never matched a route
+    // (404s, vulnerability-scanner probes like /.env or /wp-*.php) is
+    // collapsed into a single "unmatched" bucket — otherwise every scanner
+    // hit mints its own permanent, unique route label, which is what
+    // drove portfolio_http_request_duration_seconds_bucket to 800+ series.
+    const route = req.route ? (req.baseUrl + req.route.path) : 'unmatched';
     const labels = {
       method:      req.method,
-      route:       normaliseRoute(req.path),
+      route,
       status_code: String(res.statusCode),
     };
     httpRequestsTotal.inc(labels);

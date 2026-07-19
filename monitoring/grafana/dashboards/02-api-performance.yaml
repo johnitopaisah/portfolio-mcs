@@ -63,7 +63,7 @@ data:
           "id": 5, "type": "timeseries", "title": "5xx Errors by Route",
           "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
           "fieldConfig": { "defaults": { "unit": "reqps", "color": { "mode": "palette-classic" } } },
-          "targets": [{ "expr": "sum by (route) (rate(portfolio_http_requests_total{status_code=~\"5..\"}[2m]))", "legendFormat": "{{route}}" }]
+          "targets": [{ "expr": "sum by (route) (rate(portfolio_http_requests_total{status_code=~\"5..\"}[2m])) or vector(0)", "legendFormat": "{{route}}" }]
         },
         {
           "id": 6, "type": "timeseries", "title": "4xx Errors by Route",
