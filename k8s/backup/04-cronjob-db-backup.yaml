@@ -38,10 +38,11 @@ spec:
           restartPolicy: OnFailure
           terminationGracePeriodSeconds: 60
 
-          securityContext:
-            runAsNonRoot: true
-            runAsUser: 65532
-            fsGroup: 65532
+          # Not runAsNonRoot: apt-get install (postgresql-client, below) needs
+          # root to write into /usr and /var/lib/dpkg. These are short-lived,
+          # one-shot batch pods with no exposed network surface, not
+          # long-running services — root-for-package-install is an
+          # acceptable tradeoff here rather than maintaining a custom image.
 
           initContainers:
             - name: check-db
@@ -50,6 +51,7 @@ spec:
                 - sh
                 - -c
                 - |
+                  set -e
                   apt-get update -qq && apt-get install -y -qq postgresql-client
                   echo "Checking database connectivity..."
                   until pg_isready -h portfolio-db.portfolio.svc.cluster.local -p 5432; do
@@ -74,6 +76,7 @@ spec:
               args:
                 - -c
                 - |
+                  set -e
                   apt-get update -qq && apt-get install -y -qq postgresql-client
                   source /scripts/backup.sh
 

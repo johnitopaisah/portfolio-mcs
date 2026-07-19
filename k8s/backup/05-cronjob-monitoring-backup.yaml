@@ -39,10 +39,10 @@ spec:
           restartPolicy: OnFailure
           terminationGracePeriodSeconds: 120
 
-          securityContext:
-            runAsNonRoot: true
-            runAsUser: 65532
-            fsGroup: 65532
+          # Not runAsNonRoot: `gcloud components install kubectl` needs to
+          # write into the SDK's own install directory, which is root-owned
+          # in this image. Same tradeoff as the DB backup job — short-lived,
+          # one-shot batch pod, not a long-running service.
 
           containers:
             - name: backup
