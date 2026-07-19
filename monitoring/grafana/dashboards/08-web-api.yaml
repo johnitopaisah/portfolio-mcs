@@ -114,7 +114,7 @@ data:
           },
           "targets": [{
             "datasource": { "uid": "$datasource" },
-            "expr": "sum(rate(portfolio_http_requests_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\", status_code=~\"5..\"}[5m])) / clamp_min(sum(rate(portfolio_http_requests_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m])), 1)",
+            "expr": "(sum(rate(portfolio_http_requests_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\", status_code=~\"5..\"}[5m])) or vector(0)) / clamp_min(sum(rate(portfolio_http_requests_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m])), 1)",
             "legendFormat": "5xx rate"
           }]
         },
@@ -192,7 +192,7 @@ data:
           },
           "targets": [{
             "datasource": { "uid": "$datasource" },
-            "expr": "sum(portfolio_process_heap_used_bytes{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}) / 1024 / 1024",
+            "expr": "sum(portfolio_nodejs_heap_size_used_bytes{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}) / 1024 / 1024",
             "legendFormat": "heap"
           }]
         },
@@ -218,7 +218,7 @@ data:
           },
           "targets": [{
             "datasource": { "uid": "$datasource" },
-            "expr": "portfolio_nodejs_event_loop_lag_seconds{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}",
+            "expr": "portfolio_nodejs_eventloop_lag_seconds{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}",
             "legendFormat": "lag"
           }]
         },
@@ -237,7 +237,12 @@ data:
             }
           },
           "options": {
+            "barRadius": 0.5,
+            "groupWidth": 0.7,
+            "orientation": "horizontal",
             "tooltip": { "mode": "multi" },
+            "tooltipDisplayMode": "single",
+            "xTickLabelRotation": 0,
             "legend": { "calcs": ["last", "mean", "max"], "displayMode": "table", "placement": "bottom" }
           },
           "targets": [{
@@ -261,6 +266,11 @@ data:
             }
           },
           "options": {
+            "barRadius": 0.5,
+            "groupWidth": 0.7,
+            "orientation": "horizontal",
+            "tooltipDisplayMode": "single",
+            "xTickLabelRotation": 0,
             "legend": { "displayMode": "table", "placement": "bottom" }
           },
           "targets": [{
@@ -356,12 +366,12 @@ data:
           "targets": [
             {
               "datasource": { "uid": "$datasource" },
-              "expr": "sum(portfolio_process_heap_used_bytes{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}) / 1024 / 1024",
+              "expr": "sum(portfolio_nodejs_heap_size_used_bytes{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}) / 1024 / 1024",
               "legendFormat": "heap used (MB)"
             },
             {
               "datasource": { "uid": "$datasource" },
-              "expr": "sum(portfolio_process_heap_size_bytes{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}) / 1024 / 1024",
+              "expr": "sum(portfolio_nodejs_heap_size_total_bytes{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}) / 1024 / 1024",
               "legendFormat": "heap total (MB)"
             },
             {
@@ -393,7 +403,7 @@ data:
           },
           "targets": [{
             "datasource": { "uid": "$datasource" },
-            "expr": "portfolio_nodejs_event_loop_lag_seconds{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}",
+            "expr": "portfolio_nodejs_eventloop_lag_seconds{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}",
             "legendFormat": "lag ({{pod}})"
           }]
         },
@@ -536,7 +546,7 @@ data:
           },
           "targets": [{
             "datasource": { "uid": "$datasource" },
-            "expr": "sum by (status) (rate(portfolio_contact_submissions_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m]))",
+            "expr": "sum by (status) (rate(portfolio_contact_submissions_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m])) or vector(0)",
             "legendFormat": "{{status}}"
           }]
         },
@@ -581,17 +591,17 @@ data:
           "targets": [
             {
               "datasource": { "uid": "$datasource" },
-              "expr": "sum by (type) (rate(portfolio_content_created_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m]))",
+              "expr": "sum by (type) (rate(portfolio_content_created_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m])) or vector(0)",
               "legendFormat": "created {{type}}"
             },
             {
               "datasource": { "uid": "$datasource" },
-              "expr": "sum by (type) (rate(portfolio_content_updated_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m]))",
+              "expr": "sum by (type) (rate(portfolio_content_updated_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m])) or vector(0)",
               "legendFormat": "updated {{type}}"
             },
             {
               "datasource": { "uid": "$datasource" },
-              "expr": "sum by (type) (rate(portfolio_content_deleted_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m]))",
+              "expr": "sum by (type) (rate(portfolio_content_deleted_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m])) or vector(0)",
               "legendFormat": "deleted {{type}}"
             }
           ]
@@ -615,12 +625,12 @@ data:
           "targets": [
             {
               "datasource": { "uid": "$datasource" },
-              "expr": "sum by (status) (rate(portfolio_referee_contact_requests_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m]))",
+              "expr": "sum by (status) (rate(portfolio_referee_contact_requests_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m])) or vector(0)",
               "legendFormat": "contact {{status}}"
             },
             {
               "datasource": { "uid": "$datasource" },
-              "expr": "sum by (decision) (rate(portfolio_referee_consent_responses_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m]))",
+              "expr": "sum by (decision) (rate(portfolio_referee_consent_responses_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m])) or vector(0)",
               "legendFormat": "consent {{decision}}"
             }
           ]

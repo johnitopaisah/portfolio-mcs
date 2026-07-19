@@ -1,4 +1,5 @@
 const { Pool } = require('pg');
+const { dbQueryDurationSeconds, dbErrorsTotal } = require('../metrics');
 
 const poolConfig = process.env.DATABASE_URL ? {
   connectionString: process.env.DATABASE_URL,
@@ -21,5 +22,36 @@ const pool = new Pool({
 pool.on('error', (err) => {
   console.error('[DB] Unexpected pool error', err);
 });
+
+function inferOperation(queryConfig) {
+  const text = typeof queryConfig === 'string' ? queryConfig : queryConfig?.text;
+  const match = typeof text === 'string' && text.trim().match(/^(\w+)/);
+  return match ? match[1].toUpperCase() : 'unknown';
+}
+
+const rawQuery = pool.query.bind(pool);
+
+pool.query = (...args) => {
+  const operation = inferOperation(args[0]);
+  const endTimer = dbQueryDurationSeconds.startTimer({ operation });
+  const result = rawQuery(...args);
+
+  if (result && typeof result.then === 'function') {
+    return result.then(
+      (res) => {
+        endTimer();
+        return res;
+      },
+      (err) => {
+        endTimer();
+        dbErrorsTotal.inc({ type: err.code || err.name || 'unknown' });
+        throw err;
+      }
+    );
+  }
+
+  endTimer();
+  return result;
+};
 
 module.exports = pool;
