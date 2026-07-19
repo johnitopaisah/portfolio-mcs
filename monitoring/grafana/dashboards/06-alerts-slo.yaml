@@ -17,7 +17,7 @@ data:
       "description": "Active alerts, error budget, availability SLO, and alert history",
       "tags": ["portfolio-mcs", "alerts", "slo"],
       "timezone": "browser",
-      "refresh": "30s",
+      "refresh": "1m",
       "time": { "from": "now-7d", "to": "now" },
       "panels": [
         {
@@ -88,7 +88,7 @@ data:
             }
           },
           "targets": [{
-            "expr": "sum(rate(portfolio_http_requests_total{status_code=~\"5..\"}[1h])) / sum(rate(portfolio_http_requests_total[1h]))",
+            "expr": "(sum(rate(portfolio_http_requests_total{status_code=~\"5..\"}[1h])) or vector(0)) / sum(rate(portfolio_http_requests_total[1h]))",
             "legendFormat": "Error rate"
           }]
         },
@@ -114,7 +114,7 @@ data:
             }
           },
           "targets": [{
-            "expr": "sum(rate(portfolio_http_requests_total{status_code=~\"5..\"}[5m])) / sum(rate(portfolio_http_requests_total[5m]))",
+            "expr": "(sum(rate(portfolio_http_requests_total{status_code=~\"5..\"}[5m])) or vector(0)) / sum(rate(portfolio_http_requests_total[5m]))",
             "legendFormat": "5xx error rate"
           }]
         },
@@ -134,11 +134,11 @@ data:
           "fieldConfig": { "defaults": { "unit": "none", "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 2 } } },
           "targets": [
             {
-              "expr": "(sum(rate(portfolio_http_requests_total{status_code=~\"5..\"}[1h])) / sum(rate(portfolio_http_requests_total[1h]))) / 0.001",
+              "expr": "((sum(rate(portfolio_http_requests_total{status_code=~\"5..\"}[1h])) or vector(0)) / sum(rate(portfolio_http_requests_total[1h]))) / 0.001",
               "legendFormat": "burn rate (1h)"
             },
             {
-              "expr": "(sum(rate(portfolio_http_requests_total{status_code=~\"5..\"}[5m])) / sum(rate(portfolio_http_requests_total[5m]))) / 0.001",
+              "expr": "((sum(rate(portfolio_http_requests_total{status_code=~\"5..\"}[5m])) or vector(0)) / sum(rate(portfolio_http_requests_total[5m]))) / 0.001",
               "legendFormat": "burn rate (5m)"
             },
             { "expr": "vector(14.4)", "legendFormat": "page threshold (14.4x)" }
@@ -151,11 +151,11 @@ data:
           "fieldConfig": { "defaults": { "unit": "none", "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 2 } } },
           "targets": [
             {
-              "expr": "(sum(rate(portfolio_http_requests_total{status_code=~\"5..\"}[6h])) / sum(rate(portfolio_http_requests_total[6h]))) / 0.001",
+              "expr": "((sum(rate(portfolio_http_requests_total{status_code=~\"5..\"}[6h])) or vector(0)) / sum(rate(portfolio_http_requests_total[6h]))) / 0.001",
               "legendFormat": "burn rate (6h)"
             },
             {
-              "expr": "(sum(rate(portfolio_http_requests_total{status_code=~\"5..\"}[30m])) / sum(rate(portfolio_http_requests_total[30m]))) / 0.001",
+              "expr": "((sum(rate(portfolio_http_requests_total{status_code=~\"5..\"}[30m])) or vector(0)) / sum(rate(portfolio_http_requests_total[30m]))) / 0.001",
               "legendFormat": "burn rate (30m)"
             },
             { "expr": "vector(6)", "legendFormat": "warn threshold (6x)" }
