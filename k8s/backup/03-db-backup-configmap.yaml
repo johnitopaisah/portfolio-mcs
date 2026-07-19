@@ -55,9 +55,12 @@ data:
     # Backups dashboard has real data — this CronJob pod exits before
     # Prometheus's next scrape could otherwise observe it. Non-fatal: a
     # Pushgateway hiccup must not fail the backup itself.
-    METRICS=$(printf 'backup_last_success_timestamp %s\nbackup_size_bytes %s\n' "$(date +%s)" "$BACKUP_BYTES")
+    # $(...) strips trailing newlines, but Pushgateway's text-format parser
+    # requires every line — including the last — to end with one, or it
+    # 400s the whole push. The trailing $'\n' below puts it back.
+    METRICS=$(printf 'backup_last_success_timestamp %s\nbackup_size_bytes %s' "$(date +%s)" "$BACKUP_BYTES")
     wget -q -O /dev/null --header="Content-Type: text/plain" \
-      --post-data="$METRICS" \
+      --post-data="${METRICS}"$'\n' \
       "http://pushgateway.monitoring.svc.cluster.local:9091/metrics/job/portfolio-db-backup" \
       || echo "[$(date)] ⚠ Failed to push backup metrics to Pushgateway (non-fatal)"
 
@@ -146,9 +149,9 @@ data:
 
     echo "[$(date)] Monitoring backup complete (${TOTAL_BYTES} bytes total)"
 
-    METRICS=$(printf 'backup_last_success_timestamp %s\nbackup_size_bytes %s\n' "$(date +%s)" "$TOTAL_BYTES")
+    METRICS=$(printf 'backup_last_success_timestamp %s\nbackup_size_bytes %s' "$(date +%s)" "$TOTAL_BYTES")
     wget -q -O /dev/null --header="Content-Type: text/plain" \
-      --post-data="$METRICS" \
+      --post-data="${METRICS}"$'\n' \
       "http://pushgateway.monitoring.svc.cluster.local:9091/metrics/job/backup-monitoring-volumes" \
       || echo "[$(date)] ⚠ Failed to push backup metrics to Pushgateway (non-fatal)"
 
