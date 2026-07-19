@@ -275,7 +275,7 @@ data:
           },
           "targets": [{
             "datasource": { "uid": "$datasource" },
-            "expr": "sum by (route) (rate(portfolio_http_requests_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\", status_code=~\"5..\"}[2m]))",
+            "expr": "sum by (route) (rate(portfolio_http_requests_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\", status_code=~\"5..\"}[2m])) or vector(0)",
             "legendFormat": "{{route}}",
             "instant": true
           }]
@@ -495,7 +495,7 @@ data:
           },
           "targets": [{
             "datasource": { "uid": "$datasource" },
-            "expr": "sum by (type) (rate(portfolio_db_errors_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m]))",
+            "expr": "sum by (type) (rate(portfolio_db_errors_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m])) or vector(0)",
             "legendFormat": "{{type}}"
           }]
         },
@@ -568,7 +568,7 @@ data:
           },
           "targets": [{
             "datasource": { "uid": "$datasource" },
-            "expr": "sum by (result) (rate(portfolio_auth_attempts_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m]))",
+            "expr": "sum by (result) (rate(portfolio_auth_attempts_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m])) or vector(0)",
             "legendFormat": "{{result}}"
           }]
         },
