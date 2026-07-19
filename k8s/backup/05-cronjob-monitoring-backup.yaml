@@ -77,9 +77,9 @@ spec:
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: false
-                capabilities:
-                  drop:
-                    - ALL
+                # Not dropping capabilities: apt/gcloud's package installers
+                # internally de-escalate via setuid/setgid — even as root,
+                # that needs CAP_SETUID/CAP_SETGID. `drop: [ALL]` broke that.
 
           volumes:
             - name: backup-scripts

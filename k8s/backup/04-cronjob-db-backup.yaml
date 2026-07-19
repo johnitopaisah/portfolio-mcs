@@ -119,9 +119,11 @@ spec:
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: false
-                capabilities:
-                  drop:
-                    - ALL
+                # Not dropping capabilities: apt-get internally de-escalates
+                # to a sandboxed "_apt" user via setuid/setgid/setgroups —
+                # even running as root, that needs CAP_SETUID/CAP_SETGID.
+                # `drop: [ALL]` here broke apt's OWN privilege-drop, which is
+                # the opposite of what it was meant to harden.
 
           volumes:
             - name: backup-scripts
