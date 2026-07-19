@@ -119,7 +119,7 @@ spec:
             - --port=8080
             - --telemetry-port=8081
             # Only collect metrics we actually use to reduce cardinality
-            - --resources=pods,deployments,replicasets,statefulsets,daemonsets,nodes,persistentvolumeclaims,namespaces,horizontalpodautoscalers
+            - --resources=pods,deployments,replicasets,statefulsets,daemonsets,nodes,persistentvolumeclaims,namespaces,horizontalpodautoscalers,cronjobs,jobs
           ports:
             - name: http-metrics
               containerPort: 8080

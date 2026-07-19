@@ -1,7 +1,21 @@
 # ============================================================
 #  RBAC — Backup Service Account
-#  Permits scheduled backup jobs to connect to databases
-#  and access secrets
+#
+#  DB backup needs no special Kubernetes permissions: it connects to
+#  Postgres directly with credentials from its own namespace's secret
+#  (see 01-infisical-secret.yaml) and uploads straight to GCS, authenticating
+#  as the VM's own service account via the metadata server — no k8s RBAC
+#  involved in either of those.
+#
+#  The monitoring backup DOES need real permissions: it execs into the
+#  Prometheus/Grafana pods (in the "monitoring" namespace) to tar their
+#  data. That's a Role + RoleBinding scoped to the monitoring namespace,
+#  with a cross-namespace subject — not a ClusterRole with an inline
+#  "namespaces:" filter, which isn't a field the Kubernetes RBAC API
+#  actually has (the previous version of this file used one; it either
+#  gets silently ignored or fails validation on apply, and even ignored
+#  it wouldn't scope anything — a ClusterRole+ClusterRoleBinding is
+#  inherently cluster-wide regardless).
 # ============================================================
 
 apiVersion: v1
@@ -14,67 +28,46 @@ metadata:
     component: backup
 
 ---
-# Role — allows reading secrets and creating ConfigMaps/Jobs
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: Role
 metadata:
-  name: backup-role
+  name: backup-monitoring-exec
+  namespace: monitoring
   labels:
     app: portfolio-mcs
     component: backup
 rules:
-  # Read secrets from portfolio namespace (DB credentials)
+  # List/describe pods and PVCs to find the Prometheus/Grafana pod and
+  # confirm their volumes exist before attempting a backup.
   - apiGroups: [""]
-    resources: ["secrets"]
+    resources: ["pods", "persistentvolumeclaims"]
     verbs: ["get", "list"]
-    resourceNames: ["portfolio-secrets"]
-    namespaces: ["portfolio"]
-  # Read ConfigMaps for backup scripts
-  - apiGroups: [""]
-    resources: ["configmaps"]
-    verbs: ["get", "list", "watch"]
-  # Create/update ConfigMaps for backup metadata
-  - apiGroups: [""]
-    resources: ["configmaps"]
-    verbs: ["create", "update", "patch"]
-  # Read pods for pod exec (backup jobs)
-  - apiGroups: [""]
-    resources: ["pods"]
-    verbs: ["get", "list"]
-  # Pod exec for running backup commands
+  # Exec into those pods to run `tar` against their mounted data.
   - apiGroups: [""]
     resources: ["pods/exec"]
     verbs: ["create"]
-  # Read services for network connectivity
-  - apiGroups: [""]
-    resources: ["services"]
-    verbs: ["get", "list"]
-  # Create jobs programmatically if needed
-  - apiGroups: ["batch"]
-    resources: ["jobs"]
-    verbs: ["create", "get", "list"]
-  # Read monitoring namespace pods (for volume access)
-  - apiGroups: [""]
-    resources: ["pods"]
-    verbs: ["get", "list"]
-    namespaces: ["monitoring"]
-  # View events
-  - apiGroups: [""]
-    resources: ["events"]
-    verbs: ["create", "patch"]
+  # Restore needs to restart Grafana after writing its data back so it
+  # reloads dashboards from the restored SQLite DB.
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get"]
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale"]
+    verbs: ["update", "patch"]
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: RoleBinding
 metadata:
-  name: backup-rolebinding
+  name: backup-monitoring-exec
+  namespace: monitoring
   labels:
     app: portfolio-mcs
     component: backup
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: backup-role
+  kind: Role
+  name: backup-monitoring-exec
 subjects:
   - kind: ServiceAccount
     name: backup-serviceaccount

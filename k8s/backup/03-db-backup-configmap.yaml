@@ -1,0 +1,187 @@
+# ============================================================
+#  ConfigMap — Database Backup Scripts
+#
+#  Everything streams straight to GCS (gs://portfolio-mcs-backups) — no
+#  local file, no PVC. Auth is via the VM's own service account through
+#  the GCE metadata server (this cluster isn't GKE, so there's no native
+#  Workload Identity, and this project's org policy blocks service-account
+#  key creation — `gcloud storage` picks up the metadata-server identity
+#  automatically with zero credentials configured here). Retention is a
+#  14-day GCS lifecycle rule on the bucket itself, not a local cleanup step.
+# ============================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-backup-scripts
+  namespace: backup
+  labels:
+    app: portfolio-mcs
+    component: backup
+data:
+  backup.sh: |
+    #!/bin/bash
+    set -euo pipefail
+
+    BUCKET="gs://portfolio-mcs-backups"
+    TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+    DEST="${BUCKET}/db/portfolio_db_${TIMESTAMP}.sql.gz"
+
+    echo "[$(date)] Starting database backup -> ${DEST}"
+
+    if [ -z "${POSTGRES_USER:-}" ] || [ -z "${POSTGRES_PASSWORD:-}" ] || [ -z "${POSTGRES_DB:-}" ] || [ -z "${POSTGRES_HOST:-}" ]; then
+      echo "ERROR: Missing required environment variables"
+      exit 1
+    fi
+
+    SIZE_FILE=$(mktemp)
+
+    PGPASSWORD="$POSTGRES_PASSWORD" pg_dump \
+      -h "$POSTGRES_HOST" \
+      -p "$POSTGRES_PORT" \
+      -U "$POSTGRES_USER" \
+      -d "$POSTGRES_DB" \
+      --no-password \
+      | gzip \
+      | tee >(wc -c > "$SIZE_FILE") \
+      | gcloud storage cp - "$DEST"
+
+    BACKUP_BYTES=$(cat "$SIZE_FILE")
+    rm -f "$SIZE_FILE"
+
+    echo "[$(date)] ✓ Backup successful: ${DEST} (${BACKUP_BYTES} bytes)"
+
+    # Push success timestamp + byte size to Pushgateway so the Batch Jobs &
+    # Backups dashboard has real data — this CronJob pod exits before
+    # Prometheus's next scrape could otherwise observe it. Non-fatal: a
+    # Pushgateway hiccup must not fail the backup itself.
+    METRICS=$(printf 'backup_last_success_timestamp %s\nbackup_size_bytes %s\n' "$(date +%s)" "$BACKUP_BYTES")
+    wget -q -O /dev/null --header="Content-Type: text/plain" \
+      --post-data="$METRICS" \
+      "http://pushgateway.monitoring.svc.cluster.local:9091/metrics/job/portfolio-db-backup" \
+      || echo "[$(date)] ⚠ Failed to push backup metrics to Pushgateway (non-fatal)"
+
+  restore.sh: |
+    #!/bin/bash
+    set -euo pipefail
+
+    BUCKET="gs://portfolio-mcs-backups"
+    FILENAME="${1:-}"
+
+    if [ -z "$FILENAME" ]; then
+      echo "Usage: restore.sh <portfolio_db_YYYYMMDD_HHMMSS.sql.gz>"
+      echo "See available backups with: gcloud storage ls ${BUCKET}/db/"
+      exit 1
+    fi
+
+    if [ -z "${POSTGRES_USER:-}" ] || [ -z "${POSTGRES_PASSWORD:-}" ] || [ -z "${POSTGRES_DB:-}" ] || [ -z "${POSTGRES_HOST:-}" ]; then
+      echo "ERROR: Missing required environment variables"
+      exit 1
+    fi
+
+    echo "[$(date)] Restoring from ${BUCKET}/db/${FILENAME}"
+
+    gcloud storage cat "${BUCKET}/db/${FILENAME}" \
+      | gunzip -c \
+      | PGPASSWORD="$POSTGRES_PASSWORD" psql \
+          -h "$POSTGRES_HOST" \
+          -p "$POSTGRES_PORT" \
+          -U "$POSTGRES_USER" \
+          -d "$POSTGRES_DB"
+
+    echo "[$(date)] ✓ Restore successful!"
+
+  list-backups.sh: |
+    #!/bin/bash
+    set -euo pipefail
+    BUCKET="gs://portfolio-mcs-backups"
+
+    echo "== Database backups =="
+    gcloud storage ls -l "${BUCKET}/db/" 2>/dev/null || echo "(none yet)"
+
+    echo
+    echo "== Monitoring backups =="
+    gcloud storage ls -l "${BUCKET}/monitoring/" 2>/dev/null || echo "(none yet)"
+
+  # Monitoring data backup script — streams tar output straight to GCS.
+  backup-monitoring.sh: |
+    #!/bin/bash
+    set -euo pipefail
+
+    BUCKET="gs://portfolio-mcs-backups"
+    TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+    TOTAL_BYTES=0
+
+    echo "[$(date)] Starting monitoring data backup..."
+
+    if kubectl get pvc prometheus-pvc -n monitoring &>/dev/null; then
+      PROM_POD=$(kubectl get pod -n monitoring -l app=prometheus -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+      if [ -n "$PROM_POD" ]; then
+        SIZE_FILE=$(mktemp)
+        kubectl exec -n monitoring "$PROM_POD" -- tar czf - -C /prometheus . \
+          | tee >(wc -c > "$SIZE_FILE") \
+          | gcloud storage cp - "${BUCKET}/monitoring/prometheus_${TIMESTAMP}.tar.gz"
+        TOTAL_BYTES=$((TOTAL_BYTES + $(cat "$SIZE_FILE")))
+        rm -f "$SIZE_FILE"
+        echo "[$(date)] ✓ Prometheus backup complete"
+      else
+        echo "[$(date)] ⚠ Prometheus pod not found"
+      fi
+    fi
+
+    if kubectl get pvc grafana-pvc -n monitoring &>/dev/null; then
+      GRAFANA_POD=$(kubectl get pod -n monitoring -l app.kubernetes.io/name=grafana -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+      if [ -n "$GRAFANA_POD" ]; then
+        SIZE_FILE=$(mktemp)
+        kubectl exec -n monitoring "$GRAFANA_POD" -- tar czf - -C /var/lib/grafana . \
+          | tee >(wc -c > "$SIZE_FILE") \
+          | gcloud storage cp - "${BUCKET}/monitoring/grafana_${TIMESTAMP}.tar.gz"
+        TOTAL_BYTES=$((TOTAL_BYTES + $(cat "$SIZE_FILE")))
+        rm -f "$SIZE_FILE"
+        echo "[$(date)] ✓ Grafana backup complete"
+      else
+        echo "[$(date)] ⚠ Grafana pod not found"
+      fi
+    fi
+
+    echo "[$(date)] Monitoring backup complete (${TOTAL_BYTES} bytes total)"
+
+    METRICS=$(printf 'backup_last_success_timestamp %s\nbackup_size_bytes %s\n' "$(date +%s)" "$TOTAL_BYTES")
+    wget -q -O /dev/null --header="Content-Type: text/plain" \
+      --post-data="$METRICS" \
+      "http://pushgateway.monitoring.svc.cluster.local:9091/metrics/job/backup-monitoring-volumes" \
+      || echo "[$(date)] ⚠ Failed to push backup metrics to Pushgateway (non-fatal)"
+
+  restore-monitoring.sh: |
+    #!/bin/bash
+    set -euo pipefail
+
+    BUCKET="gs://portfolio-mcs-backups"
+    BACKUP_TYPE="${1:-}"
+    FILENAME="${2:-}"
+
+    if [ -z "$BACKUP_TYPE" ] || [ -z "$FILENAME" ]; then
+      echo "Usage: restore-monitoring.sh <prometheus|grafana> <filename.tar.gz>"
+      echo "See available backups with: gcloud storage ls ${BUCKET}/monitoring/"
+      exit 1
+    fi
+
+    case "$BACKUP_TYPE" in
+      prometheus)
+        PROM_POD=$(kubectl get pod -n monitoring -l app=prometheus -o jsonpath='{.items[0].metadata.name}')
+        echo "[$(date)] Restoring Prometheus data from ${BUCKET}/monitoring/${FILENAME}"
+        gcloud storage cat "${BUCKET}/monitoring/${FILENAME}" | kubectl exec -n monitoring -i "$PROM_POD" -- tar xzf - -C /prometheus
+        echo "[$(date)] ✓ Prometheus restore complete"
+        ;;
+      grafana)
+        GRAFANA_POD=$(kubectl get pod -n monitoring -l app.kubernetes.io/name=grafana -o jsonpath='{.items[0].metadata.name}')
+        echo "[$(date)] Restoring Grafana data from ${BUCKET}/monitoring/${FILENAME}"
+        gcloud storage cat "${BUCKET}/monitoring/${FILENAME}" | kubectl exec -n monitoring -i "$GRAFANA_POD" -- tar xzf - -C /var/lib/grafana
+        kubectl rollout restart deployment/grafana -n monitoring
+        echo "[$(date)] ✓ Grafana restore complete and restarted"
+        ;;
+      *)
+        echo "ERROR: Invalid backup type: $BACKUP_TYPE (expected prometheus|grafana)"
+        exit 1
+        ;;
+    esac
