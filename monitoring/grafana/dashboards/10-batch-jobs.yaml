@@ -54,7 +54,13 @@ data:
           "id": 10, "type": "stat", "title": "Latest Backup Sizes",
           "gridPos": { "x": 16, "y": 1, "w": 8, "h": 8 },
           "options": { "colorMode": "value", "graphMode": "none", "textMode": "value_and_name" },
-          "fieldConfig": { "defaults": { "unit": "bytes" } },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "color": { "mode": "thresholds" },
+              "thresholds": { "steps": [{ "color": "blue", "value": 0 }] }
+            }
+          },
           "targets": [{
             "expr": "backup_size_bytes",
             "legendFormat": "{{job}}",
