@@ -17,7 +17,7 @@ import type { NextRequest } from 'next/server';
  */
 
 // Paths that are Next.js internals — skip logging
-const SKIP_LOG = /^\/((_next|__nextjs|favicon\.ico|robots\.txt))/;
+const SKIP_LOG = /^\/((_next|__nextjs|favicon\.ico|robots\.txt|healthz))/;
 
 export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;

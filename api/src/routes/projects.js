@@ -33,7 +33,7 @@ const upload = multer({
  */
 router.get('/', async (req, res, next) => {
   try {
-    projectsRequestsTotal.inc();
+    if (req.get('x-portfolio-is-bot') !== '1') projectsRequestsTotal.inc();
     const { rows } = await pool.query(
       `SELECT id, title, description, tech_stack, live_url, repo_url,
               image_mime, featured, order_index, created_at,

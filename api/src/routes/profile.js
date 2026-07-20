@@ -29,7 +29,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 *
  */
 router.get('/', async (req, res, next) => {
   try {
-    profileRequestsTotal.inc();
+    if (req.get('x-portfolio-is-bot') !== '1') profileRequestsTotal.inc();
     const { rows } = await pool.query(
       `SELECT id, name, headline, bio, avatar_mime, resume_mime,
               github_url, linkedin_url, email, hero_tags, updated_at,

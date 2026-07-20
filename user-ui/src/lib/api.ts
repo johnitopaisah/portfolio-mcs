@@ -33,10 +33,15 @@ function serverApi(): string {
 // top of the abort itself, not consume the whole 3s.
 const SSR_FETCH_TIMEOUT_MS = 2000;
 
-async function get(path: string) {
+// isBot is passed in explicitly, computed once by the caller (page.tsx) via
+// next/headers — that import can't live in this module at all, since
+// client components (e.g. HeroSection.tsx) import from `api` too, and
+// next/headers only works in a Server Component.
+async function get(path: string, isBot = false) {
   const res = await fetch(`${serverApi()}${path}`, {
     cache: 'no-store',
     signal: AbortSignal.timeout(SSR_FETCH_TIMEOUT_MS),
+    headers: { 'x-portfolio-is-bot': isBot ? '1' : '0' },
   });
   if (!res.ok) throw new Error(`API ${path} → ${res.status}`);
   return res.json();
@@ -44,8 +49,8 @@ async function get(path: string) {
 
 export const api = {
   // Server-side data fetches — resolved at request time via serverApi()
-  getProfile:        () => get('/api/profile'),
-  getProjects:       () => get('/api/projects'),
+  getProfile:        (isBot?: boolean) => get('/api/profile', isBot),
+  getProjects:       (isBot?: boolean) => get('/api/projects', isBot),
   getSkills:         () => get('/api/skills'),
   getExperiences:    () => get('/api/experiences'),
   getCertifications: () => get('/api/certifications'),

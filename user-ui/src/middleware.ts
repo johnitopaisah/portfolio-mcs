@@ -12,7 +12,7 @@ import type { NextRequest } from 'next/server';
  *    tracked once, not once per page navigation.
  */
 
-const SKIP_LOG = /^\/((_next|__nextjs|favicon\.ico|robots\.txt|sitemap\.xml))/;
+const SKIP_LOG = /^\/((_next|__nextjs|favicon\.ico|robots\.txt|sitemap\.xml|healthz))/;
 
 // Kubernetes hits GET / every 5-15s per pod as a liveness/readiness check —
 // not a real visit. Stopping it here, before pingVisitor() ever fires,
@@ -128,14 +128,26 @@ export async function middleware(request: NextRequest) {
   }
 
   // ── Page request ───────────────────────────────────────────
-  const response = NextResponse.next();
+  // Stamp the bot verdict onto the request that continues to the page
+  // renderer. Server Components (via lib/api.ts's get()) read this back
+  // out and forward it to the API, so counters like profileRequestsTotal
+  // can skip incrementing for the same traffic the visitor beacon below
+  // already excludes — otherwise a crawler loading this page for real
+  // (not a k8s probe, an actual bot hit) would still count as a view,
+  // since by the time the SSR code calls the API, the original
+  // request's User-Agent is gone — it's a fresh server-to-server call.
+  const isBot = isLikelyNonHuman(request);
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-portfolio-is-bot', isBot ? '1' : '0');
+
+  const response = NextResponse.next({ request: { headers: requestHeaders } });
   const ms = Date.now() - start;
   log(request, 200, ms);
 
   // ── Visitor tracking — homepage hits only ──────────────────
   // Only track GET / (the portfolio landing page).
   // All section navigation is client-side and doesn't re-hit the middleware.
-  if (request.method === 'GET' && pathname === '/' && !isLikelyNonHuman(request)) {
+  if (request.method === 'GET' && pathname === '/' && !isBot) {
     let sessionId = request.cookies.get('portfolio-sid')?.value || '';
     const isNewSession = !sessionId;
 

@@ -1,3 +1,4 @@
+import { headers } from 'next/headers';
 import { api } from '@/lib/api';
 import Navbar from '@/components/Navbar';
 import HeroSection from '@/components/HeroSection';
@@ -18,9 +19,14 @@ function unwrap<T>(result: PromiseSettledResult<T>, fallback: T): T {
 }
 
 export default async function HomePage() {
+  // middleware.ts already worked out whether this request looks like a bot;
+  // forward that verdict so profileRequestsTotal/projectsRequestsTotal don't
+  // count crawler traffic as real page views.
+  const isBot = (await headers()).get('x-portfolio-is-bot') === '1';
+
   const results = await Promise.allSettled([
-    api.getProfile(),
-    api.getProjects(),
+    api.getProfile(isBot),
+    api.getProjects(isBot),
     api.getSkills(),
     api.getExperiences(),
     api.getEducation(),
