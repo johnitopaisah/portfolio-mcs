@@ -70,6 +70,13 @@ const contactSubmissionsTotal = new client.Counter({
   labelNames: ['status'],
   registers: [register],
 });
+// Pre-initialize every known status to 0. Without this, a label combination
+// doesn't exist in Prometheus until its first .inc() call — which means
+// increase()/rate() can never see that very first event (there's no
+// preceding 0 sample to measure a jump from), permanently under-counting
+// it by one on every fresh deploy. Dashboards would show "No data" or a
+// silently-missing first submission until a second one came in.
+['success', 'error', 'rate_limited'].forEach((status) => contactSubmissionsTotal.inc({ status }, 0));
 
 const authAttemptsTotal = new client.Counter({
   name: 'portfolio_auth_attempts_total',
@@ -77,6 +84,7 @@ const authAttemptsTotal = new client.Counter({
   labelNames: ['result'],
   registers: [register],
 });
+['success', 'failure'].forEach((result) => authAttemptsTotal.inc({ result }, 0));
 
 const passwordResetRequestsTotal = new client.Counter({
   name: 'portfolio_password_reset_requests_total',
