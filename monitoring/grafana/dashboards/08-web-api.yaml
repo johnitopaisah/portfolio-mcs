@@ -576,7 +576,8 @@ data:
         {
           "id": 21,
           "type": "timeseries",
-          "title": "Content CRUD Operations — by Type",
+          "title": "Content Created — by Type (24h, DB-backed)",
+          "description": "Backed by projects/skills/certifications/experiences/education (postgres-exporter custom query), not a per-pod Prometheus counter — no namespace/pod selector applies since this reads the shared database directly. Covers creation only; the content tables have no reliable updated_at/deletion-audit trail to report updates or deletes.",
           "gridPos": { "x": 16, "y": 42, "w": 8, "h": 6 },
           "fieldConfig": {
             "defaults": {
@@ -588,29 +589,18 @@ data:
           "options": {
             "legend": { "displayMode": "table", "placement": "bottom" }
           },
-          "targets": [
-            {
-              "datasource": { "uid": "$datasource" },
-              "expr": "sum by (type) (rate(portfolio_content_created_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m])) or vector(0)",
-              "legendFormat": "created {{type}}"
-            },
-            {
-              "datasource": { "uid": "$datasource" },
-              "expr": "sum by (type) (rate(portfolio_content_updated_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m])) or vector(0)",
-              "legendFormat": "updated {{type}}"
-            },
-            {
-              "datasource": { "uid": "$datasource" },
-              "expr": "sum by (type) (rate(portfolio_content_deleted_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m])) or vector(0)",
-              "legendFormat": "deleted {{type}}"
-            }
-          ]
+          "targets": [{
+            "datasource": { "uid": "$datasource" },
+            "expr": "pg_portfolio_content_created_recent_cnt or vector(0)",
+            "legendFormat": "created {{type}}"
+          }]
         },
 
         {
           "id": 22,
           "type": "timeseries",
-          "title": "Referee — Contact Requests & Consent Responses",
+          "title": "Referee — Requests by Status (24h, DB-backed)",
+          "description": "Backed by referee_contact_requests (postgres-exporter custom query), not a per-pod Prometheus counter — no namespace/pod selector applies. The status label spans the full lifecycle (submitted/approved/rejected/consent_requested/consent_given/consent_denied/fulfilled/declined/expired), combining what were previously two separate counters.",
           "gridPos": { "x": 0, "y": 48, "w": 12, "h": 6 },
           "fieldConfig": {
             "defaults": {
@@ -622,18 +612,11 @@ data:
           "options": {
             "legend": { "displayMode": "table", "placement": "bottom" }
           },
-          "targets": [
-            {
-              "datasource": { "uid": "$datasource" },
-              "expr": "sum by (status) (rate(portfolio_referee_contact_requests_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m])) or vector(0)",
-              "legendFormat": "contact {{status}}"
-            },
-            {
-              "datasource": { "uid": "$datasource" },
-              "expr": "sum by (decision) (rate(portfolio_referee_consent_responses_total{job=\"portfolio-api\", namespace=~\"$namespace\", pod=~\"$pod\"}[5m])) or vector(0)",
-              "legendFormat": "consent {{decision}}"
-            }
-          ]
+          "targets": [{
+            "datasource": { "uid": "$datasource" },
+            "expr": "pg_portfolio_referee_requests_recent_cnt or vector(0)",
+            "legendFormat": "{{status}}"
+          }]
         },
 
         {

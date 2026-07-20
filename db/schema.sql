@@ -136,6 +136,18 @@ CREATE TABLE IF NOT EXISTS admin_user (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- auth_attempts (permanent login audit log — brute-force detection)
+CREATE TABLE IF NOT EXISTS auth_attempts (
+  id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  attempted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  username     TEXT        NOT NULL,
+  result       TEXT        NOT NULL CHECK (result IN ('success', 'failure')),
+  ip_address   TEXT,
+  user_agent   TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_auth_attempts_ip_time       ON auth_attempts (ip_address, attempted_at);
+CREATE INDEX IF NOT EXISTS idx_auth_attempts_username_time ON auth_attempts (username, attempted_at);
+
 -- password_reset_tokens
 CREATE TABLE IF NOT EXISTS password_reset_tokens (
   id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -358,6 +370,22 @@ CREATE INDEX IF NOT EXISTS idx_user_saved_jobs_user_id ON user_saved_jobs (user_
 CREATE INDEX IF NOT EXISTS idx_user_saved_jobs_job_id ON user_saved_jobs (job_id);
 
 CREATE INDEX IF NOT EXISTS idx_ingestion_logs_source_api ON job_ingestion_logs (source_api, started_at DESC);
+
+-- llm_requests_log — permanent AI scoring call audit (brute-force-style
+-- durability for Prometheus's llm_requests_total/llm_estimated_cost_usd_total,
+-- which reset on every API restart and only retain 30 days)
+CREATE TABLE IF NOT EXISTS llm_requests_log (
+  id                 UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+  provider           TEXT          NOT NULL,
+  status             TEXT          NOT NULL CHECK (status IN ('success', 'failed')),
+  prompt_tokens      INT,
+  completion_tokens  INT,
+  estimated_cost_usd NUMERIC(12,6),
+  duration_ms        INT,
+  error_message      TEXT,
+  requested_at       TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_llm_requests_log_provider_time ON llm_requests_log (provider, requested_at);
 
 -- ============================================================
 --  JOB SYSTEM — Triggers

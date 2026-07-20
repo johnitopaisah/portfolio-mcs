@@ -106,11 +106,12 @@ data:
         },
         {
           "id": 10, "type": "barchart", "title": "Content Created by Type (all time)",
+          "description": "Backed by direct counts against projects/skills/certifications/experiences/education (postgres-exporter custom query), not a Prometheus counter — this reflects what currently exists in the DB rather than an in-memory tally that resets on pod restart.",
           "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
           "fieldConfig": { "defaults": { "unit": "none" } },
           "options": { "orientation": "horizontal" },
           "targets": [{
-            "expr": "sum by (type) (portfolio_content_created_total) or vector(0)",
+            "expr": "pg_portfolio_content_created_alltime_cnt or vector(0)",
             "legendFormat": "{{type}}",
             "instant": true
           }]
@@ -124,6 +125,60 @@ data:
             { "expr": "sum(rate(portfolio_projects_requests_total[5m])) * 60", "legendFormat": "Projects req/min" },
             { "expr": "sum(rate(portfolio_contact_submissions_total[5m])) * 60 or vector(0)", "legendFormat": "Contact submissions/min" }
           ]
+        },
+        {
+          "id": 12, "type": "row", "title": "Security — Brute Force Detection",
+          "description": "Backed by the auth_attempts table (db/migrations/028_auth_attempts.sql), not the Prometheus counter above — this survives API restarts and isn't bounded by Prometheus's 30-day retention.",
+          "gridPos": { "x": 0, "y": 28, "w": 24, "h": 1 }
+        },
+        {
+          "id": 13, "type": "stat", "title": "Failed Logins (15m)",
+          "gridPos": { "x": 0, "y": 29, "w": 8, "h": 6 },
+          "options": { "colorMode": "value" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 3 }, { "color": "red", "value": 6 }] }
+            }
+          },
+          "targets": [{ "expr": "pg_portfolio_auth_failures_recent_failures_15m or vector(0)" }]
+        },
+        {
+          "id": 14, "type": "stat", "title": "Failed Logins (1h)",
+          "gridPos": { "x": 8, "y": 29, "w": 8, "h": 6 },
+          "options": { "colorMode": "value" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 5 }, { "color": "red", "value": 15 }] }
+            }
+          },
+          "targets": [{ "expr": "pg_portfolio_auth_failures_recent_failures_1h or vector(0)" }]
+        },
+        {
+          "id": 15, "type": "stat", "title": "Worst IP — Max Failures (15m)",
+          "description": "The core brute-force signal — one legitimate user might mistype a password once or twice, but several failures from a single IP in 15 minutes is a strong automated-attack indicator.",
+          "gridPos": { "x": 16, "y": 29, "w": 8, "h": 6 },
+          "options": { "colorMode": "background" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 3 }, { "color": "red", "value": 5 }] }
+            }
+          },
+          "targets": [{ "expr": "pg_portfolio_auth_worst_ip_recent_max_failures_per_ip_15m or vector(0)" }]
+        },
+        {
+          "id": 16, "type": "table", "title": "Top Failing IPs (24h)",
+          "gridPos": { "x": 0, "y": 35, "w": 24, "h": 8 },
+          "options": { "sortBy": [{ "displayName": "Value", "desc": true }] },
+          "fieldConfig": { "defaults": { "unit": "short" } },
+          "targets": [{
+            "expr": "pg_portfolio_auth_top_failing_ips_failures",
+            "legendFormat": "{{ip_address}}",
+            "instant": true,
+            "format": "table"
+          }]
         }
       ],
       "schemaVersion": 38,

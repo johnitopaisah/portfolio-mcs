@@ -1,0 +1,234 @@
+# ============================================================
+#  ConfigMap — postgres_exporter custom queries
+#  Exposes brute-force-relevant signals from the auth_attempts audit
+#  table (db/migrations/028_auth_attempts.sql) as Prometheus metrics.
+#  Deliberately aggregate, not per-IP-as-label for the "how many failures
+#  right now" queries — an attacker rotating through many IPs would
+#  otherwise blow up label cardinality. The one per-IP breakdown we do
+#  expose is capped with LIMIT 10, same "top N" pattern used elsewhere
+#  in these dashboards.
+# ============================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-exporter-queries
+  namespace: monitoring
+  labels:
+    app: postgres-exporter
+    app.kubernetes.io/name: postgres-exporter
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/component: exporter
+data:
+  queries.yaml: |
+    portfolio_auth_failures_recent:
+      query: |
+        SELECT
+          COUNT(*) FILTER (WHERE attempted_at > now() - interval '15 minutes') AS failures_15m,
+          COUNT(*) FILTER (WHERE attempted_at > now() - interval '1 hour')     AS failures_1h,
+          COUNT(*) FILTER (WHERE attempted_at > now() - interval '24 hours')  AS failures_24h
+        FROM auth_attempts
+        WHERE result = 'failure'
+      metrics:
+        - failures_15m:
+            usage: "GAUGE"
+            description: "Failed login attempts in the last 15 minutes"
+        - failures_1h:
+            usage: "GAUGE"
+            description: "Failed login attempts in the last hour"
+        - failures_24h:
+            usage: "GAUGE"
+            description: "Failed login attempts in the last 24 hours"
+
+    portfolio_auth_worst_ip_recent:
+      query: |
+        SELECT COALESCE(MAX(cnt), 0) AS max_failures_per_ip_15m
+        FROM (
+          SELECT ip_address, COUNT(*) AS cnt
+          FROM auth_attempts
+          WHERE result = 'failure' AND attempted_at > now() - interval '15 minutes'
+          GROUP BY ip_address
+        ) per_ip
+      metrics:
+        - max_failures_per_ip_15m:
+            usage: "GAUGE"
+            description: "Highest number of failed attempts from a single IP in the last 15 minutes — the core brute-force signal"
+
+    portfolio_auth_top_failing_ips:
+      query: |
+        SELECT ip_address, COUNT(*) AS failures
+        FROM auth_attempts
+        WHERE result = 'failure'
+          AND attempted_at > now() - interval '24 hours'
+          AND ip_address IS NOT NULL
+        GROUP BY ip_address
+        ORDER BY failures DESC
+        LIMIT 10
+      metrics:
+        - ip_address:
+            usage: "LABEL"
+            description: "Source IP address"
+        - failures:
+            usage: "GAUGE"
+            description: "Failed login attempts from this IP in the last 24 hours"
+
+    # ── Job ingestion pipeline — sidesteps the still-broken Pushgateway
+    #    counters (jobs_ingested_total/jobs_new_total/jobs_duplicate_total
+    #    never fire) by reading job_ingestion_logs directly, which
+    #    scraper/src/pipeline.js writes unconditionally on every run.
+    portfolio_jobs_ingested_recent:
+      query: |
+        SELECT
+          COALESCE(SUM(jobs_new), 0)        AS new_jobs_24h,
+          COALESCE(SUM(jobs_duplicates), 0) AS duplicates_24h,
+          COALESCE(SUM(jobs_fetched), 0)    AS fetched_24h
+        FROM job_ingestion_logs
+        WHERE started_at > now() - interval '24 hours'
+      metrics:
+        - new_jobs_24h:
+            usage: "GAUGE"
+            description: "New jobs ingested in the last 24 hours"
+        - duplicates_24h:
+            usage: "GAUGE"
+            description: "Duplicate jobs detected in the last 24 hours"
+        - fetched_24h:
+            usage: "GAUGE"
+            description: "Total jobs fetched (new + duplicate) in the last 24 hours"
+
+    portfolio_jobs_ingested_by_source:
+      query: |
+        SELECT source_api, COALESCE(SUM(jobs_new), 0) AS new_jobs
+        FROM job_ingestion_logs
+        WHERE started_at > now() - interval '24 hours'
+        GROUP BY source_api
+      metrics:
+        - source_api:
+            usage: "LABEL"
+            description: "Job board / source API"
+        - new_jobs:
+            usage: "GAUGE"
+            description: "New jobs ingested from this source in the last 24 hours"
+
+    # ── AI filtering decision mix — reads the jobs table directly instead
+    #    of the Pushgateway-only jobs_filtered_total counter.
+    portfolio_ai_decision_mix_recent:
+      query: |
+        SELECT ai_decision, COUNT(*) AS cnt
+        FROM jobs
+        WHERE created_at > now() - interval '24 hours' AND ai_decision IS NOT NULL
+        GROUP BY ai_decision
+      metrics:
+        - ai_decision:
+            usage: "LABEL"
+            description: "KEEP | REVIEW | DROP"
+        - cnt:
+            usage: "GAUGE"
+            description: "Jobs given this AI decision in the last 24 hours"
+
+    # ── Referee contact requests — already durably logged with a full
+    #    status lifecycle (submitted -> ... -> fulfilled/declined/expired).
+    portfolio_referee_requests_recent:
+      query: |
+        SELECT status, COUNT(*) AS cnt
+        FROM referee_contact_requests
+        WHERE created_at > now() - interval '24 hours'
+        GROUP BY status
+      metrics:
+        - status:
+            usage: "LABEL"
+            description: "Request lifecycle status"
+        - cnt:
+            usage: "GAUGE"
+            description: "Referee contact requests in this status in the last 24 hours"
+
+    # ── Notifications sent — reads notification_log instead of relying on
+    #    the Pushgateway-only job_alerts_sent_total counter.
+    portfolio_alerts_sent_recent:
+      query: |
+        SELECT channel, COUNT(*) AS cnt
+        FROM notification_log
+        WHERE sent_at > now() - interval '24 hours'
+        GROUP BY channel
+      metrics:
+        - channel:
+            usage: "LABEL"
+            description: "email | telegram"
+        - cnt:
+            usage: "GAUGE"
+            description: "Notifications sent via this channel in the last 24 hours"
+
+    # ── Content CRUD — the content tables already have created_at; no new
+    #    table needed to answer "how many X were created recently".
+    portfolio_content_created_recent:
+      query: |
+        SELECT 'project' AS type, COUNT(*) AS cnt FROM projects WHERE created_at > now() - interval '24 hours'
+        UNION ALL
+        SELECT 'skill', COUNT(*) FROM skills WHERE created_at > now() - interval '24 hours'
+        UNION ALL
+        SELECT 'certification', COUNT(*) FROM certifications WHERE created_at > now() - interval '24 hours'
+        UNION ALL
+        SELECT 'experience', COUNT(*) FROM experiences WHERE created_at > now() - interval '24 hours'
+        UNION ALL
+        SELECT 'education', COUNT(*) FROM education WHERE created_at > now() - interval '24 hours'
+      metrics:
+        - type:
+            usage: "LABEL"
+            description: "Content type"
+        - cnt:
+            usage: "GAUGE"
+            description: "Items of this type created in the last 24 hours"
+
+    portfolio_content_created_alltime:
+      query: |
+        SELECT 'project' AS type, COUNT(*) AS cnt FROM projects
+        UNION ALL
+        SELECT 'skill', COUNT(*) FROM skills
+        UNION ALL
+        SELECT 'certification', COUNT(*) FROM certifications
+        UNION ALL
+        SELECT 'experience', COUNT(*) FROM experiences
+        UNION ALL
+        SELECT 'education', COUNT(*) FROM education
+      metrics:
+        - type:
+            usage: "LABEL"
+            description: "Content type"
+        - cnt:
+            usage: "GAUGE"
+            description: "Total items of this type that currently exist"
+
+    # ── LLM / AI spend — the only genuine gap found in the audit: no DB
+    #    record existed at all before llm_requests_log. Exposes both an
+    #    unbounded all-time total (impossible via Prometheus, which only
+    #    retains 30 days) and a 30-day rolling total for direct comparison
+    #    against the existing Pushgateway-based panels.
+    portfolio_llm_spend_alltime:
+      query: |
+        SELECT provider,
+               COALESCE(SUM(estimated_cost_usd), 0) AS total_cost_usd,
+               COUNT(*)                             AS total_requests
+        FROM llm_requests_log
+        GROUP BY provider
+      metrics:
+        - provider:
+            usage: "LABEL"
+            description: "claude | groq | gemini"
+        - total_cost_usd:
+            usage: "GAUGE"
+            description: "All-time estimated spend, unbounded by Prometheus's 30-day retention"
+        - total_requests:
+            usage: "GAUGE"
+            description: "All-time LLM scoring requests for this provider"
+
+    portfolio_llm_spend_30d:
+      query: |
+        SELECT provider, COALESCE(SUM(estimated_cost_usd), 0) AS cost_30d
+        FROM llm_requests_log
+        WHERE requested_at > now() - interval '30 days'
+        GROUP BY provider
+      metrics:
+        - provider:
+            usage: "LABEL"
+            description: "claude | groq | gemini"
+        - cost_30d:
+            usage: "GAUGE"
+            description: "Estimated spend in the last 30 days"

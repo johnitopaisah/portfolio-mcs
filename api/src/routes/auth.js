@@ -65,6 +65,23 @@ router.post('/login', async (req, res, next) => {
     if (!username || !password)
       return res.status(400).json({ error: 'username and password are required' });
 
+    // Real IP — Cloudflare CF-Connecting-IP is most reliable (same extraction
+    // pattern as visitors.js). Logged to auth_attempts, not just the
+    // Prometheus counter, so brute-force patterns are queryable permanently
+    // rather than resetting on every API restart / aging out after 30 days.
+    const ip =
+      req.headers['cf-connecting-ip'] ||
+      req.headers['x-real-ip']        ||
+      (req.headers['x-forwarded-for'] || '').split(',')[0].trim() ||
+      req.ip || null;
+    const userAgent = req.headers['user-agent'] || null;
+
+    const logAttempt = (result) =>
+      pool.query(
+        'INSERT INTO auth_attempts (username, result, ip_address, user_agent) VALUES ($1, $2, $3, $4)',
+        [username, result, ip, userAgent]
+      ).catch((err) => console.error('[auth] failed to log auth_attempts row', err));
+
     const { rows } = await pool.query(
       'SELECT id, username, password_hash FROM admin_user WHERE username = $1',
       [username]
@@ -72,10 +89,12 @@ router.post('/login', async (req, res, next) => {
     const user = rows[0];
     if (!user || !(await bcrypt.compare(password, user.password_hash))) {
       authAttemptsTotal.inc({ result: 'failure' });
+      logAttempt('failure');
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     authAttemptsTotal.inc({ result: 'success' });
+    logAttempt('success');
 
     const token = jwt.sign(
       { id: user.id, username: user.username },

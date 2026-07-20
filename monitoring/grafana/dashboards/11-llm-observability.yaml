@@ -121,6 +121,44 @@ data:
             "instant": true,
             "format": "table"
           }]
+        },
+        {
+          "id": 10, "type": "row", "title": "Permanent Cost History (database-backed)",
+          "description": "Backed by llm_requests_log (db/migrations/029_llm_requests_log.sql), not Prometheus — this survives API restarts and isn't bounded by Prometheus's 30-day retention. Compare the 30d panel here against \"Cumulative Estimated Spend (30d)\" above; they should roughly agree.",
+          "gridPos": { "x": 0, "y": 30, "w": 24, "h": 1 }
+        },
+        {
+          "id": 11, "type": "stat", "title": "All-Time Estimated Spend, by Provider",
+          "gridPos": { "x": 0, "y": 31, "w": 8, "h": 6 },
+          "options": { "colorMode": "value", "textMode": "value_and_name" },
+          "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 4 } },
+          "targets": [{
+            "expr": "pg_portfolio_llm_spend_alltime_total_cost_usd or vector(0)",
+            "legendFormat": "{{provider}}",
+            "instant": true
+          }]
+        },
+        {
+          "id": 12, "type": "stat", "title": "All-Time Requests, by Provider",
+          "gridPos": { "x": 8, "y": 31, "w": 8, "h": 6 },
+          "options": { "colorMode": "value", "textMode": "value_and_name" },
+          "fieldConfig": { "defaults": { "unit": "short" } },
+          "targets": [{
+            "expr": "pg_portfolio_llm_spend_alltime_total_requests or vector(0)",
+            "legendFormat": "{{provider}}",
+            "instant": true
+          }]
+        },
+        {
+          "id": 13, "type": "stat", "title": "Estimated Spend (30d, DB-backed)",
+          "gridPos": { "x": 16, "y": 31, "w": 8, "h": 6 },
+          "options": { "colorMode": "value", "textMode": "value_and_name" },
+          "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 4 } },
+          "targets": [{
+            "expr": "pg_portfolio_llm_spend_30d_cost_30d or vector(0)",
+            "legendFormat": "{{provider}}",
+            "instant": true
+          }]
         }
       ],
       "schemaVersion": 38,

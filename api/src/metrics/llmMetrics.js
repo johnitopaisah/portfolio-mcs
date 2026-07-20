@@ -63,4 +63,7 @@ module.exports = {
   llmTokensTotal,
   llmEstimatedCostUsdTotal,
   recordLLMUsage,
+  // Exported so aiFilteringService.js's DB audit log (llm_requests_log) can
+  // compute the same cost estimate without duplicating the pricing table.
+  PRICING_PER_1M_TOKENS,
 };

@@ -14,7 +14,7 @@ data:
     {
       "uid": "portfolio-job-pipeline",
       "title": "Job Pipeline",
-      "description": "End-to-end job aggregation system: scraper/ discovery+dedup by source platform, AI filtering decisions, relevance scoring, and alert delivery. All series arrive via the shared Pushgateway (scraper and jobWorker.js both run as short-lived CronJobs).",
+      "description": "End-to-end job aggregation system: scraper/ discovery+dedup by source platform, AI filtering decisions, relevance scoring, and alert delivery. Timing/histogram panels arrive via the shared Pushgateway (scraper and jobWorker.js both run as short-lived CronJobs); the ingestion/decision/alert-count panels read job_ingestion_logs, jobs, and notification_log directly via postgres-exporter custom queries — the Pushgateway counters for those never fired correctly, this sidesteps that entirely.",
       "tags": ["portfolio-mcs", "jobs", "ai", "pipeline"],
       "timezone": "browser",
       "refresh": "5m",
@@ -25,7 +25,7 @@ data:
           "gridPos": { "x": 0, "y": 0, "w": 6, "h": 6 },
           "options": { "colorMode": "value", "graphMode": "area" },
           "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "fixed", "fixedColor": "green" } } },
-          "targets": [{ "expr": "sum(increase(jobs_new_total[24h]))" }]
+          "targets": [{ "expr": "pg_portfolio_jobs_ingested_recent_new_jobs_24h" }]
         },
         {
           "id": 2, "type": "stat", "title": "Duplicate Rate (24h)",
@@ -38,7 +38,7 @@ data:
             }
           },
           "targets": [{
-            "expr": "sum(increase(jobs_duplicate_total[24h])) / (sum(increase(jobs_ingested_total[24h])) + 1)"
+            "expr": "pg_portfolio_jobs_ingested_recent_duplicates_24h / (pg_portfolio_jobs_ingested_recent_fetched_24h + 1)"
           }]
         },
         {
@@ -67,8 +67,8 @@ data:
           "gridPos": { "x": 0, "y": 6, "w": 8, "h": 8 },
           "options": { "pieType": "donut", "legend": { "displayMode": "table", "placement": "right" } },
           "targets": [{
-            "expr": "sum by (provider) (increase(jobs_ingested_total[24h]))",
-            "legendFormat": "{{provider}}",
+            "expr": "pg_portfolio_jobs_ingested_by_source_new_jobs or vector(0)",
+            "legendFormat": "{{source_api}}",
             "instant": true
           }]
         },
@@ -77,8 +77,8 @@ data:
           "gridPos": { "x": 8, "y": 6, "w": 8, "h": 8 },
           "options": { "pieType": "donut", "legend": { "displayMode": "table", "placement": "right" } },
           "targets": [{
-            "expr": "sum by (decision) (increase(jobs_filtered_total[24h]))",
-            "legendFormat": "{{decision}}",
+            "expr": "pg_portfolio_ai_decision_mix_recent_cnt or vector(0)",
+            "legendFormat": "{{ai_decision}}",
             "instant": true
           }]
         },
@@ -87,7 +87,7 @@ data:
           "gridPos": { "x": 16, "y": 6, "w": 8, "h": 8 },
           "fieldConfig": { "defaults": { "unit": "short" } },
           "targets": [{
-            "expr": "sum by (channel) (increase(job_alerts_sent_total[24h]))",
+            "expr": "pg_portfolio_alerts_sent_recent_cnt or vector(0)",
             "legendFormat": "{{channel}}",
             "instant": true
           }]

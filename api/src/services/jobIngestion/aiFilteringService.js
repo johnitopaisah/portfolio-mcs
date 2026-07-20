@@ -14,6 +14,27 @@ const pool = require('../../db/client');
 const jobMetrics = require('../../metrics/jobMetrics');
 const llmMetrics = require('../../metrics/llmMetrics');
 
+// Permanent audit log for llm_requests_log (db/migrations/029_llm_requests_log.sql)
+// — the Prometheus counters above reset on every API restart and only keep
+// 30 days; this is the durable record for cost history. Fire-and-forget,
+// same pattern as auth_attempts: a logging hiccup must never fail a real
+// job-scoring call.
+function estimateLlmCost(provider, promptTokens, completionTokens) {
+  const rates = llmMetrics.PRICING_PER_1M_TOKENS[provider];
+  if (!rates || promptTokens == null) return null;
+  return (promptTokens / 1e6) * rates.prompt + (completionTokens / 1e6) * rates.completion;
+}
+
+function logLlmRequest({ provider, status, promptTokens = null, completionTokens = null, durationMs, errorMessage = null }) {
+  const cost = estimateLlmCost(provider, promptTokens, completionTokens);
+  pool.query(
+    `INSERT INTO llm_requests_log
+       (provider, status, prompt_tokens, completion_tokens, estimated_cost_usd, duration_ms, error_message)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [provider, status, promptTokens, completionTokens, cost, durationMs, errorMessage]
+  ).catch((err) => console.error('[aiFilteringService] failed to log llm_requests_log row', err));
+}
+
 // ── Profile cache ─────────────────────────────────────────────
 let _profileCache = null;
 
@@ -339,6 +360,7 @@ async function scoreWithClaude(job, profile) {
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
 
   const t0 = Date.now();
+  let promptTokens = null, completionTokens = null, status = 'failed', errorMessage = null;
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -357,19 +379,22 @@ async function scoreWithClaude(job, profile) {
     }
 
     const data = await response.json();
-    llmMetrics.recordLLMUsage('claude', {
-      promptTokens: data.usage?.input_tokens || 0,
-      completionTokens: data.usage?.output_tokens || 0,
-    });
+    promptTokens = data.usage?.input_tokens || 0;
+    completionTokens = data.usage?.output_tokens || 0;
+    llmMetrics.recordLLMUsage('claude', { promptTokens, completionTokens });
     llmMetrics.llmRequestsTotal.inc({ provider: 'claude', status: 'success' });
+    status = 'success';
 
     const result = parseLLMResponse(data.content?.[0]?.text || '');
     return { ...result, _engine: 'claude-haiku-4-5' };
   } catch (err) {
     llmMetrics.llmRequestsTotal.inc({ provider: 'claude', status: 'failed' });
+    errorMessage = err.message;
     throw err;
   } finally {
-    llmMetrics.llmRequestDurationSeconds.observe({ provider: 'claude' }, (Date.now() - t0) / 1000);
+    const durationMs = Date.now() - t0;
+    llmMetrics.llmRequestDurationSeconds.observe({ provider: 'claude' }, durationMs / 1000);
+    logLlmRequest({ provider: 'claude', status, promptTokens, completionTokens, durationMs, errorMessage });
   }
 }
 
@@ -378,6 +403,7 @@ async function scoreWithGroq(job, profile) {
   if (!apiKey) throw new Error('GROQ_API_KEY not set');
 
   const t0 = Date.now();
+  let promptTokens = null, completionTokens = null, status = 'failed', errorMessage = null;
   try {
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -405,19 +431,22 @@ async function scoreWithGroq(job, profile) {
     }
 
     const data = await response.json();
-    llmMetrics.recordLLMUsage('groq', {
-      promptTokens: data.usage?.prompt_tokens || 0,
-      completionTokens: data.usage?.completion_tokens || 0,
-    });
+    promptTokens = data.usage?.prompt_tokens || 0;
+    completionTokens = data.usage?.completion_tokens || 0;
+    llmMetrics.recordLLMUsage('groq', { promptTokens, completionTokens });
     llmMetrics.llmRequestsTotal.inc({ provider: 'groq', status: 'success' });
+    status = 'success';
 
     const result = parseLLMResponse(data.choices?.[0]?.message?.content || '');
     return { ...result, _engine: 'groq/llama-3.3-70b' };
   } catch (err) {
     llmMetrics.llmRequestsTotal.inc({ provider: 'groq', status: 'failed' });
+    errorMessage = err.message;
     throw err;
   } finally {
-    llmMetrics.llmRequestDurationSeconds.observe({ provider: 'groq' }, (Date.now() - t0) / 1000);
+    const durationMs = Date.now() - t0;
+    llmMetrics.llmRequestDurationSeconds.observe({ provider: 'groq' }, durationMs / 1000);
+    logLlmRequest({ provider: 'groq', status, promptTokens, completionTokens, durationMs, errorMessage });
   }
 }
 
@@ -426,6 +455,7 @@ async function scoreWithGemini(job, profile) {
   if (!apiKey) throw new Error('GEMINI_API_KEY not set');
 
   const t0 = Date.now();
+  let promptTokens = null, completionTokens = null, status = 'failed', errorMessage = null;
   try {
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
@@ -446,20 +476,23 @@ async function scoreWithGemini(job, profile) {
     }
 
     const data = await response.json();
-    llmMetrics.recordLLMUsage('gemini', {
-      promptTokens: data.usageMetadata?.promptTokenCount || 0,
-      completionTokens: data.usageMetadata?.candidatesTokenCount || 0,
-    });
+    promptTokens = data.usageMetadata?.promptTokenCount || 0;
+    completionTokens = data.usageMetadata?.candidatesTokenCount || 0;
+    llmMetrics.recordLLMUsage('gemini', { promptTokens, completionTokens });
     llmMetrics.llmRequestsTotal.inc({ provider: 'gemini', status: 'success' });
+    status = 'success';
 
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
     const result = parseLLMResponse(text);
     return { ...result, _engine: 'gemini-2.0-flash' };
   } catch (err) {
     llmMetrics.llmRequestsTotal.inc({ provider: 'gemini', status: 'failed' });
+    errorMessage = err.message;
     throw err;
   } finally {
-    llmMetrics.llmRequestDurationSeconds.observe({ provider: 'gemini' }, (Date.now() - t0) / 1000);
+    const durationMs = Date.now() - t0;
+    llmMetrics.llmRequestDurationSeconds.observe({ provider: 'gemini' }, durationMs / 1000);
+    logLlmRequest({ provider: 'gemini', status, promptTokens, completionTokens, durationMs, errorMessage });
   }
 }
 
