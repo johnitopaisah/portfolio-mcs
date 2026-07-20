@@ -39,7 +39,7 @@ data:
           "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
           "options": { "colorMode": "value" },
           "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "blue", "value": 0 }] } } },
-          "targets": [{ "expr": "sum(portfolio_auth_attempts_total{result=\"success\"})", "legendFormat": "Successful logins" }]
+          "targets": [{ "expr": "sum(portfolio_auth_attempts_total{result=\"success\"}) or vector(0)", "legendFormat": "Successful logins" }]
         },
         {
           "id": 4, "type": "stat", "title": "Auth Failures (24h)",
