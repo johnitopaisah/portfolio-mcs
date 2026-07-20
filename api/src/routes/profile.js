@@ -2,6 +2,7 @@ const router = require('express').Router();
 const pool   = require('../db/client');
 const { requireAuth } = require('../middleware/auth');
 const multer = require('multer');
+const { profileRequestsTotal } = require('../metrics');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
@@ -28,6 +29,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 *
  */
 router.get('/', async (req, res, next) => {
   try {
+    profileRequestsTotal.inc();
     const { rows } = await pool.query(
       `SELECT id, name, headline, bio, avatar_mime, resume_mime,
               github_url, linkedin_url, email, hero_tags, updated_at,

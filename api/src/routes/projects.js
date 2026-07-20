@@ -2,6 +2,7 @@ const router = require('express').Router();
 const pool   = require('../db/client');
 const { requireAuth } = require('../middleware/auth');
 const multer = require('multer');
+const { projectsRequestsTotal } = require('../metrics');
 
 // Single multer instance for ALL upload routes in this file.
 // Using .fields() instead of .array() — more reliable in multer 1.4.x
@@ -32,6 +33,7 @@ const upload = multer({
  */
 router.get('/', async (req, res, next) => {
   try {
+    projectsRequestsTotal.inc();
     const { rows } = await pool.query(
       `SELECT id, title, description, tech_stack, live_url, repo_url,
               image_mime, featured, order_index, created_at,
