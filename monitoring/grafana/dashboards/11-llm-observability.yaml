@@ -133,7 +133,7 @@ data:
           "options": { "colorMode": "value", "textMode": "value_and_name" },
           "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 4 } },
           "targets": [{
-            "expr": "pg_portfolio_llm_spend_alltime_total_cost_usd or vector(0)",
+            "expr": "portfolio_llm_spend_alltime_total_cost_usd or vector(0)",
             "legendFormat": "{{provider}}",
             "instant": true
           }]
@@ -144,7 +144,7 @@ data:
           "options": { "colorMode": "value", "textMode": "value_and_name" },
           "fieldConfig": { "defaults": { "unit": "short" } },
           "targets": [{
-            "expr": "pg_portfolio_llm_spend_alltime_total_requests or vector(0)",
+            "expr": "portfolio_llm_spend_alltime_total_requests or vector(0)",
             "legendFormat": "{{provider}}",
             "instant": true
           }]
@@ -155,7 +155,7 @@ data:
           "options": { "colorMode": "value", "textMode": "value_and_name" },
           "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 4 } },
           "targets": [{
-            "expr": "pg_portfolio_llm_spend_30d_cost_30d or vector(0)",
+            "expr": "portfolio_llm_spend_30d_cost_30d or vector(0)",
             "legendFormat": "{{provider}}",
             "instant": true
           }]

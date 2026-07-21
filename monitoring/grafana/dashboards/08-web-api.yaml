@@ -591,7 +591,7 @@ data:
           },
           "targets": [{
             "datasource": { "uid": "$datasource" },
-            "expr": "pg_portfolio_content_created_recent_cnt or vector(0)",
+            "expr": "portfolio_content_created_recent_cnt or vector(0)",
             "legendFormat": "created {{type}}"
           }]
         },
@@ -614,7 +614,7 @@ data:
           },
           "targets": [{
             "datasource": { "uid": "$datasource" },
-            "expr": "pg_portfolio_referee_requests_recent_cnt or vector(0)",
+            "expr": "portfolio_referee_requests_recent_cnt or vector(0)",
             "legendFormat": "{{status}}"
           }]
         },

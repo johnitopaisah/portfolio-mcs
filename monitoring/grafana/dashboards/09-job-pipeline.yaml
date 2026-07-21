@@ -25,7 +25,7 @@ data:
           "gridPos": { "x": 0, "y": 0, "w": 6, "h": 6 },
           "options": { "colorMode": "value", "graphMode": "area" },
           "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "fixed", "fixedColor": "green" } } },
-          "targets": [{ "expr": "pg_portfolio_jobs_ingested_recent_new_jobs_24h" }]
+          "targets": [{ "expr": "portfolio_jobs_ingested_recent_new_jobs_24h" }]
         },
         {
           "id": 2, "type": "stat", "title": "Duplicate Rate (24h)",
@@ -38,7 +38,7 @@ data:
             }
           },
           "targets": [{
-            "expr": "pg_portfolio_jobs_ingested_recent_duplicates_24h / (pg_portfolio_jobs_ingested_recent_fetched_24h + 1)"
+            "expr": "portfolio_jobs_ingested_recent_duplicates_24h / (portfolio_jobs_ingested_recent_fetched_24h + 1)"
           }]
         },
         {
@@ -67,7 +67,7 @@ data:
           "gridPos": { "x": 0, "y": 6, "w": 8, "h": 8 },
           "options": { "pieType": "donut", "legend": { "displayMode": "table", "placement": "right" } },
           "targets": [{
-            "expr": "pg_portfolio_jobs_ingested_by_source_new_jobs or vector(0)",
+            "expr": "portfolio_jobs_ingested_by_source_new_jobs or vector(0)",
             "legendFormat": "{{source_api}}",
             "instant": true
           }]
@@ -77,7 +77,7 @@ data:
           "gridPos": { "x": 8, "y": 6, "w": 8, "h": 8 },
           "options": { "pieType": "donut", "legend": { "displayMode": "table", "placement": "right" } },
           "targets": [{
-            "expr": "pg_portfolio_ai_decision_mix_recent_cnt or vector(0)",
+            "expr": "portfolio_ai_decision_mix_recent_cnt or vector(0)",
             "legendFormat": "{{ai_decision}}",
             "instant": true
           }]
@@ -87,7 +87,7 @@ data:
           "gridPos": { "x": 16, "y": 6, "w": 8, "h": 8 },
           "fieldConfig": { "defaults": { "unit": "short" } },
           "targets": [{
-            "expr": "pg_portfolio_alerts_sent_recent_cnt or vector(0)",
+            "expr": "portfolio_alerts_sent_recent_cnt or vector(0)",
             "legendFormat": "{{channel}}",
             "instant": true
           }]
