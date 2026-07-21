@@ -2,8 +2,10 @@ const router = require('express').Router();
 const pool   = require('../db/client');
 const { requireAuth } = require('../middleware/auth');
 const multer = require('multer');
+const cache  = require('../services/contentCache');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 3 * 1024 * 1024 } });
+const CACHE_KEY = 'certifications:public';
 
 /**
  * @swagger
@@ -24,12 +26,16 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 3 *
  */
 router.get('/', async (req, res, next) => {
   try {
-    const { rows } = await pool.query(
-      `SELECT id, name, issuer, issue_date, expiry_date,
-              credential_id, credential_url, image_mime, order_index,
-              (image IS NOT NULL) AS has_image
-       FROM certifications ORDER BY order_index ASC, issue_date DESC`
-    );
+    const rows = await cache.getOrSet(CACHE_KEY, async () => {
+      const { rows } = await pool.query(
+        `SELECT id, name, issuer, issue_date, expiry_date,
+                credential_id, credential_url, image_mime, order_index,
+                (image IS NOT NULL) AS has_image
+         FROM certifications ORDER BY order_index ASC, issue_date DESC`
+      );
+      return rows;
+    });
+    res.set('Cache-Control', 'public, max-age=60');
     res.json(rows);
   } catch (err) { next(err); }
 });
@@ -142,6 +148,7 @@ router.post('/', requireAuth, upload.single('image'), async (req, res, next) => 
        req.file?.buffer || null, req.file?.mimetype || null,
        parseInt(order_index || '0')]
     );
+    cache.invalidate(CACHE_KEY);
     res.status(201).json(rows[0]);
   } catch (err) { next(err); }
 });
@@ -231,6 +238,7 @@ router.put('/:id', requireAuth, upload.single('image'), async (req, res, next) =
        req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Certification not found' });
+    cache.invalidate(CACHE_KEY);
     res.json(rows[0]);
   } catch (err) { next(err); }
 });
@@ -270,6 +278,7 @@ router.delete('/:id', requireAuth, async (req, res, next) => {
   try {
     const { rowCount } = await pool.query('DELETE FROM certifications WHERE id = $1', [req.params.id]);
     if (!rowCount) return res.status(404).json({ error: 'Certification not found' });
+    cache.invalidate(CACHE_KEY);
     res.status(204).end();
   } catch (err) { next(err); }
 });

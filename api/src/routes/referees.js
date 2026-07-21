@@ -2,6 +2,9 @@ const router = require('express').Router();
 const pool   = require('../db/client');
 const { requireAuth } = require('../middleware/auth');
 const multer = require('multer');
+const cache  = require('../services/contentCache');
+
+const CACHE_KEY = 'referees:public';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 3 * 1024 * 1024 } });
 const uploadFields = upload.fields([
@@ -32,19 +35,23 @@ const uploadFields = upload.fields([
  */
 router.get('/', async (req, res, next) => {
   try {
-    const { rows } = await pool.query(
-      `SELECT id, name, title, organization, relationship, review,
-              linkedin_url, available_on_request,
-              CASE WHEN available_on_request THEN NULL ELSE email END AS email,
-              CASE WHEN available_on_request THEN NULL ELSE phone END AS phone,
-              photo_mime, org_logo_mime, order_index,
-              (photo    IS NOT NULL) AS has_photo,
-              (org_logo IS NOT NULL) AS has_org_logo,
-              star_config
-       FROM referees
-       WHERE visible = true
-       ORDER BY order_index ASC, created_at ASC`
-    );
+    const rows = await cache.getOrSet(CACHE_KEY, async () => {
+      const { rows } = await pool.query(
+        `SELECT id, name, title, organization, relationship, review,
+                linkedin_url, available_on_request,
+                CASE WHEN available_on_request THEN NULL ELSE email END AS email,
+                CASE WHEN available_on_request THEN NULL ELSE phone END AS phone,
+                photo_mime, org_logo_mime, order_index,
+                (photo    IS NOT NULL) AS has_photo,
+                (org_logo IS NOT NULL) AS has_org_logo,
+                star_config
+         FROM referees
+         WHERE visible = true
+         ORDER BY order_index ASC, created_at ASC`
+      );
+      return rows;
+    });
+    res.set('Cache-Control', 'public, max-age=60');
     res.json(rows);
   } catch (err) { next(err); }
 });
@@ -246,6 +253,7 @@ router.post('/', requireAuth, uploadFields, async (req, res, next) => {
         parseInt(order_index || '0'),
       ]
     );
+    cache.invalidate(CACHE_KEY);
     res.status(201).json(rows[0]);
   } catch (err) { next(err); }
 });
@@ -346,6 +354,7 @@ router.put('/:id', requireAuth, uploadFields, async (req, res, next) => {
       ]
     );
     if (!rows.length) return res.status(404).json({ error: 'Referee not found' });
+    cache.invalidate(CACHE_KEY);
     res.json(rows[0]);
   } catch (err) { next(err); }
 });
@@ -399,6 +408,7 @@ router.put('/:id/star-config', requireAuth, async (req, res, next) => {
       [JSON.stringify(req.body), req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Referee not found' });
+    cache.invalidate(CACHE_KEY);
     res.json(rows[0]);
   } catch (err) { next(err); }
 });
@@ -431,6 +441,7 @@ router.delete('/:id', requireAuth, async (req, res, next) => {
   try {
     const { rowCount } = await pool.query('DELETE FROM referees WHERE id = $1', [req.params.id]);
     if (!rowCount) return res.status(404).json({ error: 'Referee not found' });
+    cache.invalidate(CACHE_KEY);
     res.status(204).end();
   } catch (err) { next(err); }
 });

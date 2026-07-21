@@ -15,7 +15,12 @@ const poolConfig = process.env.DATABASE_URL ? {
 const pool = new Pool({
   ...poolConfig,
   max: 10,
-  idleTimeoutMillis: 30000,
+  // Keep 2 connections warm so infrequently-hit routes don't pay a fresh
+  // TCP+TLS handshake to Postgres on every request — seen live 2026-07-21,
+  // where our least-frequently-hit routes were consistently the slowest
+  // despite structurally identical queries to our most-hit ones.
+  min: 2,
+  idleTimeoutMillis: 120000,
   connectionTimeoutMillis: 2000,
 });
 

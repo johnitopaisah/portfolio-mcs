@@ -3,6 +3,9 @@ const pool   = require('../db/client');
 const { requireAuth } = require('../middleware/auth');
 const multer = require('multer');
 const { projectsRequestsTotal } = require('../metrics');
+const cache  = require('../services/contentCache');
+
+const CACHE_KEY = 'projects:public';
 
 // Single multer instance for ALL upload routes in this file.
 // Using .fields() instead of .array() — more reliable in multer 1.4.x
@@ -34,14 +37,18 @@ const upload = multer({
 router.get('/', async (req, res, next) => {
   try {
     if (req.get('x-portfolio-is-bot') !== '1') projectsRequestsTotal.inc();
-    const { rows } = await pool.query(
-      `SELECT id, title, description, tech_stack, live_url, repo_url,
-              image_mime, featured, order_index, created_at,
-              start_date, end_date, ongoing,
-              (image IS NOT NULL) AS has_image
-       FROM projects WHERE published = TRUE
-       ORDER BY order_index ASC, created_at DESC`
-    );
+    const rows = await cache.getOrSet(CACHE_KEY, async () => {
+      const { rows } = await pool.query(
+        `SELECT id, title, description, tech_stack, live_url, repo_url,
+                image_mime, featured, order_index, created_at,
+                start_date, end_date, ongoing,
+                (image IS NOT NULL) AS has_image
+         FROM projects WHERE published = TRUE
+         ORDER BY order_index ASC, created_at DESC`
+      );
+      return rows;
+    });
+    res.set('Cache-Control', 'public, max-age=60');
     res.json(rows);
   } catch (err) { next(err); }
 });
@@ -189,6 +196,7 @@ router.post('/', requireAuth, upload.single('image'), async (req, res, next) => 
         ongoing === 'true',
       ]
     );
+    cache.invalidate(CACHE_KEY);
     res.status(201).json(rows[0]);
   } catch (err) { next(err); }
 });
@@ -260,6 +268,7 @@ router.put('/:id', requireAuth, upload.single('image'), async (req, res, next) =
       ]
     );
     if (!rows.length) return res.status(404).json({ error: 'Project not found' });
+    cache.invalidate(CACHE_KEY);
     res.json(rows[0]);
   } catch (err) { next(err); }
 });
@@ -289,6 +298,7 @@ router.delete('/:id', requireAuth, async (req, res, next) => {
   try {
     const { rowCount } = await pool.query('DELETE FROM projects WHERE id = $1', [req.params.id]);
     if (!rowCount) return res.status(404).json({ error: 'Project not found' });
+    cache.invalidate(CACHE_KEY);
     res.status(204).end();
   } catch (err) { next(err); }
 });

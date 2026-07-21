@@ -2,6 +2,9 @@ const router = require('express').Router();
 const pool   = require('../db/client');
 const { requireAuth } = require('../middleware/auth');
 const { syncBlogFromMedium } = require('../services/blogIngestService');
+const cache  = require('../services/contentCache');
+
+const CACHE_KEY = 'blog:public';
 
 /**
  * @swagger
@@ -16,12 +19,16 @@ const { syncBlogFromMedium } = require('../services/blogIngestService');
  */
 router.get('/', async (req, res, next) => {
   try {
-    const { rows } = await pool.query(
-      `SELECT id, title, excerpt, cover_image_url, medium_url, tags, published_at
-       FROM blog_posts
-       WHERE visible_on_site = true
-       ORDER BY published_at DESC NULLS LAST`
-    );
+    const rows = await cache.getOrSet(CACHE_KEY, async () => {
+      const { rows } = await pool.query(
+        `SELECT id, title, excerpt, cover_image_url, medium_url, tags, published_at
+         FROM blog_posts
+         WHERE visible_on_site = true
+         ORDER BY published_at DESC NULLS LAST`
+      );
+      return rows;
+    });
+    res.set('Cache-Control', 'public, max-age=60');
     res.json(rows);
   } catch (err) { next(err); }
 });
@@ -73,6 +80,7 @@ router.get('/all', requireAuth, async (req, res, next) => {
 router.post('/sync', requireAuth, async (req, res, next) => {
   try {
     const result = await syncBlogFromMedium();
+    cache.invalidate(CACHE_KEY);
     res.json(result);
   } catch (err) {
     if (err.message?.includes('MEDIUM_FEED_URL')) {
@@ -120,6 +128,7 @@ router.put('/:id', requireAuth, async (req, res, next) => {
       [excerpt ?? null, cover_image_url ?? null, tags ?? null, visible_on_site ?? null, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Post not found' });
+    cache.invalidate(CACHE_KEY);
     res.json(rows[0]);
   } catch (err) { next(err); }
 });

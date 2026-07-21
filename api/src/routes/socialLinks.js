@@ -1,6 +1,9 @@
 const router = require('express').Router();
 const pool   = require('../db/client');
 const { requireAuth } = require('../middleware/auth');
+const cache  = require('../services/contentCache');
+
+const CACHE_KEY = 'social_links:public';
 
 /**
  * @swagger
@@ -20,12 +23,16 @@ const { requireAuth } = require('../middleware/auth');
  */
 router.get('/', async (req, res, next) => {
   try {
-    const { rows } = await pool.query(
-      `SELECT id, platform, label, url, order_index
-       FROM social_links
-       WHERE visible = true
-       ORDER BY order_index ASC, created_at ASC`
-    );
+    const rows = await cache.getOrSet(CACHE_KEY, async () => {
+      const { rows } = await pool.query(
+        `SELECT id, platform, label, url, order_index
+         FROM social_links
+         WHERE visible = true
+         ORDER BY order_index ASC, created_at ASC`
+      );
+      return rows;
+    });
+    res.set('Cache-Control', 'public, max-age=60');
     res.json(rows);
   } catch (err) { next(err); }
 });
@@ -112,6 +119,7 @@ router.post('/', requireAuth, async (req, res, next) => {
        RETURNING id, platform, label, url, order_index, visible`,
       [platform, label, url, order_index, visible]
     );
+    cache.invalidate(CACHE_KEY);
     res.status(201).json(rows[0]);
   } catch (err) { next(err); }
 });
@@ -171,6 +179,7 @@ router.put('/:id', requireAuth, async (req, res, next) => {
       ]
     );
     if (!rows.length) return res.status(404).json({ error: 'Link not found' });
+    cache.invalidate(CACHE_KEY);
     res.json(rows[0]);
   } catch (err) { next(err); }
 });
@@ -203,6 +212,7 @@ router.delete('/:id', requireAuth, async (req, res, next) => {
       'DELETE FROM social_links WHERE id = $1', [req.params.id]
     );
     if (!rowCount) return res.status(404).json({ error: 'Link not found' });
+    cache.invalidate(CACHE_KEY);
     res.status(204).end();
   } catch (err) { next(err); }
 });

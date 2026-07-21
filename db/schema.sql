@@ -117,6 +117,9 @@ CREATE TABLE IF NOT EXISTS social_links (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE INDEX IF NOT EXISTS idx_social_links_visible_order
+  ON social_links (visible, order_index, created_at);
+
 -- contact_messages
 CREATE TABLE IF NOT EXISTS contact_messages (
   id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),

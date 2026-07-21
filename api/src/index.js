@@ -24,19 +24,36 @@ const PORT = process.env.PORT || 4000;
 // ── Security ────────────────────────────────────────────────
 app.set('trust proxy', 1);
 
+// Reject known vulnerability-scanner probes before any other work — this
+// is a Node/Express API, so requests for .php files, .env, .git, .vscode
+// etc. are never legitimate. Placed first in the chain (before helmet,
+// compression, CORS, body-parsing, and the Prometheus metrics middleware)
+// so scanner noise costs nothing and doesn't pollute request-rate metrics.
+const SCANNER_PROBE_RE = /\.php$|\.env(\.|$)|\.git(\/|$)|\.vscode\/|\.DS_Store$|^\/wp-(login|admin|content)/i;
 app.use((req, res, next) => {
-  if (req.path.startsWith('/api/docs')) {
-    return helmet({
-      contentSecurityPolicy: false,
-      crossOriginResourcePolicy: { policy: 'cross-origin' },
-    })(req, res, next);
-  }
-  return helmet({
-    crossOriginResourcePolicy: { policy: 'cross-origin' },
-  })(req, res, next);
+  if (SCANNER_PROBE_RE.test(req.path)) return res.status(404).end();
+  next();
 });
 
-app.use(compression());
+// Built once at startup, not per-request — helmet's own setup work
+// (building its header-writing function chain) has no reason to repeat
+// on every single request.
+const helmetDocs    = helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+});
+const helmetDefault = helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+});
+
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/docs')) return helmetDocs(req, res, next);
+  return helmetDefault(req, res, next);
+});
+
+// threshold: don't spend CPU gzipping responses too small for compression
+// to meaningfully reduce transfer size.
+app.use(compression({ threshold: 1024 }));
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
 // ── CORS ────────────────────────────────────────────────────
