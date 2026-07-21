@@ -17,6 +17,10 @@ CVE-2026-26996
 CVE-2026-27903
 CVE-2026-27904
 
+# brace-expansion 2.0.1 → fix: 2.1.2 (npm's own bundled copy — separate
+# from the brace-expansion pinned via our own package.json overrides)
+CVE-2026-13149
+
 # sigstore 2.3.1 → fix: 4.1.1 (major bump; npm hasn't upgraded its internal sigstore yet)
 CVE-2026-48815
 
@@ -27,3 +31,5 @@ CVE-2026-24842
 CVE-2026-26960
 CVE-2026-29786
 CVE-2026-31802
+CVE-2026-59873
+CVE-2026-59874
