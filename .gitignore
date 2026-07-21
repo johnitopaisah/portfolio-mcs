@@ -57,4 +57,5 @@ terraform/crash.log
 
 # All .md files except README.md (planning/implementation notes should not be committed)
 *.md
+log.txt
 !README.md
