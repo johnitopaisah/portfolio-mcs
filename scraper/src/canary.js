@@ -15,12 +15,16 @@ const ashby = require('./parsers/ashby');
 const workday = require('./parsers/workday');
 const smartrecruiters = require('./parsers/smartrecruiters');
 
-// Large, stable, long-standing public boards — chosen because they're
-// unlikely to ever go to zero postings or disappear, so a canary failure
-// here means the PARSER broke, not that the company stopped hiring.
+// Large, stable, long-standing public boards — chosen to make a low job
+// count unlikely, but any single company's hiring can still genuinely dry
+// up (seen live 2026-07-21: mistral's Lever board hit zero open postings —
+// confirmed via their own public board page, not a parser bug — so it was
+// swapped for theodo, currently ~150 postings). Because a single company
+// going quiet is real and not that rare, low-count failures are treated as
+// 'warning' severity below, not 'critical' — see checkOne().
 const CANARIES = [
   { platform: 'greenhouse', slug: 'gitlab', minJobs: 20 },
-  { platform: 'lever', slug: 'mistral', minJobs: 20 },
+  { platform: 'lever', slug: 'theodo', minJobs: 20 },
   { platform: 'ashby', slug: 'notion', minJobs: 20 },
   { platform: 'workday', slug: 'visa|wd5|Visa', minJobs: 20 },
   { platform: 'smartrecruiters', slug: 'Sandisk', minJobs: 20 },
@@ -41,29 +45,35 @@ function validateJobShape(job) {
   return problems;
 }
 
+// severity: 'critical' means the PARSER is broken (threw, wrong type, bad
+// shape) — this is unambiguously our bug and should page. 'warning' means
+// the board just returned fewer jobs than expected — that's the anchor
+// company's real-world hiring activity, which we don't control and which
+// can legitimately dip to zero (see the CANARIES comment above), so it's
+// surfaced but doesn't page on its own.
 async function checkOne({ platform, slug, minJobs }) {
   const parser = PARSERS[platform];
   try {
     const jobs = await parser.fetchBoardJobs(slug);
 
     if (jobs === null) {
-      return { platform, slug, ok: false, reason: `fetchBoardJobs returned null — canary board "${slug}" no longer resolves` };
+      return { platform, slug, ok: false, severity: 'critical', reason: `fetchBoardJobs returned null — canary board "${slug}" no longer resolves` };
     }
     if (!Array.isArray(jobs)) {
-      return { platform, slug, ok: false, reason: `fetchBoardJobs returned ${typeof jobs}, expected an array` };
+      return { platform, slug, ok: false, severity: 'critical', reason: `fetchBoardJobs returned ${typeof jobs}, expected an array` };
     }
     if (jobs.length < minJobs) {
-      return { platform, slug, ok: false, reason: `only ${jobs.length} jobs returned, expected at least ${minJobs} — API shape may have changed` };
+      return { platform, slug, ok: false, severity: 'warning', reason: `only ${jobs.length} jobs returned, expected at least ${minJobs} — likely this company's hiring activity, not a parser issue` };
     }
 
     const shapeProblems = validateJobShape(jobs[0]);
     if (shapeProblems.length > 0) {
-      return { platform, slug, ok: false, reason: `first job failed shape check: ${shapeProblems.join(', ')}` };
+      return { platform, slug, ok: false, severity: 'critical', reason: `first job failed shape check: ${shapeProblems.join(', ')}` };
     }
 
     return { platform, slug, ok: true, reason: `${jobs.length} jobs, shape OK` };
   } catch (err) {
-    return { platform, slug, ok: false, reason: `threw: ${err.message}` };
+    return { platform, slug, ok: false, severity: 'critical', reason: `threw: ${err.message}` };
   }
 }
 
