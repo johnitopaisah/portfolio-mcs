@@ -68,7 +68,7 @@ services:
       PORT:            4000
       DATABASE_URL:    postgres://${POSTGRES_USER:-portfolio_user}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}@db:5432/${POSTGRES_DB:-portfolio_db}
       JWT_SECRET:      ${JWT_SECRET:?JWT_SECRET must be set in .env}
-      JWT_EXPIRES_IN:  ${JWT_EXPIRES_IN:-7d}
+      JWT_EXPIRES_IN:  ${JWT_EXPIRES_IN:-20m}
       ALLOWED_ORIGINS: http://localhost:3000,http://localhost:3001
       SITE_URL:           ${SITE_URL:-http://localhost:3000}
       ADMIN_URL:          ${ADMIN_URL:-http://localhost:3001}

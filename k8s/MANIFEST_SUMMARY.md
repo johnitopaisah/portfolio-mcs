@@ -283,7 +283,7 @@ DATABASE_URL=postgres://portfolio_user:<CHANGE ME>@portfolio-db:5432/portfolio_d
 NODE_ENV=production
 PORT=4000
 JWT_SECRET=<CHANGE ME>
-JWT_EXPIRES_IN=7d
+JWT_EXPIRES_IN=20m
 ALLOWED_ORIGINS=https://...
 ```
 

@@ -5,6 +5,7 @@ const bcrypt     = require('bcryptjs');
 const jwt        = require('jsonwebtoken');
 const pool       = require('../db/client');
 const router     = require('express').Router();
+const { requireAuth } = require('../middleware/auth');
 const { sendPasswordResetEmail } = require('../services/notify');
 const {
   authAttemptsTotal,
@@ -99,10 +100,50 @@ router.post('/login', async (req, res, next) => {
     const token = jwt.sign(
       { id: user.id, username: user.username },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+      { expiresIn: process.env.JWT_EXPIRES_IN || '20m' }
     );
     res.json({ token, username: user.username });
   } catch (err) { next(err); }
+});
+
+/**
+ * @swagger
+ * /api/auth/refresh:
+ *   post:
+ *     summary: Silently extend an active admin session
+ *     description: >
+ *       Reissues a fresh, short-lived JWT for a currently-valid token, without
+ *       requiring credentials again. Called automatically by the admin UI while
+ *       the user is active. Fails if the presented token is already expired or
+ *       invalid — the client falls back to a full login in that case.
+ *     tags: [Auth]
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200:
+ *         description: A new token with a fresh expiry
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 token:
+ *                   type: string
+ *                 username:
+ *                   type: string
+ *       401:
+ *         description: Missing, invalid, or expired token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.post('/refresh', requireAuth, (req, res) => {
+  const token = jwt.sign(
+    { id: req.admin.id, username: req.admin.username },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_EXPIRES_IN || '20m' }
+  );
+  res.json({ token, username: req.admin.username });
 });
 
 /**
