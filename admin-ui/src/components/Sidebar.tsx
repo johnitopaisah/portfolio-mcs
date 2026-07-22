@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
   IconGrid, IconFolder, IconZap, IconBriefcase, IconAward,
@@ -8,6 +8,7 @@ import {
   IconBookOpen, IconMail, IconLogOut, IconLink, IconGraduation,
   IconUsers,
 } from './Icons';
+import { logout } from '@/lib/authSession';
 
 // ── Inline icons ──────────────────────────────────────────────────────────────
 const IconStar = (p: React.SVGProps<SVGSVGElement>) => (
@@ -62,47 +63,47 @@ const sections: NavSection[] = [
   {
     label: 'Portfolio',
     items: [
-      { href: '/dashboard/projects',       label: 'Projects',       Icon: IconFolder     },
-      { href: '/dashboard/skills',         label: 'Skills',         Icon: IconZap        },
-      { href: '/dashboard/experience',     label: 'Experience',     Icon: IconBriefcase  },
-      { href: '/dashboard/certifications', label: 'Certifications', Icon: IconAward      },
-      { href: '/dashboard/education',      label: 'Education',      Icon: IconGraduation },
-      { href: '/dashboard/referees',       label: 'Referees',       Icon: IconUsers      },
-      { href: '/dashboard/blog',           label: 'Blog',           Icon: IconBookOpen   },
+      { href: '/projects',       label: 'Projects',       Icon: IconFolder     },
+      { href: '/skills',         label: 'Skills',         Icon: IconZap        },
+      { href: '/experience',     label: 'Experience',     Icon: IconBriefcase  },
+      { href: '/certifications', label: 'Certifications', Icon: IconAward      },
+      { href: '/education',      label: 'Education',      Icon: IconGraduation },
+      { href: '/referees',       label: 'Referees',       Icon: IconUsers      },
+      { href: '/blog',           label: 'Blog',           Icon: IconBookOpen   },
     ],
   },
   {
     label: 'Career Hub',
     items: [
-      { href: '/dashboard/jobs',  label: 'Job Pipeline', Icon: IconLayers },
+      { href: '/jobs',  label: 'Job Pipeline', Icon: IconLayers },
       {
-        href: '/dashboard/applications', label: 'Applications', Icon: IconClipboard,
+        href: '/applications', label: 'Applications', Icon: IconClipboard,
         children: [
-          { href: '/dashboard/cv-library',      label: 'CV Library',      Icon: IconBookOpen },
-          { href: '/dashboard/email-tracking',  label: 'Email Tracking',  Icon: IconMail     },
-          { href: '/dashboard/star-stories',    label: 'STAR Stories',    Icon: IconStar     },
-          { href: '/dashboard/email-templates', label: 'Email Templates', Icon: IconMail     },
+          { href: '/cv-library',      label: 'CV Library',      Icon: IconBookOpen },
+          { href: '/email-tracking',  label: 'Email Tracking',  Icon: IconMail     },
+          { href: '/star-stories',    label: 'STAR Stories',    Icon: IconStar     },
+          { href: '/email-templates', label: 'Email Templates', Icon: IconMail     },
         ],
       },
-      { href: '/dashboard/goals',   label: 'My Goals',    Icon: IconTarget },
-      { href: '/dashboard/targets', label: 'Job Targets', Icon: IconSearch },
-      { href: '/dashboard/ai',      label: 'AI Engine',   Icon: IconCpu    },
+      { href: '/goals',   label: 'My Goals',    Icon: IconTarget },
+      { href: '/targets', label: 'Job Targets', Icon: IconSearch },
+      { href: '/ai',      label: 'AI Engine',   Icon: IconCpu    },
     ],
   },
   {
     label: 'Communication',
     items: [
-      { href: '/dashboard/messages', label: 'Messages', Icon: IconMessage },
+      { href: '/messages', label: 'Messages', Icon: IconMessage },
     ],
   },
   {
     label: 'Account',
     items: [
       {
-        href: '/dashboard/profile', label: 'Profile', Icon: IconUser,
+        href: '/profile', label: 'Profile', Icon: IconUser,
         children: [
-          { href: '/dashboard/profile/cv-identity', label: 'CV Identity',  Icon: IconId   },
-          { href: '/dashboard/social-links',        label: 'Social Links', Icon: IconLink },
+          { href: '/profile/cv-identity', label: 'CV Identity',  Icon: IconId   },
+          { href: '/social-links',        label: 'Social Links', Icon: IconLink },
         ],
       },
     ],
@@ -112,7 +113,6 @@ const sections: NavSection[] = [
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function SidebarContent({ onClose }: { onClose: () => void }) {
   const pathname = usePathname();
-  const router   = useRouter();
 
   // Persist expand/collapse state across sessions
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
@@ -152,11 +152,6 @@ export default function SidebarContent({ onClose }: { onClose: () => void }) {
     return pathname === href || pathname.startsWith(href + '/');
   }
 
-  function logout() {
-    localStorage.removeItem('admin_token');
-    router.push('/login');
-  }
-
   return (
     <aside
       className="w-64 flex flex-col select-none"
@@ -173,7 +168,7 @@ export default function SidebarContent({ onClose }: { onClose: () => void }) {
       {/* ── Header ──────────────────────────────────────────────── */}
       <div className="px-5 pt-6 pb-5 shrink-0"
         style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-        <div className="flex items-center gap-3">
+        <Link href="/" className="flex items-center gap-3" aria-label="Home">
           <div
             className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-xs font-bold shrink-0"
             style={{
@@ -187,7 +182,7 @@ export default function SidebarContent({ onClose }: { onClose: () => void }) {
             <p className="font-semibold text-sm tracking-tight truncate text-white">Portfolio Admin</p>
             <p className="text-xs truncate" style={{ color: 'rgba(255,255,255,0.4)' }}>johnisah.com</p>
           </div>
-        </div>
+        </Link>
       </div>
 
       {/* ── Navigation (independent scroll) ─────────────────────── */}

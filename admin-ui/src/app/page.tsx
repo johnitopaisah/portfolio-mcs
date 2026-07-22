@@ -1,12 +1,12 @@
 'use client';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { getToken } from '@/lib/authSession';
 
 export default function RootPage() {
   const router = useRouter();
   useEffect(() => {
-    const token = localStorage.getItem('admin_token');
-    router.replace(token ? '/dashboard' : '/login');
+    router.replace(getToken() ? '/dashboard' : '/login');
   }, [router]);
   return null;
 }

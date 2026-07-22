@@ -92,17 +92,19 @@ jobs:
             src/app/login/page.tsx \
             src/app/forgot-password/page.tsx \
             src/app/reset-password/page.tsx \
-            src/app/dashboard/page.tsx \
-            src/app/dashboard/layout.tsx \
-            src/app/dashboard/projects/page.tsx \
-            src/app/dashboard/skills/page.tsx \
-            src/app/dashboard/experience/page.tsx \
-            src/app/dashboard/certifications/page.tsx \
-            src/app/dashboard/messages/page.tsx \
-            src/app/dashboard/profile/page.tsx \
-            src/app/dashboard/jobs/page.tsx \
+            "src/app/(admin)/dashboard/page.tsx" \
+            "src/app/(admin)/layout.tsx" \
+            "src/app/(admin)/projects/page.tsx" \
+            "src/app/(admin)/skills/page.tsx" \
+            "src/app/(admin)/experience/page.tsx" \
+            "src/app/(admin)/certifications/page.tsx" \
+            "src/app/(admin)/messages/page.tsx" \
+            "src/app/(admin)/profile/page.tsx" \
+            "src/app/(admin)/jobs/page.tsx" \
             src/components/Sidebar.tsx \
-            src/lib/api.ts; do
+            src/components/AuthProvider.tsx \
+            src/lib/api.ts \
+            src/lib/authSession.ts; do
             test -f "$f" && echo "✅ $f" || (echo "❌ Missing: $f" && exit 1)
           done
 

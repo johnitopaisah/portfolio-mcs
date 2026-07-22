@@ -3,16 +3,12 @@
 // In local dev, create admin-ui/.env.local with:
 
 import { reportSuccess, reportFailure, isOutageStatus } from './backendStatus';
+import { getToken, logout } from './authSession';
 
 function getApiBase(): string {
   const url = process.env.NEXT_PUBLIC_API_URL;
   if (!url) throw new Error('NEXT_PUBLIC_API_URL is not configured');
   return url.replace(/\/$/, '');
-}
-
-function getToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem('admin_token');
 }
 
 // A network-level fetch() throw, or a 502/503/504 response, means the
@@ -43,8 +39,7 @@ async function request(path: string, options: RequestInit = {}) {
     },
   });
   if (res.status === 401) {
-    localStorage.removeItem('admin_token');
-    window.location.href = '/login';
+    logout();
     throw new Error('Unauthorised');
   }
   if (!res.ok) {
@@ -64,8 +59,7 @@ async function upload(path: string, formData: FormData, method = 'POST') {
     body: formData,
   });
   if (res.status === 401) {
-    localStorage.removeItem('admin_token');
-    window.location.href = '/login';
+    logout();
     throw new Error('Unauthorised');
   }
   if (!res.ok) {

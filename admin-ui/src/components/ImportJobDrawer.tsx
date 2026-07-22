@@ -573,7 +573,7 @@ export default function ImportJobDrawer({ onClose }: { onClose: () => void }) {
               </div>
               {!generating && (
                 <button
-                  onClick={() => { onClose(); router.push(`/dashboard/applications/${result.application.id}`); }}
+                  onClick={() => { onClose(); router.push(`/applications/${result.application.id}`); }}
                   className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-semibold transition-colors">
                   View Application →
                 </button>

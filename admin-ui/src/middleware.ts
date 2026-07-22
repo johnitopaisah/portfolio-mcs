@@ -82,7 +82,7 @@ export async function middleware(request: NextRequest) {
 
 // ── Logger ────────────────────────────────────────────────────
 // Output format:
-//   [admin-ui] GET /dashboard/projects 200 8ms :: 1.2.3.4 :: Mozilla/5.0 ...
+//   [admin-ui] GET /projects 200 8ms :: 1.2.3.4 :: Mozilla/5.0 ...
 function log(request: NextRequest, status: number, ms: number) {
   const ip =
     request.headers.get('x-real-ip') ||

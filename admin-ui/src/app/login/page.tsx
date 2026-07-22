@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { adminApi } from '@/lib/api';
+import { setToken, consumeReturnTo } from '@/lib/authSession';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,8 +17,8 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const data = await adminApi.login(creds.username, creds.password);
-      localStorage.setItem('admin_token', data.token);
-      router.push('/dashboard');
+      setToken(data.token);
+      router.push(consumeReturnTo());
     } catch (err: any) {
       setError(err.message || 'Login failed');
     } finally {
