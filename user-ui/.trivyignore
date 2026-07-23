@@ -1,7 +1,8 @@
 # npm bundled system packages in node:20-alpine (npm@10.8.2)
 # Location: /usr/local/lib/node_modules/npm/node_modules/
 # These packages are part of npm's own internals — not our application code.
-# Our app runs via `node src/index.js` and never invokes npm at runtime.
+# Our app runs via `node server.js` (Next.js standalone output) and never
+# invokes npm at runtime.
 # Attack surface: zero — no user input reaches npm's internal packages.
 # Action: Remove this file when node:20-alpine ships npm >= 11 with patched
 #         cross-spawn, glob, minimatch, and tar (>=7.x).
@@ -17,6 +18,10 @@ CVE-2026-26996
 CVE-2026-27903
 CVE-2026-27904
 
+# brace-expansion 2.0.1 → fix: 2.1.2 (npm's own bundled copy, not a
+# dependency of this app)
+CVE-2026-13149
+
 # sigstore 2.3.1 → fix: 4.1.1 (major bump; npm hasn't upgraded its internal sigstore yet)
 CVE-2026-48815
 
@@ -27,3 +32,5 @@ CVE-2026-24842
 CVE-2026-26960
 CVE-2026-29786
 CVE-2026-31802
+CVE-2026-59873
+CVE-2026-59874
