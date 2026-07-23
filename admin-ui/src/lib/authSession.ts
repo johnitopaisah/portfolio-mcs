@@ -17,12 +17,19 @@ export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
 
+// Setting a token — via fresh login or silent refresh — always means the
+// session is active *now*, so this stamps activity too. Without this, a
+// stale admin_last_activity left over from a prior idle-logout would make
+// AuthProvider's mount-time isIdle() check fire immediately after a fresh
+// login, bouncing straight back to /login in a loop.
 export function setToken(token: string) {
   localStorage.setItem(TOKEN_KEY, token);
+  forceRecordActivity();
 }
 
 function clearToken() {
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(LAST_ACTIVITY_KEY);
 }
 
 let lastActivityWrite = 0;
