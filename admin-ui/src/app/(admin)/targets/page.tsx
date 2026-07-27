@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { adminApi } from '@/lib/api';
 
 type Tab = 'targets' | 'discovery';
@@ -442,7 +443,7 @@ export default function TargetsPage() {
           {targets.map(t => (
             <div key={t.id} className={card}>
               <div className="flex items-start justify-between gap-4">
-                <div>
+                <Link href={`/targets/${t.id}`} className="block flex-1 min-w-0 -m-1 p-1 rounded-lg hover:bg-white/[0.03] transition-colors">
                   <div className="flex items-center gap-2 mb-1">
                     <h3 className="text-base font-semibold text-white">{t.role_query}</h3>
                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ${t.is_active ? 'bg-green-900/40 text-green-400' : 'bg-zinc-800 text-zinc-500'}`}>
@@ -461,7 +462,7 @@ export default function TargetsPage() {
                     <span>Boards discovered: <span className="text-zinc-300 font-mono">{t.boards_discovered}</span></span>
                     <span>Last polled: <span className="text-zinc-300 font-mono">{formatWhen(t.last_polled_at)}</span></span>
                   </div>
-                </div>
+                </Link>
                 <div className="flex flex-col gap-1.5 shrink-0">
                   <button onClick={() => toggleActive(t)} className={`${btn} bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs px-3 py-1.5`}>
                     {t.is_active ? 'Pause' : 'Resume'}

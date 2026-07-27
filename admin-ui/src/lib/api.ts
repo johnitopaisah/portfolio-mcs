@@ -133,6 +133,7 @@ export const adminApi = {
 
   // Job targets (drives scraper discovery — role + location pairs)
   getJobTargets:    () => request('/api/admin/targets'),
+  getJobTarget:     (id: string) => request(`/api/admin/targets/${id}`),
   createJobTarget:  (data: Record<string, unknown>) =>
     request('/api/admin/targets', { method: 'POST', body: JSON.stringify(data) }),
   updateJobTarget:  (id: string, data: Record<string, unknown>) =>
@@ -140,6 +141,10 @@ export const adminApi = {
   deleteJobTarget:  (id: string) =>
     request(`/api/admin/targets/${id}`, { method: 'DELETE' }),
   getKnownBoards:   () => request('/api/admin/targets/boards'),
+  getTargetMatches: (id: string, params: Record<string, string> = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/api/admin/targets/${id}/matches${qs ? `?${qs}` : ''}`);
+  },
 
   // Ingestion observability (shared by old sources + scraper's *_search source_api values)
   getIngestionStats: (hours = 24) => request(`/api/admin/jobs/ingestion-stats?hours=${hours}`),

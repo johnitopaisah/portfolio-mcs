@@ -14,6 +14,7 @@ const { sendDailyJobDigest, getAlertStats }
   = require('../../services/jobIngestion/notificationService');
 const { getIngestionStats, getRecentLogs }
   = require('../../services/jobIngestion/ingestionLogsService');
+const { queryJobsPaginated } = require('../../services/jobIngestion/jobsQuery');
 
 const router = express.Router();
 
@@ -563,7 +564,6 @@ router.get('/pipeline', async (req, res) => {
       tab = 'new', source, visa, sort = 'score', page = 1, limit = 20,
       seniority, min_score, location, ai_decision,
     } = req.query;
-    const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
 
     const conditions = ['j.is_active = TRUE'];
     const params = [];
@@ -584,44 +584,10 @@ router.get('/pipeline', async (req, res) => {
     if (location)    { params.push(`%${location}%`);         conditions.push(`j.location ILIKE $${params.length}`); }
     if (ai_decision) { params.push(ai_decision.toUpperCase()); conditions.push(`j.ai_decision = $${params.length}`); }
 
-    const where = conditions.join(' AND ');
-    const sortExpr = sort === 'date' ? 'j.posted_at DESC' : 'j.relevance_score DESC';
-
-    const dataQ = `
-      SELECT j.id, j.company_name, j.title, j.location, j.job_type,
-             j.description, j.requirements, j.apply_url, j.source_api,
-             j.relevance_score, j.ai_decision, j.ai_reasoning,
-             j.tech_stack, j.seniority_level, j.visa_sponsored,
-             j.salary_min, j.salary_max, j.salary_currency,
-             j.posted_at, j.created_at,
-             jf.decision AS user_decision, jf.created_at AS feedback_at
-      FROM jobs j
-      LEFT JOIN job_feedback jf ON jf.job_id = j.id
-      WHERE ${where}
-      ORDER BY ${sortExpr}
-      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
-    `;
-    const countQ = `
-      SELECT COUNT(*) AS total
-      FROM jobs j
-      LEFT JOIN job_feedback jf ON jf.job_id = j.id
-      WHERE ${where}
-    `;
-
-    const [data, count] = await Promise.all([
-      pool.query(dataQ, [...params, parseInt(limit, 10), offset]),
-      pool.query(countQ, params),
-    ]);
-
-    res.json({
-      data: data.rows,
-      pagination: {
-        page:  parseInt(page, 10),
-        limit: parseInt(limit, 10),
-        total: parseInt(count.rows[0].total, 10),
-        pages: Math.ceil(count.rows[0].total / parseInt(limit, 10)),
-      },
+    const result = await queryJobsPaginated({
+      conditions, params, sort, page: parseInt(page, 10), limit: parseInt(limit, 10),
     });
+    res.json(result);
   } catch (err) {
     console.error('[Admin:Pipeline]', err.message);
     res.status(500).json({ error: 'Failed to fetch pipeline' });
