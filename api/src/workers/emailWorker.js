@@ -5,6 +5,8 @@ const gmailService               = require('../services/emailTracking/gmailServi
 const imapService                = require('../services/emailTracking/imapService');
 const emailClassificationService = require('../services/emailTracking/emailClassificationService');
 const emailSyncLogService        = require('../services/emailTracking/emailSyncLogService');
+const applicationMatchingService = require('../services/emailTracking/applicationMatchingService');
+const { VALID_STATUSES }         = require('../constants/applicationStatuses');
 
 const SOURCES = [
   { key: 'gmail', label: 'Gmail',        fetch: gmailService.fetchRecentEmails, enabled: true },
@@ -51,11 +53,13 @@ async function processSource(source) {
     });
 
     // Step 4: Insert email_responses row
+    const extractedCompany = classification?.extracted_company || '';
+    const extractedRole    = classification?.extracted_role    || '';
     const insertRes = await pool.query(
       `INSERT INTO email_responses
          (source_account, gmail_message_id, sender_email, sender_name, subject, body_snippet,
-          received_at, ai_classification, confidence_score, raw_label)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+          received_at, ai_classification, confidence_score, raw_label, extracted_company, extracted_role)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
        RETURNING id`,
       [
         source.key, email.gmail_message_id, email.sender_email, email.sender_name,
@@ -63,46 +67,108 @@ async function processSource(source) {
         classification?.classification || 'UNKNOWN',
         classification?.confidence     || 0,
         classification?.summary        || '',
+        extractedCompany, extractedRole,
       ]
     );
     inserted++;
     const emailResponseId = insertRes.rows[0].id;
 
-    // Step 5: Match to an application by sender domain (confidence threshold: 0.75)
-    if (classification && classification.confidence >= 0.75) {
-      const domain = email.sender_email.split('@')[1];
-      if (domain) {
-        const appRes = await pool.query(
-          `SELECT id, company_name, job_title FROM applications
-           WHERE company_domain = $1 OR company_name ILIKE $2
-           ORDER BY created_at DESC LIMIT 1`,
-          [domain, `%${domain.split('.')[0]}%`]
+    // Step 5: Match to an application. Matching (who sent this) and
+    // classification confidence (what it means) are independent — a
+    // strong name/domain match links the email even if the AI is unsure
+    // what to do about it; only a confident classification auto-advances
+    // the application's status. See applicationMatchingService for scoring.
+    if (classification) {
+      const match = await applicationMatchingService.findMatch(pool, {
+        senderEmail:      email.sender_email,
+        senderName:       email.sender_name,
+        extractedCompany,
+        extractedRole,
+      });
+
+      if (match.status === 'matched') {
+        const app = match.application;
+        matched++;
+
+        await pool.query(
+          'UPDATE email_responses SET application_id = $1, match_method = $2 WHERE id = $3',
+          [app.id, match.method, emailResponseId]
         );
 
-        if (appRes.rows.length > 0) {
-          const app = appRes.rows[0];
-          matched++;
-
-          await pool.query(
-            'UPDATE email_responses SET application_id = $1 WHERE id = $2',
-            [app.id, emailResponseId]
-          );
-
-          const newStatus = classification.suggested_status || 'EMAIL_RECEIVED';
+        if (classification.confidence >= 0.75) {
+          const newStatus = VALID_STATUSES.has(classification.suggested_status)
+            ? classification.suggested_status
+            : 'EMAIL_RECEIVED';
           await pool.query(
             `UPDATE applications SET status = $1, last_response_at = NOW(), updated_at = NOW()
              WHERE id = $2`,
             [newStatus, app.id]
           );
-
           await pool.query(
             `INSERT INTO application_events (application_id, event_type, description)
              VALUES ($1, 'EMAIL_RECEIVED', $2)`,
             [app.id, `${classification.classification}: ${classification.summary}`]
           );
-
-          console.log(`[EmailWorker:${source.key}] Matched email to application ${app.id} (${app.company_name})`);
         }
+
+        console.log(`[EmailWorker:${source.key}] Matched email to application ${app.id} (${app.company_name}) via ${match.method}`);
+      } else if (match.status === 'suggested') {
+        await pool.query(
+          'UPDATE email_responses SET suggested_application_id = $1, match_method = $2 WHERE id = $3',
+          [match.application.id, match.method, emailResponseId]
+        );
+      } else if (
+        classification.confidence >= 0.75 &&
+        classification.classification !== 'UNKNOWN' &&
+        extractedCompany
+      ) {
+        // Step 6: nothing on file looks like a fit, but this clearly reads
+        // as a real recruiting reply — create a minimal stub application so
+        // the thread isn't lost, rather than leaving it orphaned. Flagged
+        // via entry_method for review in the admin UI.
+        const stubStatus = VALID_STATUSES.has(classification.suggested_status)
+          ? classification.suggested_status
+          : 'EMAIL_RECEIVED';
+
+        const stubRes = await pool.query(
+          `INSERT INTO applications (company_name, job_title, source_platform, entry_method, status, notes, last_response_at)
+           VALUES ($1, $2, 'email', 'email_detected', $3, $4, NOW())
+           RETURNING id, company_name`,
+          [
+            extractedCompany,
+            extractedRole || 'Application via email',
+            stubStatus,
+            'Auto-created from an inbound email — please review and fill in details.',
+          ]
+        );
+        const stub = stubRes.rows[0];
+
+        await pool.query(
+          `INSERT INTO application_events (application_id, event_type, description)
+           VALUES ($1, 'APPLICATION_CREATED', 'Auto-created from an inbound email')`,
+          [stub.id]
+        );
+        await pool.query(
+          `INSERT INTO application_events (application_id, event_type, description)
+           VALUES ($1, 'EMAIL_RECEIVED', $2)`,
+          [stub.id, `${classification.classification}: ${classification.summary}`]
+        );
+        await pool.query(
+          `UPDATE email_responses SET application_id = $1, match_method = 'auto_created' WHERE id = $2`,
+          [stub.id, emailResponseId]
+        );
+
+        // Best-effort: pull in earlier emails from this same sender that
+        // never matched anything, now that a home for them exists.
+        await pool.query(
+          `UPDATE email_responses
+           SET application_id = $1, match_method = 'auto_created'
+           WHERE sender_email = $2 AND application_id IS NULL AND id <> $3`,
+          [stub.id, email.sender_email, emailResponseId]
+        );
+
+        matched++;
+        console.log(`[EmailWorker:${source.key}] Auto-created application ${stub.id} (${stub.company_name}) from email`);
       }
     }
   }

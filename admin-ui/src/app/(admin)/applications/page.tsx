@@ -94,7 +94,7 @@ function platformLabel(p: string | null) {
     seek: 'Seek', otta: 'Otta', remoteok: 'RemoteOK',
     company_website: 'Direct', recruiter_email: 'Recruiter',
     referral: 'Referral', adzuna: 'Adzuna', arbeitnow: 'Arbeitnow',
-    weworkremotely: 'WWR', wellfound: 'Wellfound',
+    weworkremotely: 'WWR', wellfound: 'Wellfound', email: 'Email',
   };
   return map[p] || p;
 }
@@ -330,14 +330,24 @@ export default function ApplicationsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      {app.source_platform ? (
-                        <span className={`text-xs px-2 py-0.5 rounded-md
-                          ${app.entry_method === 'paste' || app.entry_method === 'manual'
-                            ? 'bg-indigo-900/40 text-indigo-400'
-                            : 'bg-gray-800 text-gray-500'}`}>
-                          {platformLabel(app.source_platform)}
-                        </span>
-                      ) : <span className="text-gray-600 text-xs">—</span>}
+                      <div className="flex items-center gap-1.5">
+                        {app.source_platform ? (
+                          <span className={`text-xs px-2 py-0.5 rounded-md
+                            ${app.entry_method === 'paste' || app.entry_method === 'manual'
+                              ? 'bg-indigo-900/40 text-indigo-400'
+                              : 'bg-gray-800 text-gray-500'}`}>
+                            {platformLabel(app.source_platform)}
+                          </span>
+                        ) : <span className="text-gray-600 text-xs">—</span>}
+                        {app.entry_method === 'email_detected' && (
+                          <span
+                            title="Created automatically from an inbound email — review and fill in details"
+                            className="text-xs px-2 py-0.5 rounded-md bg-amber-900/40 text-amber-400 border border-amber-700/40"
+                          >
+                            ⚠ Auto-detected
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-gray-400 whitespace-nowrap text-xs">
                       {formatDate(app.applied_at)}

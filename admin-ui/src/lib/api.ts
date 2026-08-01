@@ -392,6 +392,8 @@ export const adminApi = {
       method: 'PATCH',
       body: JSON.stringify({ application_id }),
     }),
+  dismissEmailSuggestion: (id: number) =>
+    request(`/api/applications/email-responses/${id}/dismiss-suggestion`, { method: 'PATCH' }),
   reclassifyEmailResponse: (id: number, classification: string) =>
     request(`/api/applications/email-responses/${id}/reclassify`, {
       method: 'PATCH',

@@ -20,6 +20,9 @@ interface EmailResponse {
   raw_label: string;
   company_name: string | null;
   job_title: string | null;
+  suggested_application_id: number | null;
+  suggested_company_name: string | null;
+  suggested_job_title: string | null;
 }
 
 interface AppOption {
@@ -230,6 +233,58 @@ function LinkAppCell({
   );
 }
 
+// ── AI-suggested match: confirm or dismiss inline ────────────────
+function SuggestionCell({
+  emailId, companyName, jobTitle, onConfirm, onDismiss,
+}: {
+  emailId: number;
+  companyName: string;
+  jobTitle: string | null;
+  onConfirm: () => void;
+  onDismiss: () => void;
+}) {
+  const [busy, setBusy] = useState<'confirm' | 'dismiss' | null>(null);
+
+  async function handleConfirm() {
+    setBusy('confirm');
+    try { onConfirm(); } finally { setBusy(null); }
+  }
+  async function handleDismiss() {
+    setBusy('dismiss');
+    try {
+      await adminApi.dismissEmailSuggestion(emailId);
+      onDismiss();
+    } catch { /* silent */ }
+    finally { setBusy(null); }
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className="text-xs">
+        <span className="text-amber-400">Suggested:</span>{' '}
+        <span className="text-gray-300 font-medium">{companyName}</span>
+        {jobTitle && <span className="text-gray-500 ml-1">— {truncate(jobTitle, 24)}</span>}
+      </div>
+      <button
+        onClick={handleConfirm}
+        disabled={busy !== null}
+        title="Confirm this match"
+        className="px-1.5 py-0.5 text-xs rounded bg-green-900/40 text-green-400 hover:bg-green-900/60 disabled:opacity-40"
+      >
+        ✓
+      </button>
+      <button
+        onClick={handleDismiss}
+        disabled={busy !== null}
+        title="Not this application"
+        className="px-1.5 py-0.5 text-xs rounded bg-gray-800 text-gray-500 hover:text-red-400 disabled:opacity-40"
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
 // ── Filter bar ──────────────────────────────────────────────────
 interface Filters {
   source_account: string;
@@ -415,7 +470,18 @@ export default function EmailTrackingPage() {
   function handleLinked(emailId: number, appId: number, companyName: string, jobTitle: string) {
     setEmails(prev => prev.map(e =>
       e.id === emailId
-        ? { ...e, application_id: appId, company_name: companyName, job_title: jobTitle }
+        ? {
+            ...e, application_id: appId, company_name: companyName, job_title: jobTitle,
+            suggested_application_id: null, suggested_company_name: null, suggested_job_title: null,
+          }
+        : e
+    ));
+  }
+
+  function handleSuggestionDismissed(emailId: number) {
+    setEmails(prev => prev.map(e =>
+      e.id === emailId
+        ? { ...e, suggested_application_id: null, suggested_company_name: null, suggested_job_title: null }
         : e
     ));
   }
@@ -540,6 +606,23 @@ export default function EmailTrackingPage() {
                                 <span className="text-gray-500 ml-1">— {truncate(email.job_title, 30)}</span>
                               )}
                             </Link>
+                          ) : email.suggested_application_id ? (
+                            <SuggestionCell
+                              emailId={email.id}
+                              companyName={email.suggested_company_name || ''}
+                              jobTitle={email.suggested_job_title}
+                              onConfirm={() => {
+                                const appId = email.suggested_application_id!;
+                                adminApi.linkEmailResponse(email.id, appId)
+                                  .then(() => handleLinked(
+                                    email.id, appId,
+                                    email.suggested_company_name || '',
+                                    email.suggested_job_title || ''
+                                  ))
+                                  .catch(() => {});
+                              }}
+                              onDismiss={() => handleSuggestionDismissed(email.id)}
+                            />
                           ) : (
                             <div className="flex items-center gap-2">
                               <span className="text-gray-600">Unlinked</span>

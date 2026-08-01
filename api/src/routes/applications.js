@@ -6,16 +6,9 @@ const { requireAuth }      = require('../middleware/auth');
 const emailSyncLogService  = require('../services/emailTracking/emailSyncLogService');
 const { renderHtmlToPdf }  = require('../services/cvGeneration/pdfService');
 const { sanitizeEditedHtml, checkAtsRisks } = require('../services/cvGeneration/manualEditService');
+const { VALID_STATUSES }   = require('../constants/applicationStatuses');
 
 const router = express.Router();
-
-const VALID_STATUSES = new Set([
-  'DRAFT', 'CV_GENERATED', 'READY_TO_APPLY', 'APPLIED',
-  'EMAIL_RECEIVED', 'HR_CONTACTED', 'INTERVIEW_INVITE',
-  'TECHNICAL_TEST', 'INTERVIEW_SCHEDULED', 'FINAL_INTERVIEW',
-  'OFFER', 'NEGOTIATING', 'ACCEPTED', 'DECLINED_OFFER',
-  'REJECTED', 'NO_RESPONSE', 'WITHDRAWN', 'GHOSTED', 'ARCHIVED',
-]);
 
 /**
  * @swagger
@@ -172,9 +165,12 @@ router.get('/email-responses', requireAuth, async (req, res) => {
 
     const listParams = [...params, parseInt(limit), offset];
     const result = await pool.query(
-      `SELECT er.*, a.company_name, a.job_title
+      `SELECT er.*, a.company_name, a.job_title,
+              sa.company_name AS suggested_company_name,
+              sa.job_title    AS suggested_job_title
        FROM email_responses er
-       LEFT JOIN applications a ON er.application_id = a.id
+       LEFT JOIN applications a  ON er.application_id = a.id
+       LEFT JOIN applications sa ON er.suggested_application_id = sa.id
        ${where}
        ORDER BY er.received_at DESC
        LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
@@ -249,8 +245,26 @@ router.patch('/email-responses/:id/link', requireAuth, async (req, res) => {
     const { application_id } = req.body;
     if (!application_id) return res.status(400).json({ error: 'application_id required' });
     const result = await pool.query(
-      'UPDATE email_responses SET application_id = $1 WHERE id = $2 RETURNING *',
+      `UPDATE email_responses
+       SET application_id = $1, suggested_application_id = NULL
+       WHERE id = $2 RETURNING *`,
       [application_id, req.params.id]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/applications/email-responses/:id/dismiss-suggestion
+// Clears an AI-suggested (but unconfirmed) application match, reverting the
+// row to fully unlinked so the user can search manually instead.
+router.patch('/email-responses/:id/dismiss-suggestion', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'UPDATE email_responses SET suggested_application_id = NULL WHERE id = $1 RETURNING *',
+      [req.params.id]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Not found' });
     res.json(result.rows[0]);
