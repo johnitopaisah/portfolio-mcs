@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { adminApi } from '@/lib/api';
 import ImportJobDrawer from '@/components/ImportJobDrawer';
+import QuickLogDrawer from '@/components/QuickLogDrawer';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 interface Application {
@@ -167,6 +168,7 @@ export default function ApplicationsPage() {
   const [searchQuery,   setSearchQuery]   = useState('');
   const [viewMode,      setViewMode]      = useState<'list' | 'kanban'>('list');
   const [showImport,    setShowImport]    = useState(false);
+  const [showQuickLog,  setShowQuickLog]  = useState(false);
   const [archiving,     setArchiving]     = useState<number | null>(null);
 
   const fetchApplications = useCallback(async () => {
@@ -237,6 +239,10 @@ export default function ApplicationsPage() {
           <button onClick={fetchApplications}
             className="text-xs text-gray-400 hover:text-white px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-700 transition-colors">
             ↺
+          </button>
+          <button onClick={() => setShowQuickLog(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-white text-sm font-semibold rounded-xl transition-colors">
+            <span className="text-base leading-none">⚡</span> Quick Log
           </button>
           <button onClick={() => setShowImport(true)}
             className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-xl transition-colors shadow-lg shadow-indigo-900/30">
@@ -405,6 +411,7 @@ export default function ApplicationsPage() {
 
       {/* Import drawer */}
       {showImport && <ImportJobDrawer onClose={() => { setShowImport(false); fetchApplications(); }} />}
+      {showQuickLog && <QuickLogDrawer onClose={() => { setShowQuickLog(false); fetchApplications(); }} />}
     </div>
   );
 }
