@@ -1,0 +1,261 @@
+# ============================================================
+#  PR Checks — Fast Quality Gate
+#
+#  Runs the same lint/typecheck/structure-check steps as each
+#  service's release pipeline (api.yml / admin-ui.yml /
+#  user-ui.yml / scraper.yml), but on every pull request — no
+#  image build, no push, no manifest update. Gives fast
+#  feedback without waiting for a manual tagged release run.
+#
+#  Pair this with a branch-protection rule requiring these
+#  jobs as required status checks on main/develop.
+# ============================================================
+
+name: PR Checks
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+
+env:
+  NODE_VER: "20"
+
+jobs:
+
+  # ── API ──────────────────────────────────────────────────
+  api:
+    name: API — lint & audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VER }}
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+
+      - run: npm install
+
+      - name: Check required source files exist
+        run: |
+          echo "── Checking source structure ──"
+          for f in \
+            src/index.js \
+            src/db/client.js \
+            src/middleware/auth.js \
+            src/middleware/errorHandler.js \
+            src/routes/auth.js \
+            src/routes/profile.js \
+            src/routes/projects.js \
+            src/routes/skills.js \
+            src/routes/experiences.js \
+            src/routes/certifications.js \
+            src/routes/contact.js \
+            src/routes/visitors.js \
+            src/routes/jobs.js \
+            src/routes/admin/jobs.js \
+            src/services/notify.js \
+            src/services/geoip.js \
+            src/services/parseVisitor.js \
+            src/services/visitorDigest.js \
+            src/services/jobIngestion/jobIngestionService.js \
+            src/services/jobIngestion/aiFilteringService.js \
+            src/services/jobIngestion/notificationService.js \
+            src/services/jobIngestion/config.js \
+            src/services/jobIngestion/ingestionLogsService.js \
+            src/workers/jobWorker.js; do
+            test -f "$f" && echo "✅ $f" || (echo "❌ Missing: $f" && exit 1)
+          done
+
+      - name: Security audit (high severity only)
+        run: npm audit --audit-level=high --omit=dev
+
+      - name: Check no placeholder secrets in source
+        run: |
+          BAD=0
+          for PAT in "changeme" "REPLACE_THIS" "your-secret-here"; do
+            if grep -r "$PAT" src/ --include="*.js" -l 2>/dev/null; then
+              echo "❌ Found placeholder '$PAT'"; BAD=1
+            fi
+          done
+          [ $BAD -eq 0 ] && echo "✅ No placeholders found"
+          exit $BAD
+
+  # ── User UI ──────────────────────────────────────────────
+  user-ui:
+    name: User UI — lint & typecheck
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: user-ui
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node ${{ env.NODE_VER }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VER }}
+          cache: npm
+          cache-dependency-path: user-ui/package-lock.json
+
+      - name: Install dependencies (npm ci)
+        run: npm ci
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: TypeScript typecheck
+        run: npx tsc --noEmit
+
+      - name: Check required components exist
+        run: |
+          echo "── Checking component structure ──"
+          for f in \
+            src/app/page.tsx \
+            src/app/layout.tsx \
+            src/app/globals.css \
+            src/lib/api.ts \
+            src/components/Navbar.tsx \
+            src/components/ThemeProvider.tsx \
+            src/components/HeroSection.tsx \
+            src/components/ProjectsSection.tsx \
+            src/components/SkillsSection.tsx \
+            src/components/ExperienceSection.tsx \
+            src/components/CertificationsSection.tsx \
+            src/components/ContactSection.tsx; do
+            test -f "$f" && echo "✅ $f" || (echo "❌ Missing: $f" && exit 1)
+          done
+
+      - name: Check no hardcoded localhost in source
+        run: |
+          if grep -r "localhost:4000" src/ --include="*.ts" --include="*.tsx" -l 2>/dev/null; then
+            echo "❌ Found hardcoded localhost:4000 — must use env var"
+            exit 1
+          fi
+          echo "✅ No hardcoded localhost found"
+
+  # ── Admin UI ─────────────────────────────────────────────
+  admin-ui:
+    name: Admin UI — lint & typecheck
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: admin-ui
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node ${{ env.NODE_VER }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VER }}
+          cache: npm
+          cache-dependency-path: admin-ui/package-lock.json
+
+      - name: Install dependencies (npm ci)
+        run: npm ci
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: TypeScript typecheck
+        run: npx tsc --noEmit
+
+      - name: Check required pages exist
+        run: |
+          echo "── Checking page structure ──"
+          for f in \
+            src/app/page.tsx \
+            src/app/layout.tsx \
+            src/app/globals.css \
+            src/app/login/page.tsx \
+            src/app/forgot-password/page.tsx \
+            src/app/reset-password/page.tsx \
+            "src/app/(admin)/dashboard/page.tsx" \
+            "src/app/(admin)/layout.tsx" \
+            "src/app/(admin)/projects/page.tsx" \
+            "src/app/(admin)/skills/page.tsx" \
+            "src/app/(admin)/experience/page.tsx" \
+            "src/app/(admin)/certifications/page.tsx" \
+            "src/app/(admin)/messages/page.tsx" \
+            "src/app/(admin)/profile/page.tsx" \
+            "src/app/(admin)/jobs/page.tsx" \
+            src/components/Sidebar.tsx \
+            src/components/AuthProvider.tsx \
+            src/lib/api.ts \
+            src/lib/authSession.ts; do
+            test -f "$f" && echo "✅ $f" || (echo "❌ Missing: $f" && exit 1)
+          done
+
+      - name: Check no hardcoded localhost in source
+        run: |
+          if grep -r "localhost:4000" src/ --include="*.ts" --include="*.tsx" -l 2>/dev/null; then
+            echo "❌ Found hardcoded localhost:4000 — must use env var"
+            exit 1
+          fi
+          echo "✅ No hardcoded localhost found"
+
+      - name: Check robots.txt blocks search engines
+        run: |
+          test -f public/robots.txt || (echo "❌ public/robots.txt missing" && exit 1)
+          grep -q "Disallow: /" public/robots.txt \
+            && echo "✅ robots.txt blocks crawlers" \
+            || (echo "❌ robots.txt must contain 'Disallow: /'" && exit 1)
+
+  # ── Scraper ──────────────────────────────────────────────
+  scraper:
+    name: Scraper — lint & audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: scraper
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VER }}
+          cache: npm
+          cache-dependency-path: scraper/package-lock.json
+
+      - run: npm install
+
+      - name: Check required source files exist
+        run: |
+          echo "── Checking source structure ──"
+          for f in \
+            index.js \
+            src/db/client.js \
+            src/dedupHash.js \
+            src/htmlUtils.js \
+            src/locationFilter.js \
+            src/postedWithinFilter.js \
+            src/pipeline.js \
+            src/discovery/searxng.js \
+            src/discovery/linkedin.js \
+            src/parsers/greenhouse.js \
+            src/parsers/lever.js \
+            src/parsers/ashby.js; do
+            test -f "$f" && echo "✅ $f" || (echo "❌ Missing: $f" && exit 1)
+          done
+
+      - name: Security audit (high severity only)
+        run: npm audit --audit-level=high --omit=dev
+
+      - name: Check no placeholder secrets in source
+        run: |
+          BAD=0
+          for PAT in "changeme" "REPLACE_THIS" "your-secret-here"; do
+            if grep -r "$PAT" src/ --include="*.js" -l 2>/dev/null; then
+              echo "❌ Found placeholder '$PAT'"; BAD=1
+            fi
+          done
+          [ $BAD -eq 0 ] && echo "✅ No placeholders found"
+          exit $BAD

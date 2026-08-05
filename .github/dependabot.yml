@@ -1,0 +1,50 @@
+version: 2
+
+updates:
+  # Keep GitHub Actions up to date
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "ci"
+
+  # Keep api npm dependencies up to date
+  - package-ecosystem: npm
+    directory: /api
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "deps(api)"
+
+  # Keep user-ui npm dependencies up to date
+  - package-ecosystem: npm
+    directory: /user-ui
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "deps(user-ui)"
+
+  # Keep admin-ui npm dependencies up to date
+  - package-ecosystem: npm
+    directory: /admin-ui
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "deps(admin-ui)"
+
+  # Keep scraper npm dependencies up to date
+  - package-ecosystem: npm
+    directory: /scraper
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "deps(scraper)"
+
+  # Keep the db image's base image up to date
+  - package-ecosystem: docker
+    directory: /db
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "deps(db)"

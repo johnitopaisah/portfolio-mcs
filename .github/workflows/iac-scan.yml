@@ -1,0 +1,63 @@
+# ============================================================
+#  IaC Scan — Kubernetes Manifest Misconfiguration Check
+#
+#  Runs Trivy's config scanner over k8s/ on every push/PR that
+#  touches it. Catches the class of bug that's easy to miss in
+#  manual review: wrong ingressClassName, missing resource
+#  limits, containers running as root, duplicate TLS secrets
+#  for one host, etc.
+# ============================================================
+
+name: IaC Scan
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - "k8s/**"
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - "k8s/**"
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  scan:
+    name: Scan k8s manifests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Trivy config scan (table — fails on CRITICAL/HIGH)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: config
+          scan-ref: k8s
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+
+      - name: Trivy config scan (SARIF report)
+        if: always()
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: config
+          scan-ref: k8s
+          format: sarif
+          output: trivy-iac-results.sarif
+          severity: CRITICAL,HIGH
+          exit-code: '0'
+
+      - name: Upload results to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-iac-results.sarif

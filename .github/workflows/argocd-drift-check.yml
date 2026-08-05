@@ -1,0 +1,79 @@
+# ============================================================
+#  ArgoCD Drift Check — Scheduled Health Monitor
+#
+#  This ArgoCD instance is shared by portfolio-mcs, ecommerce-
+#  platform (shopnow-*), and the monitoring stack — so a single
+#  instance of this check, living here, covers all of them.
+#  There's no need for ecommerce-platform to run its own copy.
+#
+#  Runs every 30 minutes. Fails (and writes a summary) if any
+#  Application is OutOfSync or not Healthy, so it shows up as a
+#  red run in the Actions tab / triggers GitHub's own failure
+#  notifications — no extra webhook/secret required. Swap the
+#  final step for a Slack/Discord webhook post later if you
+#  want push notifications instead of relying on Actions email.
+# ============================================================
+
+name: ArgoCD Drift Check
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "*/30 * * * *"
+
+jobs:
+  check:
+    name: Check ArgoCD app health
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Install ArgoCD CLI
+        run: |
+          curl -sSL -o /usr/local/bin/argocd \
+            https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          chmod +x /usr/local/bin/argocd
+
+      - name: Login to ArgoCD
+        run: |
+          kubectl port-forward svc/argocd-server -n argocd 8080:443 &
+          sleep 5
+          ARGOCD_PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret \
+            -o jsonpath="{.data.password}" | base64 -d)
+          argocd login localhost:8080 \
+            --username admin \
+            --password "$ARGOCD_PASSWORD" \
+            --insecure \
+            --grpc-web
+
+      - name: List app health
+        id: apps
+        run: |
+          argocd app list --insecure --grpc-web -o json > apps.json
+          echo "── All apps ──"
+          argocd app list --insecure --grpc-web
+
+      - name: Check for drift
+        run: |
+          DRIFTED=$(jq -r '.[] | select(.status.sync.status != "Synced" or .status.health.status != "Healthy") | .metadata.name' apps.json)
+
+          if [ -n "$DRIFTED" ]; then
+            echo "## ❌ ArgoCD apps not Synced/Healthy" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| App | Sync | Health |" >> $GITHUB_STEP_SUMMARY
+            echo "|-----|------|--------|" >> $GITHUB_STEP_SUMMARY
+            for app in $DRIFTED; do
+              SYNC=$(jq -r --arg a "$app" '.[] | select(.metadata.name==$a) | .status.sync.status' apps.json)
+              HEALTH=$(jq -r --arg a "$app" '.[] | select(.metadata.name==$a) | .status.health.status' apps.json)
+              echo "| $app | $SYNC | $HEALTH |" >> $GITHUB_STEP_SUMMARY
+              echo "❌ $app — sync=$SYNC health=$HEALTH"
+            done
+            exit 1
+          fi
+
+          echo "## ✅ All ArgoCD apps Synced and Healthy" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All apps Synced and Healthy"

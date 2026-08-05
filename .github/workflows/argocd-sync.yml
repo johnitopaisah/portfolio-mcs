@@ -1,0 +1,155 @@
+# ============================================================
+#  ArgoCD — Manual Sync Trigger
+#
+#  NOTE: Under normal GitOps flow this workflow is NOT needed.
+#  Each service pipeline (api/admin-ui/user-ui/scraper) commits
+#  an updated image tag to k8s/<service>/deployment.yaml on
+#  develop, and ArgoCD auto-syncs within minutes. db.yml deploys
+#  the db image independently the same way.
+#
+#  Use this workflow only to:
+#    - Force an immediate sync without waiting for a git push
+#    - Sync the root app after a new ArgoCD app is added
+#    - Recover from a failed automated sync (e.g. portfolio-jobs
+#      sitting OutOfSync)
+#
+#  Required GitHub Secrets:
+#    KUBECONFIG_B64   base64-encoded kubeconfig
+# ============================================================
+
+name: ArgoCD — Manual Sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: "ArgoCD app to sync"
+        required: true
+        type: choice
+        default: portfolio-api
+        options:
+          - portfolio-root
+          - portfolio-api
+          - portfolio-admin-ui
+          - portfolio-user-ui
+          - portfolio-db
+          - portfolio-scraper
+          - portfolio-jobs
+          - portfolio-backup
+          - monitoring-root
+          - all
+
+jobs:
+
+  # ── Sync ─────────────────────────────────────────────────
+  sync:
+    name: "Sync ${{ inputs.app }}"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Install ArgoCD CLI
+        run: |
+          curl -sSL -o /usr/local/bin/argocd \
+            https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          chmod +x /usr/local/bin/argocd
+
+      - name: Login to ArgoCD
+        run: |
+          kubectl port-forward svc/argocd-server -n argocd 8080:443 &
+          sleep 5
+          ARGOCD_PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret \
+            -o jsonpath="{.data.password}" | base64 -d)
+          argocd login localhost:8080 \
+            --username admin \
+            --password "$ARGOCD_PASSWORD" \
+            --insecure \
+            --grpc-web
+
+      - name: Sync portfolio-root
+        if: inputs.app == 'portfolio-root' || inputs.app == 'all'
+        run: |
+          argocd app sync portfolio-root \
+            --insecure --grpc-web --timeout 120 || true
+
+      - name: Sync portfolio-api
+        if: inputs.app == 'portfolio-api' || inputs.app == 'all'
+        run: |
+          argocd app sync portfolio-api \
+            --insecure --grpc-web --timeout 300 --retry-limit 3
+          argocd app wait portfolio-api \
+            --insecure --grpc-web --timeout 300 --health
+
+      - name: Sync portfolio-admin-ui
+        if: inputs.app == 'portfolio-admin-ui' || inputs.app == 'all'
+        run: |
+          argocd app sync portfolio-admin-ui \
+            --insecure --grpc-web --timeout 300 --retry-limit 3
+          argocd app wait portfolio-admin-ui \
+            --insecure --grpc-web --timeout 300 --health
+
+      - name: Sync portfolio-user-ui
+        if: inputs.app == 'portfolio-user-ui' || inputs.app == 'all'
+        run: |
+          argocd app sync portfolio-user-ui \
+            --insecure --grpc-web --timeout 300 --retry-limit 3
+          argocd app wait portfolio-user-ui \
+            --insecure --grpc-web --timeout 300 --health
+
+      - name: Sync portfolio-db
+        if: inputs.app == 'portfolio-db'
+        run: |
+          argocd app sync portfolio-db \
+            --insecure --grpc-web --timeout 300
+          argocd app wait portfolio-db \
+            --insecure --grpc-web --timeout 300 --health
+
+      - name: Sync portfolio-scraper
+        if: inputs.app == 'portfolio-scraper' || inputs.app == 'all'
+        run: |
+          argocd app sync portfolio-scraper \
+            --insecure --grpc-web --timeout 300 --retry-limit 3
+          argocd app wait portfolio-scraper \
+            --insecure --grpc-web --timeout 300 --health
+
+      - name: Sync portfolio-jobs
+        if: inputs.app == 'portfolio-jobs' || inputs.app == 'all'
+        run: |
+          argocd app sync portfolio-jobs \
+            --insecure --grpc-web --timeout 120 || true
+
+      - name: Sync portfolio-backup
+        if: inputs.app == 'portfolio-backup' || inputs.app == 'all'
+        run: |
+          argocd app sync portfolio-backup \
+            --insecure --grpc-web --timeout 120 || true
+
+      - name: Sync monitoring-root
+        if: inputs.app == 'monitoring-root' || inputs.app == 'all'
+        run: |
+          argocd app sync monitoring-root \
+            --insecure --grpc-web --timeout 120 || true
+
+      - name: Print app status
+        if: always()
+        run: |
+          argocd app list --insecure --grpc-web || true
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## ArgoCD Sync Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Trigger | \`${{ github.event_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Branch  | \`${{ github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit  | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| App     | \`${{ inputs.app }}\` |" >> $GITHUB_STEP_SUMMARY

@@ -4,6 +4,7 @@
 #  Allows monitoring pods to reach:
 #    - kube-system: DNS (UDP/TCP 53)
 #    - portfolio:   API :4000 (Prometheus scrape) and DB :5432 (postgres-exporter)
+#    - ecommerce:   DB :5432 (shopnow-postgres-exporter)
 #    - monitoring:  intra-namespace (Prometheus→Alertmanager, Grafana→Prometheus)
 #    - internet:    Alertmanager SMTP :465 (Zoho) + K8s API :6443
 # ============================================================
@@ -41,6 +42,15 @@ spec:
           port: 4000   # API /metrics
         - protocol: TCP
           port: 5432   # PostgreSQL
+
+    # shopnow-postgres-exporter → ecommerce DB
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ecommerce
+      ports:
+        - protocol: TCP
+          port: 5432
 
     # Intra-monitoring: Prometheus→Alertmanager, Grafana→Prometheus, etc.
     - to:

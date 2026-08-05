@@ -1,0 +1,125 @@
+# ============================================================
+#  CronJob — ShopNow Database Backup Job
+#  Runs daily at 02:30 UTC (offset 30min from portfolio-db-backup's
+#  02:00 to avoid both jobs installing postgresql-client and dumping
+#  simultaneously on a 2-node cluster). Streams pg_dump straight to
+#  GCS — no local file, no PVC. DB credentials come from
+#  backup-shopnow-db-secrets (synced by 06-shopnow-infisical-secret.yaml).
+# ============================================================
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: shopnow-db-backup
+  namespace: backup
+  labels:
+    app: shopnow
+    component: backup
+spec:
+  schedule: "30 2 * * *"
+
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  suspend: false
+
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 1800
+      backoffLimit: 3
+
+      template:
+        metadata:
+          labels:
+            app: shopnow
+            component: backup
+          annotations:
+            description: "ShopNow database daily backup -> GCS"
+        spec:
+          serviceAccountName: backup-serviceaccount
+          restartPolicy: OnFailure
+          terminationGracePeriodSeconds: 60
+
+          initContainers:
+            - name: check-db
+              image: google/cloud-sdk:slim
+              command:
+                - sh
+                - -c
+                - |
+                  set -e
+                  apt-get update -qq && apt-get install -y -qq postgresql-client
+                  echo "Checking database connectivity..."
+                  until pg_isready -h postgres.ecommerce.svc.cluster.local -p 5432; do
+                    echo "Waiting for database..."
+                    sleep 5
+                  done
+                  echo "Database is ready"
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "128Mi"
+                limits:
+                  cpu: "200m"
+                  memory: "256Mi"
+
+          containers:
+            - name: backup
+              image: google/cloud-sdk:slim
+              imagePullPolicy: IfNotPresent
+
+              command: ["/bin/bash"]
+              args:
+                - -c
+                - |
+                  set -e
+                  apt-get update -qq && apt-get install -y -qq postgresql-client wget
+                  source /scripts/backup.sh
+
+              env:
+                - name: HOME
+                  value: /tmp
+                - name: POSTGRES_HOST
+                  value: "postgres.ecommerce.svc.cluster.local"
+                - name: POSTGRES_PORT
+                  value: "5432"
+                - name: POSTGRES_DB
+                  valueFrom:
+                    secretKeyRef:
+                      name: backup-shopnow-db-secrets
+                      key: DB_NAME
+                - name: POSTGRES_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: backup-shopnow-db-secrets
+                      key: DB_USER
+                - name: POSTGRES_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: backup-shopnow-db-secrets
+                      key: DB_PASSWORD
+
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "256Mi"
+                limits:
+                  cpu: "500m"
+                  memory: "512Mi"
+
+              volumeMounts:
+                - name: backup-scripts
+                  mountPath: /scripts
+                  readOnly: true
+
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: false
+                # Not dropping capabilities: apt-get internally de-escalates
+                # to a sandboxed "_apt" user via setuid/setgid/setgroups —
+                # see 04-cronjob-db-backup.yaml for the full rationale.
+
+          volumes:
+            - name: backup-scripts
+              configMap:
+                name: shopnow-db-backup-scripts
+                defaultMode: 0755

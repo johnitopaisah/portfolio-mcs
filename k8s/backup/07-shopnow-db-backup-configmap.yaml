@@ -1,0 +1,94 @@
+# ============================================================
+#  ConfigMap — ShopNow Database Backup Scripts
+#
+#  Same pattern as 03-db-backup-configmap.yaml: streams straight
+#  to GCS, no local file, no PVC. Reuses the same bucket
+#  (gs://portfolio-mcs-backups) under a shopnow-db/ prefix rather
+#  than provisioning a second bucket for a second project on the
+#  same VM identity.
+# ============================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shopnow-db-backup-scripts
+  namespace: backup
+  labels:
+    app: shopnow
+    component: backup
+data:
+  backup.sh: |
+    #!/bin/bash
+    set -euo pipefail
+
+    BUCKET="gs://portfolio-mcs-backups"
+    TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+    DEST="${BUCKET}/shopnow-db/ecommerce_db_${TIMESTAMP}.sql.gz"
+
+    echo "[$(date)] Starting database backup -> ${DEST}"
+
+    if [ -z "${POSTGRES_USER:-}" ] || [ -z "${POSTGRES_PASSWORD:-}" ] || [ -z "${POSTGRES_DB:-}" ] || [ -z "${POSTGRES_HOST:-}" ]; then
+      echo "ERROR: Missing required environment variables"
+      exit 1
+    fi
+
+    SIZE_FILE=$(mktemp)
+
+    PGPASSWORD="$POSTGRES_PASSWORD" pg_dump \
+      -h "$POSTGRES_HOST" \
+      -p "$POSTGRES_PORT" \
+      -U "$POSTGRES_USER" \
+      -d "$POSTGRES_DB" \
+      --no-password \
+      | gzip \
+      | tee >(wc -c > "$SIZE_FILE") \
+      | gcloud storage cp - "$DEST"
+
+    BACKUP_BYTES=$(cat "$SIZE_FILE")
+    rm -f "$SIZE_FILE"
+
+    echo "[$(date)] ✓ Backup successful: ${DEST} (${BACKUP_BYTES} bytes)"
+
+    METRICS=$(printf 'backup_last_success_timestamp %s\nbackup_size_bytes %s' "$(date +%s)" "$BACKUP_BYTES")
+    wget -q -O /dev/null --header="Content-Type: text/plain" \
+      --post-data="${METRICS}"$'\n' \
+      "http://pushgateway.monitoring.svc.cluster.local:9091/metrics/job/shopnow-db-backup" \
+      || echo "[$(date)] ⚠ Failed to push backup metrics to Pushgateway (non-fatal)"
+
+  restore.sh: |
+    #!/bin/bash
+    set -euo pipefail
+
+    BUCKET="gs://portfolio-mcs-backups"
+    FILENAME="${1:-}"
+
+    if [ -z "$FILENAME" ]; then
+      echo "Usage: restore.sh <ecommerce_db_YYYYMMDD_HHMMSS.sql.gz>"
+      echo "See available backups with: gcloud storage ls ${BUCKET}/shopnow-db/"
+      exit 1
+    fi
+
+    if [ -z "${POSTGRES_USER:-}" ] || [ -z "${POSTGRES_PASSWORD:-}" ] || [ -z "${POSTGRES_DB:-}" ] || [ -z "${POSTGRES_HOST:-}" ]; then
+      echo "ERROR: Missing required environment variables"
+      exit 1
+    fi
+
+    echo "[$(date)] Restoring from ${BUCKET}/shopnow-db/${FILENAME}"
+
+    gcloud storage cat "${BUCKET}/shopnow-db/${FILENAME}" \
+      | gunzip -c \
+      | PGPASSWORD="$POSTGRES_PASSWORD" psql \
+          -h "$POSTGRES_HOST" \
+          -p "$POSTGRES_PORT" \
+          -U "$POSTGRES_USER" \
+          -d "$POSTGRES_DB"
+
+    echo "[$(date)] ✓ Restore successful!"
+
+  list-backups.sh: |
+    #!/bin/bash
+    set -euo pipefail
+    BUCKET="gs://portfolio-mcs-backups"
+
+    echo "== ShopNow database backups =="
+    gcloud storage ls -l "${BUCKET}/shopnow-db/" 2>/dev/null || echo "(none yet)"

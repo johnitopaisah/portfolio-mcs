@@ -1,0 +1,119 @@
+# ============================================================
+#  Grafana Dashboard — ShopNow Database Health
+#
+#  Same panel set as 03-database-health.yaml, scoped to
+#  shopnow-postgres-exporter / ecommerce_db instead of portfolio's.
+#  Omits the portfolio_db_pool_*/portfolio_db_query_duration_*/
+#  portfolio_db_errors_total panels — those come from custom
+#  app-level instrumentation portfolio's API has and ShopNow's
+#  Django API does not currently expose. Adds a backup-freshness
+#  panel instead, reading the metric shopnow-db-backup pushes to
+#  Pushgateway (see k8s/backup/07-shopnow-db-backup-configmap.yaml
+#  in ecommerce-platform).
+# ============================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-14-shopnow-database
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: portfolio-monitoring
+    app.kubernetes.io/component: visualization
+    app.kubernetes.io/managed-by: argocd
+    dashboard: shopnow-database
+data:
+  14-shopnow-database.json: |
+    {
+      "uid": "shopnow-db-health",
+      "title": "ShopNow — Database Health",
+      "description": "PostgreSQL internals for ecommerce_db — connections, cache, table health, backup freshness",
+      "tags": ["shopnow", "database"],
+      "timezone": "browser",
+      "refresh": "30s",
+      "time": { "from": "now-1h", "to": "now" },
+      "panels": [
+        {
+          "id": 1, "type": "stat", "title": "Database Status",
+          "gridPos": { "x": 0, "y": 0, "w": 6, "h": 6 },
+          "options": { "colorMode": "background" },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
+              ],
+              "thresholds": { "steps": [{ "color": "red", "value": 0 }, { "color": "green", "value": 1 }] }
+            }
+          },
+          "targets": [{ "expr": "up{job=\"shopnow-postgres-exporter\"}", "legendFormat": "up" }]
+        },
+        {
+          "id": 2, "type": "gauge", "title": "Active Connections",
+          "gridPos": { "x": 6, "y": 0, "w": 6, "h": 6 },
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "showThresholdLabels": true },
+          "fieldConfig": {
+            "defaults": {
+              "min": 0, "max": 100,
+              "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 50 }, { "color": "red", "value": 80 }] }
+            }
+          },
+          "targets": [{ "expr": "sum(pg_stat_database_numbackends{datname=\"ecommerce_db\"})", "legendFormat": "connections" }]
+        },
+        {
+          "id": 3, "type": "gauge", "title": "Cache Hit Ratio",
+          "gridPos": { "x": 12, "y": 0, "w": 6, "h": 6 },
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "showThresholdLabels": true },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit", "min": 0, "max": 1,
+              "thresholds": { "steps": [{ "color": "red", "value": 0 }, { "color": "yellow", "value": 0.90 }, { "color": "green", "value": 0.95 }] }
+            }
+          },
+          "targets": [{
+            "expr": "sum(pg_stat_database_blks_hit{datname=\"ecommerce_db\"}) / (sum(pg_stat_database_blks_hit{datname=\"ecommerce_db\"}) + sum(pg_stat_database_blks_read{datname=\"ecommerce_db\"}) + 1)",
+            "legendFormat": "cache hit ratio"
+          }]
+        },
+        {
+          "id": 4, "type": "stat", "title": "Last Backup Age",
+          "gridPos": { "x": 18, "y": 0, "w": 6, "h": 6 },
+          "options": { "colorMode": "value" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 100800 }, { "color": "red", "value": 172800 }] }
+            }
+          },
+          "targets": [{ "expr": "time() - backup_last_success_timestamp{job=\"shopnow-db-backup\"}", "legendFormat": "age" }]
+        },
+        {
+          "id": 5, "type": "timeseries", "title": "Connections over Time",
+          "gridPos": { "x": 0, "y": 6, "w": 12, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "none", "color": { "mode": "palette-classic" } } },
+          "targets": [{ "expr": "sum(pg_stat_database_numbackends{datname=\"ecommerce_db\"})", "legendFormat": "Active connections" }]
+        },
+        {
+          "id": 6, "type": "timeseries", "title": "Commits & Rollbacks",
+          "gridPos": { "x": 12, "y": 6, "w": 12, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "ops", "color": { "mode": "palette-classic" } } },
+          "targets": [
+            { "expr": "rate(pg_stat_database_xact_commit{datname=\"ecommerce_db\"}[1m])", "legendFormat": "commits/s" },
+            { "expr": "rate(pg_stat_database_xact_rollback{datname=\"ecommerce_db\"}[1m])", "legendFormat": "rollbacks/s" }
+          ]
+        },
+        {
+          "id": 7, "type": "timeseries", "title": "Dead Tuples (indicates need for VACUUM)",
+          "gridPos": { "x": 0, "y": 14, "w": 12, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "none", "color": { "mode": "palette-classic" } } },
+          "targets": [{ "expr": "sum by (relname) (pg_stat_user_tables_n_dead_tup)", "legendFormat": "{{relname}}" }]
+        },
+        {
+          "id": 8, "type": "timeseries", "title": "Database Size",
+          "gridPos": { "x": 12, "y": 14, "w": 12, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "bytes", "color": { "mode": "palette-classic" } } },
+          "targets": [{ "expr": "pg_database_size_bytes{datname=\"ecommerce_db\"}", "legendFormat": "Size" }]
+        }
+      ],
+      "schemaVersion": 38,
+      "version": 1
+    }

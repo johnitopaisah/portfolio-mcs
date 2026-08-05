@@ -84,6 +84,10 @@ data:
         static_configs:
           - targets: ['postgres-exporter:9187']
 
+      - job_name: shopnow-postgres-exporter
+        static_configs:
+          - targets: ['shopnow-postgres-exporter:9187']
+
       - job_name: pushgateway
         honor_labels: true   # keep the job/instance pushed by the client, not the gateway's own
         static_configs:
@@ -132,6 +136,15 @@ data:
             annotations:
               summary: "PostgreSQL database is down"
               description: "The PostgreSQL exporter cannot connect to the database."
+
+          - alert: ShopNowDatabaseDown
+            expr: absent(up{job="shopnow-postgres-exporter"}) == 1 or up{job="shopnow-postgres-exporter"} == 0
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "ShopNow PostgreSQL database is down"
+              description: "shopnow-postgres-exporter cannot connect to the ecommerce database, or the exporter itself is down."
 
           - alert: HighErrorRate
             expr: |
@@ -335,6 +348,17 @@ data:
             annotations:
               summary: "portfolio-db-backup has not run in the expected daily window"
               description: "Last scheduled run was more than 48h ago — database backups may be stale."
+
+          - alert: CronJobDidNotRun
+            expr: |
+              (time() - kube_cronjob_status_last_schedule_time{namespace="backup", cronjob="shopnow-db-backup"}) > 172800
+            for: 10m
+            labels:
+              severity: critical
+              cronjob: shopnow-db-backup
+            annotations:
+              summary: "shopnow-db-backup has not run in the expected daily window"
+              description: "Last scheduled run was more than 48h ago — ShopNow database backups may be stale."
 
           - alert: CronJobDidNotRun
             expr: |
