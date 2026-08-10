@@ -79,6 +79,8 @@ spec:
                 - secretRef:
                     name: backup-shopnow-db-secrets
               env:
+                - name: POSTGRES_DB
+                  value: "ecommerce_db"
                 - name: HOME
                   value: /tmp
                 - name: POSTGRES_HOST
@@ -90,16 +92,16 @@ spec:
                 #     secretKeyRef:
                 #       name: backup-shopnow-db-secrets
                 #       key: DB_NAME
-                # - name: POSTGRES_USER
-                #   valueFrom:
-                #     secretKeyRef:
-                #       name: backup-shopnow-db-secrets
-                #       key: DB_USER
-                # - name: POSTGRES_PASSWORD
-                #   valueFrom:
-                #     secretKeyRef:
-                #       name: backup-shopnow-db-secrets
-                #       key: DB_PASSWORD
+                - name: POSTGRES_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: backup-shopnow-db-secrets
+                      key: DB_USER
+                - name: POSTGRES_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: backup-shopnow-db-secrets
+                      key: DB_PASSWORD
 
               resources:
                 requests:
