@@ -20,7 +20,7 @@ spec:
 
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 1
-  suspend: true
+  suspend: false
 
   jobTemplate:
     spec:
