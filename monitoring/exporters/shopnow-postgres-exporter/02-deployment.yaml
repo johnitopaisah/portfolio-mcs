@@ -40,25 +40,28 @@ spec:
       containers:
         - name: postgres-exporter
           image: prometheuscommunity/postgres-exporter:v0.15.0
-          env:
-            - name: DB_USER
-              valueFrom:
-                secretKeyRef:
-                  name: shopnow-postgres-exporter-secret
-                  key: DB_USER
-            - name: DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: shopnow-postgres-exporter-secret
-                  key: DB_PASSWORD
-            # - name: DB_NAME
-            #   valueFrom:
-            #     secretKeyRef:
-            #       name: shopnow-postgres-exporter-secret
-            #       key: DB_NAME
-            # Kubernetes substitutes $(VAR) from the env vars defined above —
-            # no wrapper script needed to assemble the DSN.
-            - name: DATA_SOURCE_NAME
+          envFrom:
+            - secretRef:
+                name: shopnow-postgres-exporter-secret
+          # env:
+          #   - name: DB_USER
+          #     valueFrom:
+          #       secretKeyRef:
+          #         name: shopnow-postgres-exporter-secret
+          #         key: DB_USER
+          #   - name: DB_PASSWORD
+          #     valueFrom:
+          #       secretKeyRef:
+          #         name: shopnow-postgres-exporter-secret
+          #         key: DB_PASSWORD
+          #   # - name: DB_NAME
+          #   #   valueFrom:
+          #   #     secretKeyRef:
+          #   #       name: shopnow-postgres-exporter-secret
+          #   #       key: DB_NAME
+          #   # Kubernetes substitutes $(VAR) from the env vars defined above —
+          #   # no wrapper script needed to assemble the DSN.
+          #   - name: DATA_SOURCE_NAME
               value: "postgresql://$(DB_USER):$(DB_PASSWORD)@postgres.ecommerce.svc.cluster.local:5432/$(DB_NAME)?sslmode=disable"
           args:
             - --collector.stat_bgwriter
