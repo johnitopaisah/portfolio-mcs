@@ -51,11 +51,11 @@ spec:
                 secretKeyRef:
                   name: shopnow-postgres-exporter-secret
                   key: DB_PASSWORD
-            - name: DB_NAME
-              valueFrom:
-                secretKeyRef:
-                  name: shopnow-postgres-exporter-secret
-                  key: DB_NAME
+            # - name: DB_NAME
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: shopnow-postgres-exporter-secret
+            #       key: DB_NAME
             # Kubernetes substitutes $(VAR) from the env vars defined above —
             # no wrapper script needed to assemble the DSN.
             - name: DATA_SOURCE_NAME
