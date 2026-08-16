@@ -1,0 +1,40 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform-dashboard
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: platform-tools
+    app.kubernetes.io/managed-by: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"   # create the project before the child Application
+spec:
+  description: "Kubernetes Dashboard — read-only cluster visibility, SSH-tunnel access only"
+
+  sourceRepos:
+    - https://github.com/johnitopaisah/portfolio-mcs
+
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: kubernetes-dashboard
+
+  # Cluster-scoped resources this project may touch.
+  # ClusterRole + ClusterRoleBinding are required for:
+  #   - kubernetes-dashboard-metrics (narrow: metrics.k8s.io only)
+  #   - dashboard-admin-view (the login identity, bound to the
+  #     built-in read-only "view" ClusterRole — see
+  #     k8s/dashboard/05-access-admin.yaml)
+  # This project is deliberately separate from "portfolio-mcs",
+  # which blacklists ClusterRoleBinding outright — the dashboard
+  # is the one workload in this cluster that legitimately needs one.
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"

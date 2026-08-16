@@ -1,0 +1,41 @@
+# ============================================================
+#  Kubernetes Dashboard (App of Apps entry)
+#
+#  This file lives in k8s/argocd/ so portfolio-root picks it up
+#  automatically on its next sync — no manual ArgoCD UI step and
+#  no Terraform change needed (see terraform/README.md, "App of
+#  Apps pattern" under Design Decisions).
+#
+#  ClusterIP-only Service, no Ingress/NodePort in k8s/dashboard/ —
+#  the only intended access path is a port-forward tunneled over
+#  SSH, never a public IP:port.
+# ============================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kubernetes-dashboard
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: kubernetes-dashboard
+    app.kubernetes.io/part-of: platform-tools
+    app.kubernetes.io/component: cluster-visibility
+    app.kubernetes.io/managed-by: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform-dashboard
+  source:
+    repoURL: https://github.com/johnitopaisah/portfolio-mcs
+    targetRevision: develop
+    path: k8s/dashboard
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kubernetes-dashboard
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=false

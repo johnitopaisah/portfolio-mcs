@@ -1,0 +1,44 @@
+# ClusterIP only — deliberately not exposed via Traefik/Ingress or
+# NodePort. Reach it with:
+#   kubectl --kubeconfig=.kube/devops-minikube.yaml -n kubernetes-dashboard \
+#     port-forward svc/kubernetes-dashboard 8443:443
+# tunneled over SSH to devops-instance, never bound to a public interface.
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubernetes-dashboard
+  namespace: kubernetes-dashboard
+  labels:
+    app: kubernetes-dashboard
+    component: web
+spec:
+  type: ClusterIP
+  selector:
+    app: kubernetes-dashboard
+    component: web
+  ports:
+    - name: https
+      port: 443
+      targetPort: 8443
+      protocol: TCP
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard-metrics-scraper
+  namespace: kubernetes-dashboard
+  labels:
+    app: kubernetes-dashboard
+    component: metrics-scraper
+spec:
+  type: ClusterIP
+  selector:
+    app: kubernetes-dashboard
+    component: metrics-scraper
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+      protocol: TCP

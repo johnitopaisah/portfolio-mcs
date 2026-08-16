@@ -1,0 +1,81 @@
+# ============================================================
+#  Network Policies — kubernetes-dashboard namespace
+#
+#  Design: default-deny-all + explicit allow rules, matching
+#  k8s/policies/04-network-policy.yaml for the portfolio namespace.
+#
+#  No ingress rule allows traefik or 0.0.0.0/0 — there is no
+#  Ingress route to this namespace by design. The only intended
+#  access path is `kubectl port-forward` tunneled over SSH, which
+#  reaches the pod via the API server/kubelet rather than the
+#  normal Service/CNI ingress path these rules govern.
+#
+#  NOTE: kindnet (current CNI) does not enforce NetworkPolicy.
+#  These rules take effect if the CNI is switched to Calico/Cilium —
+#  see the same note in k8s/policies/04-network-policy.yaml.
+# ============================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: kubernetes-dashboard
+  labels:
+    app.kubernetes.io/part-of: platform-tools
+    app.kubernetes.io/managed-by: argocd
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+
+---
+
+# Ingress: dashboard <-> metrics-scraper, within this namespace only.
+# Egress:  CoreDNS, kube-apiserver (kubernetes.default.svc lives in
+#          the "default" namespace), and metrics-scraper.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dashboard
+  namespace: kubernetes-dashboard
+  labels:
+    app.kubernetes.io/part-of: platform-tools
+    app.kubernetes.io/managed-by: argocd
+spec:
+  podSelector:
+    matchLabels:
+      app: kubernetes-dashboard
+  policyTypes:
+    - Ingress
+    - Egress
+
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kubernetes-dashboard
+
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: default
+      ports:
+        - protocol: TCP
+          port: 443
+
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kubernetes-dashboard

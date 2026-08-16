@@ -1,0 +1,111 @@
+# ============================================================
+#  Internal RBAC — kubernetes-dashboard's own service account
+#
+#  This is NOT the identity you log in with. It is the identity
+#  the dashboard/metrics-scraper pods run as, scoped to exactly
+#  what the application needs to operate:
+#    - read/write its own settings ConfigMap + cert/CSRF Secrets
+#    - proxy to its own metrics-scraper Service
+#    - read pod/node metrics from metrics.k8s.io (cluster-scoped,
+#      but limited to that single API group — no core resources)
+#
+#  The login identity (dashboard-admin, bound to the built-in
+#  read-only "view" ClusterRole) lives in 05-access-admin.yaml.
+# ============================================================
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubernetes-dashboard
+  namespace: kubernetes-dashboard
+  labels:
+    app.kubernetes.io/part-of: platform-tools
+    app.kubernetes.io/managed-by: argocd
+automountServiceAccountToken: true
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kubernetes-dashboard
+  namespace: kubernetes-dashboard
+  labels:
+    app.kubernetes.io/part-of: platform-tools
+    app.kubernetes.io/managed-by: argocd
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames:
+      - kubernetes-dashboard-key-holder
+      - kubernetes-dashboard-certs
+      - kubernetes-dashboard-csrf
+    verbs: ["get", "update", "delete"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["kubernetes-dashboard-settings"]
+    verbs: ["get", "update"]
+  - apiGroups: [""]
+    resources: ["services"]
+    resourceNames: ["dashboard-metrics-scraper"]
+    verbs: ["proxy"]
+  - apiGroups: [""]
+    resources: ["services/proxy"]
+    resourceNames:
+      - dashboard-metrics-scraper
+      - http:dashboard-metrics-scraper
+    verbs: ["get"]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kubernetes-dashboard
+  namespace: kubernetes-dashboard
+  labels:
+    app.kubernetes.io/part-of: platform-tools
+    app.kubernetes.io/managed-by: argocd
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kubernetes-dashboard
+subjects:
+  - kind: ServiceAccount
+    name: kubernetes-dashboard
+    namespace: kubernetes-dashboard
+
+---
+
+# Cluster-scoped, but deliberately narrow: metrics.k8s.io only.
+# This lets the dashboard show CPU/memory usage per pod/node — it
+# grants no access to core resources, secrets, or any other API group.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubernetes-dashboard-metrics
+  labels:
+    app.kubernetes.io/part-of: platform-tools
+    app.kubernetes.io/managed-by: argocd
+rules:
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["pods", "nodes"]
+    verbs: ["get", "list", "watch"]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubernetes-dashboard-metrics
+  labels:
+    app.kubernetes.io/part-of: platform-tools
+    app.kubernetes.io/managed-by: argocd
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kubernetes-dashboard-metrics
+subjects:
+  - kind: ServiceAccount
+    name: kubernetes-dashboard
+    namespace: kubernetes-dashboard
