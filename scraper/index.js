@@ -12,11 +12,14 @@ const pipeline = require('./src/pipeline');
 const pool = require('./src/db/client');
 const metrics = require('./src/metrics');
 
-// Matches the k8s CronJob's activeDeadlineSeconds (1800s) — must not exceed it,
+// Matches the k8s CronJob's activeDeadlineSeconds (3600s) — must not exceed it,
 // but shouldn't be much shorter either. Workday boards cost meaningfully more
 // per poll than Greenhouse/Lever/Ashby (separate list + per-job detail
-// requests), so 10 min proved too tight once Workday was added.
-const WORKER_TIMEOUT = 28 * 60 * 1000; // 28 min — leaves headroom under k8s's 30 min deadline
+// requests), so 10 min proved too tight once Workday was added, and 28 min
+// stopped being enough once the known_boards registry grew past ~500 boards
+// (runs were completing in ~27.7 min, right at that ceiling — see
+// pipeline.js's POLL_CONCURRENCY, bumped alongside this).
+const WORKER_TIMEOUT = 55 * 60 * 1000; // 55 min — leaves headroom under k8s's 60 min deadline
 
 async function main() {
   console.log('[Scraper] ================================');

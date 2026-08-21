@@ -13,7 +13,7 @@ const poolConfig = process.env.DATABASE_URL ? {
 
 const pool = new Pool({
   ...poolConfig,
-  max: 5,
+  max: 15, // matches pipeline.js's POLL_CONCURRENCY
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
 });

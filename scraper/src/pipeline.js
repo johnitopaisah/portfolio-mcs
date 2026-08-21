@@ -86,7 +86,11 @@ const CIRCUIT_BREAKER_MAX_DAYS = 14;
 // brief and release the connection immediately, so this comfortably overlaps
 // network I/O wait across boards without starving the pool or hammering
 // SearXNG/every ATS at once.
-const POLL_CONCURRENCY = 5;
+//
+// Bumped from 5 — the known_boards registry (500+ boards, mostly cheap
+// single-request platforms) had grown past what 5 lanes could get through
+// within the worker's time budget (see index.js's WORKER_TIMEOUT).
+const POLL_CONCURRENCY = 15;
 
 // Runs `worker` over `items` with at most `concurrency` in flight at a time.
 // Each of the `concurrency` lanes pulls the next item as soon as it finishes

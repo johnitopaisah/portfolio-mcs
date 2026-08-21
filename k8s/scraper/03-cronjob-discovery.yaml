@@ -43,7 +43,11 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 2
-      activeDeadlineSeconds: 1800  # 30 min hard limit
+      # Bumped from 1800 (30 min) — the known_boards registry has grown to
+      # 500+ boards (Workday alone costs a list + up to 100 detail requests
+      # per board), and recent successful runs were already taking ~27.7 min,
+      # right at the old ceiling. See scraper/index.js's WORKER_TIMEOUT.
+      activeDeadlineSeconds: 3600  # 60 min hard limit
       template:
         metadata:
           labels:
