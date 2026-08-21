@@ -20,7 +20,7 @@ ENV PLAYWRIGHT_EXECUTABLE_PATH=/usr/bin/chromium-browser
 # published will keep being reused (and keep serving the vulnerable package)
 # indefinitely otherwise. Bump ARG's value whenever Trivy's scan step flags a
 # "fixed" OS-level CVE that a plain re-run doesn't clear.
-ARG APK_CACHE_BUST=2026-07-17-libjxl-CVE-2026-1837
+ARG APK_CACHE_BUST=2026-08-21-cpython-CVE-2026-11940
 RUN echo "cache-bust: ${APK_CACHE_BUST}" && \
     apk upgrade --no-cache && \
     apk add --no-cache ca-certificates chromium nss freetype harfbuzz ttf-freefont
