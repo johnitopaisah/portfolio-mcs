@@ -3,11 +3,13 @@
 #
 #  Second instance of prometheuscommunity/postgres-exporter,
 #  pointed at ecommerce's postgres instead of portfolio's. DSN is
-#  built from DB_USER/DB_PASSWORD/DB_NAME (the same three keys
-#  api-secret already has, synced separately into this namespace
-#  by 07-shopnow-postgres-exporter-secret.yaml) rather than
-#  requiring a dedicated MONITORING_DB_DSN key to exist in the
-#  shopnow-l-jyo Infisical project — one less manual step.
+#  built from DB_USER/DB_PASSWORD (the same keys api-secret
+#  already has, synced separately into this namespace by
+#  07-shopnow-postgres-exporter-secret.yaml) rather than requiring
+#  a dedicated MONITORING_DB_DSN key to exist in the shopnow-l-jyo
+#  Infisical project — one less manual step. The DB name isn't a
+#  separate secret key (only baked into DATABASE_URL), so it's
+#  hardcoded here as ecommerce_db.
 # ============================================================
 apiVersion: apps/v1
 kind: Deployment
@@ -43,26 +45,11 @@ spec:
           envFrom:
             - secretRef:
                 name: shopnow-postgres-exporter-secret
-          # env:
-          #   - name: DB_USER
-          #     valueFrom:
-          #       secretKeyRef:
-          #         name: shopnow-postgres-exporter-secret
-          #         key: DB_USER
-          #   - name: DB_PASSWORD
-          #     valueFrom:
-          #       secretKeyRef:
-          #         name: shopnow-postgres-exporter-secret
-          #         key: DB_PASSWORD
-          #   # - name: DB_NAME
-          #   #   valueFrom:
-          #   #     secretKeyRef:
-          #   #       name: shopnow-postgres-exporter-secret
-          #   #       key: DB_NAME
-          #   # Kubernetes substitutes $(VAR) from the env vars defined above —
-          #   # no wrapper script needed to assemble the DSN.
-          #   - name: DATA_SOURCE_NAME
-              value: "postgresql://$(DB_USER):$(DB_PASSWORD)@postgres.ecommerce.svc.cluster.local:5432/$(DB_NAME)?sslmode=disable"
+          env:
+            # Kubernetes substitutes $(VAR) from the envFrom-sourced vars above —
+            # no wrapper script needed to assemble the DSN.
+            - name: DATA_SOURCE_NAME
+              value: "postgresql://$(DB_USER):$(DB_PASSWORD)@postgres.ecommerce.svc.cluster.local:5432/ecommerce_db?sslmode=disable"
           args:
             - --collector.stat_bgwriter
             - --collector.stat_database
