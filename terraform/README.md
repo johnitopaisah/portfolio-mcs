@@ -26,7 +26,6 @@ This directory contains all Terraform configuration to provision and bootstrap t
 13. [DNS Records](#13-dns-records)
 14. [Design Decisions](#14-design-decisions)
 15. [Troubleshooting](#15-troubleshooting)
-16. [GCP Account Ownership Transfer](#16-gcp-account-ownership-transfer)
 
 ---
 
@@ -792,83 +791,4 @@ kubectl --kubeconfig=.kube/devops-minikube.yaml \
 
 ```bash
 ssh -i ~/.ssh/ssh-key-2026-03-23.key isahjohna@<static_ip> "cat /tmp/bootstrap.log"
-```
-
----
-
-## 16. GCP Account Ownership Transfer
-
-Moving this project to a new Google account ("migrating" it) is **two separate resources with independent IAM**, not one action:
-
-1. **The Billing Account** (`roles/billing.admin` etc.) — governs who pays and who can manage billing.
-2. **The Project itself** (`roles/owner` etc.) — governs who can administer the project's resources, including who can grant/revoke IAM roles on it.
-
-There is no single "transfer ownership" button that moves both. Following GCP's account-migration flow for one does not automatically migrate the other, and it's easy to end up in a state where both the old and new account still have standing access to one or both. Verify the *actual* IAM state directly rather than trusting that a migration flow completed cleanly:
-
-```bash
-# Who can administer the project?
-gcloud projects get-iam-policy PROJECT_ID --format=json
-
-# Who can administer billing? (separate resource — get the billing account ID from the first command's output, or:)
-gcloud billing projects describe PROJECT_ID --format="value(billingAccountName)"
-gcloud billing accounts get-iam-policy BILLING_ACCOUNT_ID --format=json
-```
-
-### Why `roles/editor` isn't enough to self-serve this
-
-`roles/editor` (a common role to grant a "new" account early on) deliberately excludes `resourcemanager.projects.setIamPolicy` — the permission needed to grant or revoke IAM roles on the project. An account with only Editor cannot promote itself to Owner, and cannot remove another account's access. **The grant step below must be run while authenticated as an account that already holds `roles/owner`** (or `resourcemanager.projects.setIamPolicy` some other way) — i.e., the *old* account, one last time.
-
-### Procedure
-
-**1. Confirm the new account already works day-to-day** (Compute, Storage, etc.) before touching IAM — if `gcloud auth list` shows it active and normal `gcloud compute` / `gcloud storage` commands succeed, Editor-level access is already functioning and this is purely an ownership-boundary change, not a fix for broken access.
-
-**2. Grant Owner to the new account — run as the OLD (current-owner) account:**
-```bash
-gcloud config set account OLD_ACCOUNT@gmail.com
-gcloud projects add-iam-policy-binding PROJECT_ID \
-  --member="user:NEW_ACCOUNT@gmail.com" \
-  --role="roles/owner"
-```
-
-**3. Switch to the new account and verify it can itself administer IAM** — this is the real test that ownership actually transferred, not just that broad permissions exist:
-```bash
-gcloud config set account NEW_ACCOUNT@gmail.com
-gcloud projects get-iam-policy PROJECT_ID --format=json
-# Confirm roles/owner is listed for NEW_ACCOUNT before proceeding to step 4.
-```
-
-**4. Remove the old account** — now doable from the new account, since it holds Owner:
-```bash
-gcloud config set account NEW_ACCOUNT@gmail.com
-for role in roles/owner roles/editor roles/billing.projectManager roles/compute.osAdminLogin; do
-  gcloud projects remove-iam-policy-binding PROJECT_ID \
-    --member="user:OLD_ACCOUNT@gmail.com" \
-    --role="$role"
-done
-```
-Adjust the role list to whatever `get-iam-policy` in step 3 actually shows bound to the old account — don't assume the four above are exhaustive; re-check first.
-
-**5. If the billing account still lists the old account too**, repeat the same grant-verify-remove pattern against it specifically (`gcloud billing accounts add-iam-policy-binding` / `remove-iam-policy-binding`) — it's a fully separate resource from the project, covered by steps 2-4.
-
-**6. Final verification — confirm nothing depends on the old account:**
-```bash
-gcloud projects get-iam-policy PROJECT_ID --format=json | grep -c OLD_ACCOUNT   # expect 0
-gcloud billing accounts get-iam-policy BILLING_ACCOUNT_ID --format=json | grep -c OLD_ACCOUNT  # expect 0
-```
-
-### Things that do *not* need to change
-
-- **Terraform's own GCP auth** — `gcp_credentials_file` in `terraform.tfvars` points at a service account key (`terraform-sa@...`), not a user account. Service accounts are independent identities; this project's ownership transferring between personal Google accounts has no effect on Terraform's ability to authenticate.
-- **The `isahjohna` OS-level Linux user on the VM** — created by `metadata_startup_script` from the `ssh-keys` instance metadata (see `main.tf`). This is an operating-system username tied to an SSH public key, entirely unrelated to which Google account owns the GCP project. No need to rename it or create a matching `isahjohn91` OS user just because GCP ownership changed hands — SSH access to the VM is governed by whose public key is in the metadata, not by GCP IAM roles (`roles/compute.osAdminLogin` grants OS Login access separately, but this project uses metadata-based SSH keys, not OS Login, for the `isahjohna` startup-script user specifically).
-
-### Rollback
-
-If step 4 causes anything unexpected, the old account's access can be restored immediately (assuming step 4 was the only change made) by re-running the grants from step 2 with the old account's roles, authenticated as the new account (which now holds Owner and can do this alone):
-```bash
-gcloud config set account NEW_ACCOUNT@gmail.com
-for role in roles/owner roles/editor roles/billing.projectManager roles/compute.osAdminLogin; do
-  gcloud projects add-iam-policy-binding PROJECT_ID \
-    --member="user:OLD_ACCOUNT@gmail.com" \
-    --role="$role"
-done
 ```
