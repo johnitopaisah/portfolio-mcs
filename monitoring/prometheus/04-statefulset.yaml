@@ -47,8 +47,14 @@ spec:
           args:
             - --config.file=/etc/prometheus/prometheus.yml
             - --storage.tsdb.path=/prometheus
-            - --storage.tsdb.retention.time=30d
-            - --storage.tsdb.retention.size=4GB   # leave 1GB headroom in 5Gi PVC
+            - --storage.tsdb.retention.time=90d
+            # prometheus-pvc's declared 1Gi request is bookkeeping only — minikube's
+            # "standard" StorageClass provisions it as hostPath, which isn't actually
+            # size-enforced (confirmed: `df` inside the pod reports the full node
+            # disk, not 1Gi) and doesn't support volume expansion either way. Real
+            # headroom is the node's disk (100+ GB free). retention.size is a soft
+            # cap kept well under that for safety, not tied to the PVC number.
+            - --storage.tsdb.retention.size=8GB
             - --web.enable-lifecycle              # allows POST /-/reload for config reload
             - --web.console.libraries=/usr/share/prometheus/console_libraries
             - --web.console.templates=/usr/share/prometheus/consoles
