@@ -43,9 +43,19 @@ spec:
                 path: settings.yml
 
       containers:
+        # trivy:ignore:KSV-0014 searxng writes its own runtime cache/temp
+        # files beyond just /etc/searxng (mounted read-only from the
+        # settings Secret above) — a read-only rootfs isn't safe here
+        # without auditing every path the upstream image writes to.
         - name: searxng
           image: searxng/searxng:latest
           imagePullPolicy: Always
+
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 977
+            runAsGroup: 977
+            allowPrivilegeEscalation: false
 
           ports:
             - name: http
@@ -59,11 +69,11 @@ spec:
               
           resources:
             requests:
-              cpu:    100m
-              memory: 256Mi
+              cpu:    20m
+              memory: 160Mi
             limits:
-              cpu:    500m
-              memory: 512Mi
+              cpu:    250m
+              memory: 384Mi
 
           readinessProbe:
             httpGet:

@@ -1,6 +1,7 @@
 # StatefulSet — not a Deployment.
 # Uses the CI-built GHCR image which already contains schema.sql and seed.sh.
 # No ConfigMap volume mounts needed — init scripts are baked into the image.
+#trivy:ignore:KSV-0014
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -44,9 +45,20 @@ spec:
         - name: ghcr-pull-secret
 
       containers:
+        # postgres writes WAL/temp files under /var/lib/postgresql/data
+        # (the mounted PVC) but also needs /var/run/postgresql and /tmp
+        # for its unix socket and sort/temp files — a read-only rootfs
+        # would need those mounted separately.
+        # trivy:ignore:AVD-KSV-0014
         - name: postgres
           image: ghcr.io/johnitopaisah/portfolio-mcs/db:v0.0.9-rc3
           imagePullPolicy: IfNotPresent
+
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+            allowPrivilegeEscalation: false
 
           ports:
             - name:          postgres
@@ -59,11 +71,11 @@ spec:
 
           resources:
             requests:
-              cpu:    "100m"
-              memory: "256Mi"
+              cpu:    "30m"
+              memory: "224Mi"
             limits:
-              cpu:    "400m"
-              memory: "412Mi"
+              cpu:    "300m"
+              memory: "384Mi"
 
           livenessProbe:
             exec:

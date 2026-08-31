@@ -56,10 +56,10 @@ spec:
           resources:
             requests:
               cpu: "10m"
-              memory: "40Mi"
+              memory: "32Mi"
             limits:
               cpu: "50m"
-              memory: "80Mi"
+              memory: "64Mi"
 
       containers:
         - name: api
@@ -95,11 +95,11 @@ spec:
 
           resources:
             requests:
-              cpu: "100m"
-              memory: "128Mi"
+              cpu: "25m"
+              memory: "100Mi"
             limits:
-              cpu: "400m"
-              memory: "400Mi"
+              cpu: "250m"
+              memory: "300Mi"
 
           livenessProbe:
             httpGet:
