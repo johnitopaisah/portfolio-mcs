@@ -123,17 +123,31 @@ data:
         },
         {
           "id": 14, "type": "gauge", "title": "PVC Remaining — portfolio-db",
-          "description": "Declared allocation (1Gi) minus real DB size (sum of pg_database_size_bytes from postgres-exporter). Not kubelet_volume_stats — minikube's hostPath StorageClass doesn't implement CSI NodeGetVolumeStats, so that metric never populates here. The declared allocation isn't kernel-enforced either (hostPath), but this is the real number to track against it.",
+          "description": "Declared allocation (10Gi) minus real DB size (sum of pg_database_size_bytes from postgres-exporter). Not kubelet_volume_stats — minikube's hostPath StorageClass doesn't implement CSI NodeGetVolumeStats, so that metric never populates here. The declared allocation isn't kernel-enforced either (hostPath), but this is the real number to track against it.",
           "gridPos": { "x": 12, "y": 28, "w": 6, "h": 4 },
-          "fieldConfig": { "defaults": { "unit": "bytes", "min": 0, "max": 1073741824, "thresholds": { "steps": [{ "color": "red", "value": 0 }, { "color": "yellow", "value": 107374182 }, { "color": "green", "value": 322122547 }] } } },
+          "fieldConfig": { "defaults": { "unit": "bytes", "min": 0, "max": 10737418240, "thresholds": { "steps": [{ "color": "red", "value": 0 }, { "color": "yellow", "value": 1073741824 }, { "color": "green", "value": 3221225472 }] } } },
           "targets": [{ "expr": "sum(kube_persistentvolumeclaim_resource_requests_storage_bytes{persistentvolumeclaim=\"portfolio-db-pvc\"}) - sum(pg_database_size_bytes{job=\"postgres-exporter\"})", "legendFormat": "DB PVC remaining" }]
         },
         {
           "id": 15, "type": "gauge", "title": "PVC Remaining — prometheus",
-          "description": "Declared allocation (1Gi) minus Prometheus's own reported TSDB size (prometheus_tsdb_storage_blocks_bytes). Same rationale as the portfolio-db panel — kubelet_volume_stats doesn't work on this StorageClass.",
+          "description": "Declared allocation (15Gi) minus Prometheus's own reported TSDB size (prometheus_tsdb_storage_blocks_bytes). Same rationale as the portfolio-db panel — kubelet_volume_stats doesn't work on this StorageClass.",
           "gridPos": { "x": 18, "y": 28, "w": 6, "h": 4 },
-          "fieldConfig": { "defaults": { "unit": "bytes", "min": 0, "max": 1073741824, "thresholds": { "steps": [{ "color": "red", "value": 0 }, { "color": "yellow", "value": 107374182 }, { "color": "green", "value": 322122547 }] } } },
+          "fieldConfig": { "defaults": { "unit": "bytes", "min": 0, "max": 16106127360, "thresholds": { "steps": [{ "color": "red", "value": 0 }, { "color": "yellow", "value": 1610612736 }, { "color": "green", "value": 4831838208 }] } } },
           "targets": [{ "expr": "sum(kube_persistentvolumeclaim_resource_requests_storage_bytes{persistentvolumeclaim=\"prometheus-pvc\"}) - sum(prometheus_tsdb_storage_blocks_bytes)", "legendFormat": "Prometheus PVC remaining" }]
+        },
+        {
+          "id": 20, "type": "gauge", "title": "PVC Remaining — grafana",
+          "description": "Declared allocation (15Gi) minus grafana-pvc's real usage (du -sb /var/lib/grafana, pushed every 5min by backup/pvc-metrics-pusher CronJob since Grafana doesn't expose its own disk footprint as a metric). Same hostPath/kubelet_volume_stats rationale as the other PVC panels.",
+          "gridPos": { "x": 12, "y": 32, "w": 6, "h": 4 },
+          "fieldConfig": { "defaults": { "unit": "bytes", "min": 0, "max": 16106127360, "thresholds": { "steps": [{ "color": "red", "value": 0 }, { "color": "yellow", "value": 1610612736 }, { "color": "green", "value": 4831838208 }] } } },
+          "targets": [{ "expr": "sum(kube_persistentvolumeclaim_resource_requests_storage_bytes{persistentvolumeclaim=\"grafana-pvc\"}) - sum(grafana_data_bytes)", "legendFormat": "Grafana PVC remaining" }]
+        },
+        {
+          "id": 21, "type": "gauge", "title": "PVC Remaining — pushgateway",
+          "description": "Declared allocation (3Gi) minus pushgateway-pvc's real usage (du -sb /data, pushed every 5min by backup/pvc-metrics-pusher CronJob — Pushgateway holds latest-value snapshots, not a self-reported disk-size metric). Same hostPath/kubelet_volume_stats rationale as the other PVC panels.",
+          "gridPos": { "x": 18, "y": 32, "w": 6, "h": 4 },
+          "fieldConfig": { "defaults": { "unit": "bytes", "min": 0, "max": 3221225472, "thresholds": { "steps": [{ "color": "red", "value": 0 }, { "color": "yellow", "value": 322122547 }, { "color": "green", "value": 966367642 }] } } },
+          "targets": [{ "expr": "sum(kube_persistentvolumeclaim_resource_requests_storage_bytes{persistentvolumeclaim=\"pushgateway-pvc\"}) - sum(pushgateway_data_bytes)", "legendFormat": "Pushgateway PVC remaining" }]
         },
         {
           "id": 16, "type": "row", "title": "HPA Activity (api / user-ui / admin-ui)",
