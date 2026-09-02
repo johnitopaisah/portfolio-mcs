@@ -876,9 +876,7 @@ data:
             "fullHighlight": false,
             "groupWidth": 0.7,
             "legend": {
-              "calcs": [
-                "value"
-              ],
+              "calcs": [],
               "displayMode": "list",
               "placement": "bottom",
               "showLegend": true
@@ -939,9 +937,7 @@ data:
             "fullHighlight": false,
             "groupWidth": 0.7,
             "legend": {
-              "calcs": [
-                "value"
-              ],
+              "calcs": [],
               "displayMode": "table",
               "placement": "bottom",
               "showLegend": true
@@ -1122,9 +1118,7 @@ data:
             "fullHighlight": false,
             "groupWidth": 0.7,
             "legend": {
-              "calcs": [
-                "value"
-              ],
+              "calcs": [],
               "displayMode": "list",
               "placement": "right",
               "showLegend": true
