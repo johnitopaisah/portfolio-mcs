@@ -148,7 +148,7 @@ data:
           "id": 4,
           "type": "stat",
           "title": "Bots Blocked (24h)",
-          "description": "Total bot requests detected and filtered in the last 24 hours. Green at zero is expected — this counts threats stopped, not a problem.",
+          "description": "Total bot requests detected and filtered in the last 24 hours. Green at zero is expected \u2014 this counts threats stopped, not a problem.",
           "gridPos": {
             "x": 12,
             "y": 0,
@@ -231,7 +231,7 @@ data:
           "id": 6,
           "type": "stat",
           "title": "Real Traffic %",
-          "description": "Percentage of human vs bot traffic — a quality signal, so it's threshold-colored: high is good, low means bots dominate.",
+          "description": "Percentage of human vs bot traffic \u2014 a quality signal, so it's threshold-colored: high is good, low means bots dominate.",
           "gridPos": {
             "x": 20,
             "y": 0,
@@ -288,7 +288,7 @@ data:
         {
           "id": 7,
           "type": "timeseries",
-          "title": "Visitor Traffic Trend — Last 7 Days",
+          "title": "Visitor Traffic Trend \u2014 Last 7 Days",
           "description": "Hourly visitor count with trend visualization. Blue area = human traffic, red line = bot attempts blocked",
           "gridPos": {
             "x": 0,
@@ -476,7 +476,9 @@ data:
           "transformations": [
             {
               "id": "labelsToFields",
-              "options": {}
+              "options": {
+                "valueLabel": "browser"
+              }
             }
           ],
           "targets": [
@@ -692,7 +694,7 @@ data:
           "id": 19,
           "type": "stat",
           "title": "Bot Activity (24h)",
-          "description": "Number of blocked bot attempts. Green at zero is expected — this counts threats stopped, not a problem.",
+          "description": "Number of blocked bot attempts. Green at zero is expected \u2014 this counts threats stopped, not a problem.",
           "gridPos": {
             "x": 12,
             "y": 19,
@@ -845,7 +847,9 @@ data:
           "transformations": [
             {
               "id": "labelsToFields",
-              "options": {}
+              "options": {
+                "valueLabel": "referrer"
+              }
             }
           ],
           "targets": [
@@ -906,7 +910,9 @@ data:
           "transformations": [
             {
               "id": "labelsToFields",
-              "options": {}
+              "options": {
+                "valueLabel": "country"
+              }
             }
           ],
           "targets": [
@@ -994,7 +1000,9 @@ data:
           "transformations": [
             {
               "id": "labelsToFields",
-              "options": {}
+              "options": {
+                "valueLabel": "device"
+              }
             }
           ],
           "targets": [
@@ -1085,7 +1093,9 @@ data:
           "transformations": [
             {
               "id": "labelsToFields",
-              "options": {}
+              "options": {
+                "valueLabel": "device"
+              }
             }
           ],
           "targets": [
@@ -1194,7 +1204,9 @@ data:
           "transformations": [
             {
               "id": "labelsToFields",
-              "options": {}
+              "options": {
+                "valueLabel": "referrer"
+              }
             }
           ],
           "targets": [
