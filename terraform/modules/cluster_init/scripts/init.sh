@@ -143,6 +143,38 @@ sudo nginx -t
 sudo systemctl enable nginx
 sudo systemctl restart nginx
 
+# ── 9. Auto-start Minikube on every VM boot ─────────────────────────────────
+# The minikube node containers don't restart themselves when the VM reboots
+# (docker's own restart policy is "no" for them — minikube manages their
+# lifecycle itself, not docker). Without this, any VM reboot (a deliberate
+# one, a GCP host-maintenance event, or a kernel-level OOM recovery) leaves
+# the cluster down until someone manually runs `minikube start`. Idempotent
+# on every boot — a healthy running profile just gets a no-op status check.
+log "Installing minikube auto-start systemd unit"
+sudo tee /etc/systemd/system/minikube.service > /dev/null <<'UNIT'
+[Unit]
+Description=Start devops-minikube cluster
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=isahjohna
+Environment=HOME=/home/isahjohna
+ExecStart=/usr/local/bin/minikube start -p devops-minikube
+TimeoutStartSec=300
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+sudo systemctl daemon-reload
+sudo systemctl enable minikube.service
+
 log "Cluster initialisation complete"
 echo "Profile     : ${PROFILE}"
 echo "Minikube IP : ${MINIKUBE_IP}"
