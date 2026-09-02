@@ -56,11 +56,11 @@ spec:
                   echo "Database is ready"
               resources:
                 requests:
-                  cpu: "15m"
-                  memory: "64Mi"
+                  cpu: "50m"
+                  memory: "384Mi"
                 limits:
-                  cpu: "100m"
-                  memory: "128Mi"
+                  cpu: "300m"
+                  memory: "768Mi"
 
           containers:
             - name: backup
@@ -106,10 +106,10 @@ spec:
               resources:
                 requests:
                   cpu: "50m"
-                  memory: "256Mi"
+                  memory: "384Mi"
                 limits:
                   cpu: "400m"
-                  memory: "512Mi"
+                  memory: "768Mi"
 
               volumeMounts:
                 - name: backup-scripts
