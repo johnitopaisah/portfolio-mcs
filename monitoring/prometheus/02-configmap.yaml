@@ -230,7 +230,7 @@ data:
           - alert: MemoryPressure
             expr: |
               1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 0.85
-            for: 10m
+            for: 5m
             labels:
               severity: warning
             annotations:
