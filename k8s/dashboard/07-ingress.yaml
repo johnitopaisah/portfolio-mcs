@@ -1,0 +1,39 @@
+# Public ingress — kube-dashboard.johnisah.com
+#
+# Not gated at the Traefik/Ingress layer itself: Cloudflare Access sits in
+# front of this hostname (see terraform/modules/cloudflare_access) and
+# requires an authenticated session before the request is ever proxied to
+# the origin. This Ingress and its NetworkPolicy allowance exist to route
+# traffic that already passed that check.
+#
+# DNS + Cloudflare Access are Terraform-managed (module.cloudflare_dns,
+# module.cloudflare_access) — this file only needs the hostname to match.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kubernetes-dashboard
+  namespace: kubernetes-dashboard
+  labels:
+    app.kubernetes.io/part-of: platform-tools
+    app.kubernetes.io/managed-by: argocd
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+    traefik.ingress.kubernetes.io/router.tls: 'true'
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - kube-dashboard.johnisah.com
+      secretName: kube-dashboard-tls
+  rules:
+    - host: kube-dashboard.johnisah.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kubernetes-dashboard
+                port:
+                  number: 80

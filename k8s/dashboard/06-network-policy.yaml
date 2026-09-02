@@ -4,10 +4,11 @@
 #  Design: default-deny-all + explicit allow rules, matching
 #  k8s/policies/04-network-policy.yaml for the portfolio namespace.
 #
-#  No ingress rule allows traefik or 0.0.0.0/0 — there is no
-#  Ingress route to this namespace by design. The only intended
-#  access path is `kubectl port-forward` tunneled over SSH, which
-#  reaches the pod via the API server/kubelet rather than the
+#  Ingress from traefik is allowed for the public Ingress route
+#  (kube-dashboard.johnisah.com) — actual authentication for that
+#  path happens at Cloudflare Access, in front of Traefik, not here.
+#  `kubectl port-forward` tunneled over SSH remains available too;
+#  it reaches the pod via the API server/kubelet rather than the
 #  normal Service/CNI ingress path these rules govern.
 #
 #  NOTE: kindnet (current CNI) does not enforce NetworkPolicy.
@@ -55,6 +56,14 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: kubernetes-dashboard
+
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: traefik
+      ports:
+        - protocol: TCP
+          port: 9090
 
   egress:
     - to:

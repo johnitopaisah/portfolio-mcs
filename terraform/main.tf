@@ -55,7 +55,6 @@ module "cloudflare_access" {
   account_id       = var.cloudflare_account_id
   application_name = "Kubernetes Dashboard"
   domain           = "kube-dashboard.johnisah.com"
-  allowed_emails   = var.zero_trust_allowed_emails
 
   # Not a functional dependency (this module never reads cloudflare_dns's
   # outputs) — ordering only, so the DNS record exists before the Access

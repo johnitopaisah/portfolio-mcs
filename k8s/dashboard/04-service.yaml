@@ -1,8 +1,10 @@
-# ClusterIP only — deliberately not exposed via Traefik/Ingress or
-# NodePort. Reach it with:
-#   kubectl --kubeconfig=.kube/devops-minikube.yaml -n kubernetes-dashboard \
-#     port-forward svc/kubernetes-dashboard 8443:443
-# tunneled over SSH to devops-instance, never bound to a public interface.
+# ClusterIP only — no NodePort/LoadBalancer. Reachable two ways:
+#   1. Public: kube-dashboard.johnisah.com, gated by Cloudflare Access
+#      (see 07-ingress.yaml + terraform/modules/cloudflare_access) before
+#      the request ever reaches Traefik.
+#   2. Fallback: kubectl --kubeconfig=.kube/devops-minikube.yaml
+#      -n kubernetes-dashboard port-forward svc/kubernetes-dashboard 8080:80
+#      tunneled over SSH.
 apiVersion: v1
 kind: Service
 metadata:
@@ -17,9 +19,9 @@ spec:
     app: kubernetes-dashboard
     component: web
   ports:
-    - name: https
-      port: 443
-      targetPort: 8443
+    - name: http
+      port: 80
+      targetPort: 9090
       protocol: TCP
 
 ---

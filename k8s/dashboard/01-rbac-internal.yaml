@@ -38,7 +38,6 @@ rules:
     resources: ["secrets"]
     resourceNames:
       - kubernetes-dashboard-key-holder
-      - kubernetes-dashboard-certs
       - kubernetes-dashboard-csrf
     verbs: ["get", "update", "delete"]
   - apiGroups: [""]

@@ -74,12 +74,6 @@ variable "cloudflare_account_id" {
   description = "Cloudflare account ID — required for Zero Trust Access resources (account-scoped, unlike DNS records which are zone-scoped)."
 }
 
-variable "zero_trust_allowed_emails" {
-  type        = list(string)
-  description = "Emails allowed through Cloudflare Access for internal dashboards (e.g. kube-dashboard.johnisah.com). Authenticated via Cloudflare's built-in one-time-PIN."
-  default     = ["johnitopaisah@gmail.com"]
-}
-
 # ══════════════════════════════════════════════════════════════════════════════
 # Infisical
 # ══════════════════════════════════════════════════════════════════════════════
