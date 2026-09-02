@@ -11,9 +11,13 @@
 #  it reaches the pod via the API server/kubelet rather than the
 #  normal Service/CNI ingress path these rules govern.
 #
-#  NOTE: kindnet (current CNI) does not enforce NetworkPolicy.
-#  These rules take effect if the CNI is switched to Calico/Cilium —
-#  see the same note in k8s/policies/04-network-policy.yaml.
+#  CORRECTION: kindnet DOES enforce NetworkPolicy in this cluster —
+#  confirmed the hard way on 2026-09-02, when default-deny-all silently
+#  black-holed cert-manager's HTTP-01 solver pod (no matching allow rule
+#  for its dynamically-created labels) and hung every request to it with
+#  a full connection timeout rather than a fast rejection. The identical
+#  "does not enforce" note in k8s/policies/04-network-policy.yaml is
+#  equally stale and should not be trusted either.
 # ============================================================
 
 apiVersion: networking.k8s.io/v1
@@ -88,3 +92,31 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: kubernetes-dashboard
+
+---
+
+# cert-manager creates one of these pods per HTTP-01 challenge attempt
+# (torn down again once solved), always carrying this label. Traefik and
+# cert-manager's own self-check both need to reach it on its fixed
+# acmesolver port; scoped this narrowly rather than to a specific
+# namespace/pod source since both callers' identities are outside our
+# control and the pod only exists for the few seconds/minutes a
+# challenge is in flight.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-acme-http01-solver
+  namespace: kubernetes-dashboard
+  labels:
+    app.kubernetes.io/part-of: platform-tools
+    app.kubernetes.io/managed-by: argocd
+spec:
+  podSelector:
+    matchLabels:
+      acme.cert-manager.io/http01-solver: "true"
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8089
