@@ -229,13 +229,13 @@ data:
 
           - alert: MemoryPressure
             expr: |
-              1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 0.80
+              1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 0.85
             for: 10m
             labels:
               severity: warning
             annotations:
-              summary: "High memory usage (>80%)"
-              description: "Node {{ $labels.instance }} memory usage is above 80%."
+              summary: "High memory usage (>85%)"
+              description: "Node {{ $labels.instance }} memory usage is above 85%."
 
           - alert: DBConnectionsSaturated
             expr: |
