@@ -25,7 +25,7 @@ metadata:
     app: portfolio-mcs
     component: backup
 spec:
-  schedule: "*/5 * * * *"
+  schedule: "*/15 * * * *"
   successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 1
   suspend: false
