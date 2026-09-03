@@ -174,7 +174,7 @@ data:
         },
         {
           "id": 11,
-          "type": "timeseries",
+          "type": "barchart",
           "title": "Backup Size Trend (30d)",
           "gridPos": {
             "x": 0,
