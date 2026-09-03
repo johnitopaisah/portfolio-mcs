@@ -64,15 +64,15 @@ data:
               "thresholds": {
                 "steps": [
                   {
-                    "color": "red",
+                    "color": "#ec835a",
                     "value": -86400
                   },
                   {
-                    "color": "yellow",
+                    "color": "#fab219",
                     "value": 4320
                   },
                   {
-                    "color": "green",
+                    "color": "#0ca30c",
                     "value": 12960
                   }
                 ]
@@ -111,15 +111,15 @@ data:
               "thresholds": {
                 "steps": [
                   {
-                    "color": "red",
+                    "color": "#ec835a",
                     "value": -86400
                   },
                   {
-                    "color": "yellow",
+                    "color": "#fab219",
                     "value": 4320
                   },
                   {
-                    "color": "green",
+                    "color": "#0ca30c",
                     "value": 12960
                   }
                 ]
@@ -224,7 +224,7 @@ data:
             "h": 8
           },
           "options": {
-            "colorMode": "background",
+            "colorMode": "value",
             "graphMode": "none",
             "textMode": "value_and_name",
             "reduceOptions": {
@@ -247,7 +247,7 @@ data:
                     "value": 100800
                   },
                   {
-                    "color": "red",
+                    "color": "indigo",
                     "value": 172800
                   }
                 ]
@@ -265,15 +265,15 @@ data:
                     "value": {
                       "steps": [
                         {
-                          "color": "red",
+                          "color": "#ec835a",
                           "value": -900
                         },
                         {
-                          "color": "yellow",
+                          "color": "#fab219",
                           "value": 135
                         },
                         {
-                          "color": "green",
+                          "color": "#0ca30c",
                           "value": 225
                         }
                       ]
@@ -292,15 +292,15 @@ data:
                     "value": {
                       "steps": [
                         {
-                          "color": "red",
+                          "color": "#ec835a",
                           "value": -1800
                         },
                         {
-                          "color": "yellow",
+                          "color": "#fab219",
                           "value": 270
                         },
                         {
-                          "color": "green",
+                          "color": "#0ca30c",
                           "value": 450
                         }
                       ]
@@ -319,15 +319,15 @@ data:
                     "value": {
                       "steps": [
                         {
-                          "color": "red",
+                          "color": "#ec835a",
                           "value": -28800
                         },
                         {
-                          "color": "yellow",
+                          "color": "#fab219",
                           "value": 4320
                         },
                         {
-                          "color": "green",
+                          "color": "#0ca30c",
                           "value": 7200
                         }
                       ]
@@ -346,15 +346,15 @@ data:
                     "value": {
                       "steps": [
                         {
-                          "color": "red",
+                          "color": "#ec835a",
                           "value": -86400
                         },
                         {
-                          "color": "yellow",
+                          "color": "#fab219",
                           "value": 12960
                         },
                         {
-                          "color": "green",
+                          "color": "#0ca30c",
                           "value": 21600
                         }
                       ]
@@ -373,15 +373,15 @@ data:
                     "value": {
                       "steps": [
                         {
-                          "color": "red",
+                          "color": "#ec835a",
                           "value": -86400
                         },
                         {
-                          "color": "yellow",
+                          "color": "#fab219",
                           "value": 12960
                         },
                         {
-                          "color": "green",
+                          "color": "#0ca30c",
                           "value": 21600
                         }
                       ]
@@ -400,15 +400,15 @@ data:
                     "value": {
                       "steps": [
                         {
-                          "color": "red",
+                          "color": "#ec835a",
                           "value": -86400
                         },
                         {
-                          "color": "yellow",
+                          "color": "#fab219",
                           "value": 12960
                         },
                         {
-                          "color": "green",
+                          "color": "#0ca30c",
                           "value": 21600
                         }
                       ]
@@ -427,15 +427,15 @@ data:
                     "value": {
                       "steps": [
                         {
-                          "color": "red",
+                          "color": "#ec835a",
                           "value": -86400
                         },
                         {
-                          "color": "yellow",
+                          "color": "#fab219",
                           "value": 12960
                         },
                         {
-                          "color": "green",
+                          "color": "#0ca30c",
                           "value": 21600
                         }
                       ]
@@ -454,15 +454,15 @@ data:
                     "value": {
                       "steps": [
                         {
-                          "color": "red",
+                          "color": "#ec835a",
                           "value": -86400
                         },
                         {
-                          "color": "yellow",
+                          "color": "#fab219",
                           "value": 12960
                         },
                         {
-                          "color": "green",
+                          "color": "#0ca30c",
                           "value": 21600
                         }
                       ]
@@ -481,15 +481,15 @@ data:
                     "value": {
                       "steps": [
                         {
-                          "color": "red",
+                          "color": "#ec835a",
                           "value": -604800
                         },
                         {
-                          "color": "yellow",
+                          "color": "#fab219",
                           "value": 90720
                         },
                         {
-                          "color": "green",
+                          "color": "#0ca30c",
                           "value": 151200
                         }
                       ]
@@ -563,7 +563,7 @@ data:
                     "value": 0
                   },
                   {
-                    "color": "red",
+                    "color": "in",
                     "value": 1
                   }
                 ]
