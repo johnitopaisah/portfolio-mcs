@@ -42,7 +42,7 @@ data:
         {
           "id": 8,
           "type": "gauge",
-          "title": "Age of Last Successful DB Backup",
+          "title": "Time Until Next DB Backup Due",
           "description": "Pushed by k8s/backup/04-cronjob-db-backup.yaml on successful completion.",
           "gridPos": {
             "x": 0,
@@ -60,35 +60,36 @@ data:
           "fieldConfig": {
             "defaults": {
               "unit": "s",
-              "min": 0,
+              "min": -21600,
               "thresholds": {
                 "steps": [
                   {
-                    "color": "green",
-                    "value": 0
+                    "color": "red",
+                    "value": -86400
                   },
                   {
                     "color": "yellow",
-                    "value": 64800
+                    "value": 12960
                   },
                   {
-                    "color": "red",
-                    "value": 73440
+                    "color": "green",
+                    "value": 21600
                   }
                 ]
-              }
+              },
+              "max": 86400
             }
           },
           "targets": [
             {
-              "expr": "time() - backup_last_success_timestamp{job=\"portfolio-db-backup\"}"
+              "expr": "86400 - (time() - backup_last_success_timestamp{job=\"portfolio-db-backup\"})"
             }
           ]
         },
         {
           "id": 9,
           "type": "gauge",
-          "title": "Age of Last Successful Monitoring Backup",
+          "title": "Time Until Next Monitoring Backup Due",
           "description": "Pushed by k8s/backup/05-cronjob-monitoring-backup.yaml on successful completion.",
           "gridPos": {
             "x": 8,
@@ -106,28 +107,29 @@ data:
           "fieldConfig": {
             "defaults": {
               "unit": "s",
-              "min": 0,
+              "min": -21600,
               "thresholds": {
                 "steps": [
                   {
-                    "color": "green",
-                    "value": 0
+                    "color": "red",
+                    "value": -86400
                   },
                   {
                     "color": "yellow",
-                    "value": 64800
+                    "value": 12960
                   },
                   {
-                    "color": "red",
-                    "value": 73440
+                    "color": "green",
+                    "value": 21600
                   }
                 ]
-              }
+              },
+              "max": 86400
             }
           },
           "targets": [
             {
-              "expr": "time() - backup_last_success_timestamp{job=\"backup-monitoring-volumes\"}"
+              "expr": "86400 - (time() - backup_last_success_timestamp{job=\"backup-monitoring-volumes\"})"
             }
           ]
         },
@@ -213,8 +215,8 @@ data:
         {
           "id": 1,
           "type": "stat",
-          "title": "CronJob Last Scheduled Run",
-          "description": "One tile per CronJob \u2014 time since its last scheduled run. Thresholds are a general-purpose default (not tuned per job's own schedule), so treat this as \u201cis anything gone silent for a suspiciously long time\u201d rather than a per-job SLA.",
+          "title": "Time Until Next Scheduled Run",
+          "description": "One tile per CronJob \u2014 time remaining until its next scheduled run, based on each job's own schedule. Positive = due in that long; negative = overdue by that long. Thresholds: yellow at 25% of the interval remaining, red at 15% remaining (i.e. 75%/85% elapsed).",
           "gridPos": {
             "x": 0,
             "y": 18,
@@ -263,16 +265,16 @@ data:
                     "value": {
                       "steps": [
                         {
-                          "color": "green",
-                          "value": 0
+                          "color": "red",
+                          "value": -900
                         },
                         {
                           "color": "yellow",
-                          "value": 675
+                          "value": 135
                         },
                         {
-                          "color": "red",
-                          "value": 765
+                          "color": "green",
+                          "value": 225
                         }
                       ]
                     }
@@ -290,16 +292,16 @@ data:
                     "value": {
                       "steps": [
                         {
-                          "color": "green",
-                          "value": 0
+                          "color": "red",
+                          "value": -1800
                         },
                         {
                           "color": "yellow",
-                          "value": 1350
+                          "value": 270
                         },
                         {
-                          "color": "red",
-                          "value": 1530
+                          "color": "green",
+                          "value": 450
                         }
                       ]
                     }
@@ -317,16 +319,16 @@ data:
                     "value": {
                       "steps": [
                         {
-                          "color": "green",
-                          "value": 0
+                          "color": "red",
+                          "value": -28800
                         },
                         {
                           "color": "yellow",
-                          "value": 21600
+                          "value": 4320
                         },
                         {
-                          "color": "red",
-                          "value": 24480
+                          "color": "green",
+                          "value": 7200
                         }
                       ]
                     }
@@ -344,16 +346,16 @@ data:
                     "value": {
                       "steps": [
                         {
-                          "color": "green",
-                          "value": 0
+                          "color": "red",
+                          "value": -86400
                         },
                         {
                           "color": "yellow",
-                          "value": 64800
+                          "value": 12960
                         },
                         {
-                          "color": "red",
-                          "value": 73440
+                          "color": "green",
+                          "value": 21600
                         }
                       ]
                     }
@@ -371,16 +373,16 @@ data:
                     "value": {
                       "steps": [
                         {
-                          "color": "green",
-                          "value": 0
+                          "color": "red",
+                          "value": -86400
                         },
                         {
                           "color": "yellow",
-                          "value": 64800
+                          "value": 12960
                         },
                         {
-                          "color": "red",
-                          "value": 73440
+                          "color": "green",
+                          "value": 21600
                         }
                       ]
                     }
@@ -398,16 +400,16 @@ data:
                     "value": {
                       "steps": [
                         {
-                          "color": "green",
-                          "value": 0
+                          "color": "red",
+                          "value": -86400
                         },
                         {
                           "color": "yellow",
-                          "value": 64800
+                          "value": 12960
                         },
                         {
-                          "color": "red",
-                          "value": 73440
+                          "color": "green",
+                          "value": 21600
                         }
                       ]
                     }
@@ -425,16 +427,16 @@ data:
                     "value": {
                       "steps": [
                         {
-                          "color": "green",
-                          "value": 0
+                          "color": "red",
+                          "value": -86400
                         },
                         {
                           "color": "yellow",
-                          "value": 64800
+                          "value": 12960
                         },
                         {
-                          "color": "red",
-                          "value": 73440
+                          "color": "green",
+                          "value": 21600
                         }
                       ]
                     }
@@ -452,16 +454,16 @@ data:
                     "value": {
                       "steps": [
                         {
-                          "color": "green",
-                          "value": 0
+                          "color": "red",
+                          "value": -86400
                         },
                         {
                           "color": "yellow",
-                          "value": 64800
+                          "value": 12960
                         },
                         {
-                          "color": "red",
-                          "value": 73440
+                          "color": "green",
+                          "value": 21600
                         }
                       ]
                     }
@@ -479,16 +481,16 @@ data:
                     "value": {
                       "steps": [
                         {
-                          "color": "green",
-                          "value": 0
+                          "color": "red",
+                          "value": -604800
                         },
                         {
                           "color": "yellow",
-                          "value": 453600
+                          "value": 90720
                         },
                         {
-                          "color": "red",
-                          "value": 514080
+                          "color": "green",
+                          "value": 151200
                         }
                       ]
                     }
@@ -499,7 +501,7 @@ data:
           },
           "targets": [
             {
-              "expr": "time() - kube_cronjob_status_last_schedule_time{namespace=~\"portfolio|backup\"}",
+              "expr": "(\n  label_replace(vector(900), \"cronjob\", \"pvc-metrics-pusher\", \"\", \"\") or label_replace(vector(1800), \"cronjob\", \"email-tracking-worker\", \"\", \"\") or label_replace(vector(28800), \"cronjob\", \"job-ingestion-worker\", \"\", \"\") or label_replace(vector(86400), \"cronjob\", \"backup-monitoring-volumes\", \"\", \"\") or label_replace(vector(86400), \"cronjob\", \"portfolio-db-backup\", \"\", \"\") or label_replace(vector(86400), \"cronjob\", \"shopnow-db-backup\", \"\", \"\") or label_replace(vector(86400), \"cronjob\", \"followup-reminder-worker\", \"\", \"\") or label_replace(vector(86400), \"cronjob\", \"scraper-discovery\", \"\", \"\") or label_replace(vector(604800), \"cronjob\", \"canary-checker\", \"\", \"\")\n)\n- on(cronjob)\n(time() - kube_cronjob_status_last_schedule_time{namespace=~\"portfolio|backup\"})",
               "legendFormat": "{{cronjob}}",
               "instant": true
             }
