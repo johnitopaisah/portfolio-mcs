@@ -6,6 +6,7 @@ out/
 build/
 dist/
 .claude
+.claude/settings.json
 
 db/portfolio_backup_*.sql
 
