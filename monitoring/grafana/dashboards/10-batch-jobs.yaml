@@ -14,167 +14,699 @@ data:
     {
       "uid": "portfolio-batch-jobs",
       "title": "Batch Jobs & Backups",
-      "description": "CronJob health (job-ingestion-worker, email-tracking-worker, followup-reminder-worker, scraper-discovery, canary-checker) and backup/DR status (portfolio-db-backup, backup-monitoring-volumes) — all short-lived jobs Prometheus can't scrape directly, surfaced via kube-state-metrics and Pushgateway.",
-      "tags": ["portfolio-mcs", "cronjobs", "backup", "batch"],
+      "description": "CronJob health (job-ingestion-worker, email-tracking-worker, followup-reminder-worker, scraper-discovery, canary-checker) and backup/DR status (portfolio-db-backup, backup-monitoring-volumes) \u2014 all short-lived jobs Prometheus can't scrape directly, surfaced via kube-state-metrics and Pushgateway.",
+      "tags": [
+        "portfolio-mcs",
+        "cronjobs",
+        "backup",
+        "batch"
+      ],
       "timezone": "browser",
       "refresh": "1m",
-      "time": { "from": "now-7d", "to": "now" },
+      "time": {
+        "from": "now-7d",
+        "to": "now"
+      },
       "panels": [
         {
-          "id": 7, "type": "row", "title": "Backup & Disaster Recovery",
-          "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 }
+          "id": 7,
+          "type": "row",
+          "title": "Backup & Disaster Recovery",
+          "gridPos": {
+            "x": 0,
+            "y": 0,
+            "w": 24,
+            "h": 1
+          }
         },
         {
-          "id": 8, "type": "gauge", "title": "Age of Last Successful DB Backup",
+          "id": 8,
+          "type": "gauge",
+          "title": "Age of Last Successful DB Backup",
           "description": "Pushed by k8s/backup/04-cronjob-db-backup.yaml on successful completion.",
-          "gridPos": { "x": 0, "y": 1, "w": 8, "h": 8 },
-          "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "s", "min": 0,
-              "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 100800 }, { "color": "red", "value": 172800 } ] }
+          "gridPos": {
+            "x": 0,
+            "y": 1,
+            "w": 8,
+            "h": 8
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
             }
           },
-          "targets": [{ "expr": "time() - backup_last_success_timestamp{job=\"portfolio-db-backup\"}" }]
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "min": 0,
+              "thresholds": {
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 100800
+                  },
+                  {
+                    "color": "red",
+                    "value": 172800
+                  }
+                ]
+              }
+            }
+          },
+          "targets": [
+            {
+              "expr": "time() - backup_last_success_timestamp{job=\"portfolio-db-backup\"}"
+            }
+          ]
         },
         {
-          "id": 9, "type": "gauge", "title": "Age of Last Successful Monitoring Backup",
+          "id": 9,
+          "type": "gauge",
+          "title": "Age of Last Successful Monitoring Backup",
           "description": "Pushed by k8s/backup/05-cronjob-monitoring-backup.yaml on successful completion.",
-          "gridPos": { "x": 8, "y": 1, "w": 8, "h": 8 },
-          "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "s", "min": 0,
-              "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 100800 }, { "color": "red", "value": 172800 } ] }
+          "gridPos": {
+            "x": 8,
+            "y": 1,
+            "w": 8,
+            "h": 8
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
             }
           },
-          "targets": [{ "expr": "time() - backup_last_success_timestamp{job=\"backup-monitoring-volumes\"}" }]
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "min": 0,
+              "thresholds": {
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 100800
+                  },
+                  {
+                    "color": "red",
+                    "value": 172800
+                  }
+                ]
+              }
+            }
+          },
+          "targets": [
+            {
+              "expr": "time() - backup_last_success_timestamp{job=\"backup-monitoring-volumes\"}"
+            }
+          ]
         },
         {
-          "id": 10, "type": "stat", "title": "Latest Backup Sizes",
-          "gridPos": { "x": 16, "y": 1, "w": 8, "h": 8 },
-          "options": { "colorMode": "value", "graphMode": "none", "textMode": "value_and_name" },
+          "id": 10,
+          "type": "stat",
+          "title": "Latest Backup Sizes",
+          "gridPos": {
+            "x": 16,
+            "y": 1,
+            "w": 8,
+            "h": 8
+          },
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "textMode": "value_and_name"
+          },
           "fieldConfig": {
             "defaults": {
               "unit": "bytes",
-              "color": { "mode": "thresholds" },
-              "thresholds": { "steps": [{ "color": "blue", "value": 0 }] }
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "steps": [
+                  {
+                    "color": "blue",
+                    "value": 0
+                  }
+                ]
+              }
             }
           },
-          "targets": [{
-            "expr": "backup_size_bytes",
-            "legendFormat": "{{job}}",
-            "instant": true
-          }]
+          "targets": [
+            {
+              "expr": "backup_size_bytes",
+              "legendFormat": "{{job}}",
+              "instant": true
+            }
+          ]
         },
         {
-          "id": 11, "type": "timeseries", "title": "Backup Size Trend (30d)",
-          "gridPos": { "x": 0, "y": 9, "w": 24, "h": 8 },
-          "fieldConfig": { "defaults": { "unit": "bytes", "color": { "mode": "palette-classic" } } },
-          "targets": [{ "expr": "backup_size_bytes", "legendFormat": "{{job}}" }],
-          "time": { "from": "now-30d", "to": "now" }
+          "id": 11,
+          "type": "timeseries",
+          "title": "Backup Size Trend (30d)",
+          "gridPos": {
+            "x": 0,
+            "y": 9,
+            "w": 24,
+            "h": 8
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "color": {
+                "mode": "palette-classic"
+              }
+            }
+          },
+          "targets": [
+            {
+              "expr": "backup_size_bytes",
+              "legendFormat": "{{job}}"
+            }
+          ],
+          "time": {
+            "from": "now-30d",
+            "to": "now"
+          }
         },
         {
-          "id": 14, "type": "row", "title": "CronJob Health",
-          "gridPos": { "x": 0, "y": 17, "w": 24, "h": 1 }
+          "id": 14,
+          "type": "row",
+          "title": "CronJob Health",
+          "gridPos": {
+            "x": 0,
+            "y": 17,
+            "w": 24,
+            "h": 1
+          }
         },
         {
-          "id": 1, "type": "stat", "title": "CronJob Last Scheduled Run",
-          "description": "One tile per CronJob — time since its last scheduled run. Thresholds are a general-purpose default (not tuned per job's own schedule), so treat this as “is anything gone silent for a suspiciously long time” rather than a per-job SLA.",
-          "gridPos": { "x": 0, "y": 18, "w": 24, "h": 8 },
+          "id": 1,
+          "type": "stat",
+          "title": "CronJob Last Scheduled Run",
+          "description": "One tile per CronJob \u2014 time since its last scheduled run. Thresholds are a general-purpose default (not tuned per job's own schedule), so treat this as \u201cis anything gone silent for a suspiciously long time\u201d rather than a per-job SLA.",
+          "gridPos": {
+            "x": 0,
+            "y": 18,
+            "w": 24,
+            "h": 8
+          },
           "options": {
             "colorMode": "background",
             "graphMode": "none",
             "textMode": "value_and_name",
-            "reduceOptions": { "calcs": ["lastNotNull"] }
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            }
           },
           "fieldConfig": {
             "defaults": {
               "unit": "s",
               "thresholds": {
                 "steps": [
-                  { "color": "green", "value": 0 },
-                  { "color": "yellow", "value": 100800 },
-                  { "color": "red", "value": 172800 }
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 100800
+                  },
+                  {
+                    "color": "red",
+                    "value": 172800
+                  }
+                ]
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "pvc-metrics-pusher"
+                },
+                "properties": [
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "steps": [
+                        {
+                          "color": "green",
+                          "value": 0
+                        },
+                        {
+                          "color": "yellow",
+                          "value": 675
+                        },
+                        {
+                          "color": "red",
+                          "value": 765
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "email-tracking-worker"
+                },
+                "properties": [
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "steps": [
+                        {
+                          "color": "green",
+                          "value": 0
+                        },
+                        {
+                          "color": "yellow",
+                          "value": 1350
+                        },
+                        {
+                          "color": "red",
+                          "value": 1530
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "job-ingestion-worker"
+                },
+                "properties": [
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "steps": [
+                        {
+                          "color": "green",
+                          "value": 0
+                        },
+                        {
+                          "color": "yellow",
+                          "value": 21600
+                        },
+                        {
+                          "color": "red",
+                          "value": 24480
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "backup-monitoring-volumes"
+                },
+                "properties": [
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "steps": [
+                        {
+                          "color": "green",
+                          "value": 0
+                        },
+                        {
+                          "color": "yellow",
+                          "value": 64800
+                        },
+                        {
+                          "color": "red",
+                          "value": 73440
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "portfolio-db-backup"
+                },
+                "properties": [
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "steps": [
+                        {
+                          "color": "green",
+                          "value": 0
+                        },
+                        {
+                          "color": "yellow",
+                          "value": 64800
+                        },
+                        {
+                          "color": "red",
+                          "value": 73440
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "shopnow-db-backup"
+                },
+                "properties": [
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "steps": [
+                        {
+                          "color": "green",
+                          "value": 0
+                        },
+                        {
+                          "color": "yellow",
+                          "value": 64800
+                        },
+                        {
+                          "color": "red",
+                          "value": 73440
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "followup-reminder-worker"
+                },
+                "properties": [
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "steps": [
+                        {
+                          "color": "green",
+                          "value": 0
+                        },
+                        {
+                          "color": "yellow",
+                          "value": 64800
+                        },
+                        {
+                          "color": "red",
+                          "value": 73440
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "scraper-discovery"
+                },
+                "properties": [
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "steps": [
+                        {
+                          "color": "green",
+                          "value": 0
+                        },
+                        {
+                          "color": "yellow",
+                          "value": 64800
+                        },
+                        {
+                          "color": "red",
+                          "value": 73440
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "canary-checker"
+                },
+                "properties": [
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "steps": [
+                        {
+                          "color": "green",
+                          "value": 0
+                        },
+                        {
+                          "color": "yellow",
+                          "value": 453600
+                        },
+                        {
+                          "color": "red",
+                          "value": 514080
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "targets": [
+            {
+              "expr": "time() - kube_cronjob_status_last_schedule_time{namespace=~\"portfolio|backup\"}",
+              "legendFormat": "{{cronjob}}",
+              "instant": true
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "type": "timeseries",
+          "title": "Time Since Last Scheduled Run (by CronJob)",
+          "gridPos": {
+            "x": 0,
+            "y": 26,
+            "w": 24,
+            "h": 8
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "lineWidth": 2
+              }
+            }
+          },
+          "targets": [
+            {
+              "expr": "time() - kube_cronjob_status_last_schedule_time{namespace=~\"portfolio|backup\"}",
+              "legendFormat": "{{cronjob}}"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "type": "stat",
+          "title": "Failed Job Runs (7d)",
+          "gridPos": {
+            "x": 0,
+            "y": 34,
+            "w": 8,
+            "h": 6
+          },
+          "options": {
+            "colorMode": "background",
+            "reduceOptions": {
+              "calcs": [
+                "sum"
+              ]
+            }
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": {
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 1
+                  }
                 ]
               }
             }
           },
-          "targets": [{
-            "expr": "time() - kube_cronjob_status_last_schedule_time{namespace=~\"portfolio|backup\"}",
-            "legendFormat": "{{cronjob}}",
-            "instant": true
-          }]
+          "targets": [
+            {
+              "expr": "sum(increase(kube_job_status_failed{namespace=~\"portfolio|backup\"}[7d]))"
+            }
+          ]
         },
         {
-          "id": 2, "type": "timeseries", "title": "Time Since Last Scheduled Run (by CronJob)",
-          "gridPos": { "x": 0, "y": 26, "w": 24, "h": 8 },
-          "fieldConfig": { "defaults": { "unit": "s", "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 2 } } },
-          "targets": [{
-            "expr": "time() - kube_cronjob_status_last_schedule_time{namespace=~\"portfolio|backup\"}",
-            "legendFormat": "{{cronjob}}"
-          }]
-        },
-        {
-          "id": 3, "type": "stat", "title": "Failed Job Runs (7d)",
-          "gridPos": { "x": 0, "y": 34, "w": 8, "h": 6 },
-          "options": { "colorMode": "background", "reduceOptions": { "calcs": ["sum"] } },
+          "id": 4,
+          "type": "stat",
+          "title": "Suspended CronJobs",
+          "description": "Should always be 0 \u2014 a suspended CronJob silently stops running with no failure signal.",
+          "gridPos": {
+            "x": 8,
+            "y": 34,
+            "w": 8,
+            "h": 6
+          },
+          "options": {
+            "colorMode": "background"
+          },
           "fieldConfig": {
             "defaults": {
               "unit": "short",
-              "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "red", "value": 1 }] }
+              "thresholds": {
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 1
+                  }
+                ]
+              }
             }
           },
-          "targets": [{ "expr": "sum(increase(kube_job_status_failed{namespace=~\"portfolio|backup\"}[7d]))" }]
+          "targets": [
+            {
+              "expr": "sum(kube_cronjob_spec_suspend{namespace=~\"portfolio|backup\"})"
+            }
+          ]
         },
         {
-          "id": 4, "type": "stat", "title": "Suspended CronJobs", "description": "Should always be 0 — a suspended CronJob silently stops running with no failure signal.",
-          "gridPos": { "x": 8, "y": 34, "w": 8, "h": 6 },
-          "options": { "colorMode": "background" },
+          "id": 5,
+          "type": "stat",
+          "title": "Active Job Pods (right now)",
+          "gridPos": {
+            "x": 16,
+            "y": 34,
+            "w": 8,
+            "h": 6
+          },
+          "options": {
+            "colorMode": "value"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short"
+            }
+          },
+          "targets": [
+            {
+              "expr": "sum(kube_job_status_active{namespace=~\"portfolio|backup\"})"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "type": "timeseries",
+          "title": "Failed Job Runs Over Time (by job_name)",
+          "gridPos": {
+            "x": 0,
+            "y": 40,
+            "w": 24,
+            "h": 8
+          },
           "fieldConfig": {
             "defaults": {
               "unit": "short",
-              "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "red", "value": 1 }] }
+              "color": {
+                "mode": "palette-classic"
+              }
             }
           },
-          "targets": [{ "expr": "sum(kube_cronjob_spec_suspend{namespace=~\"portfolio|backup\"})" }]
+          "targets": [
+            {
+              "expr": "sum by (job_name) (kube_job_status_failed{namespace=~\"portfolio|backup\"})",
+              "legendFormat": "{{job_name}}"
+            }
+          ]
         },
         {
-          "id": 5, "type": "stat", "title": "Active Job Pods (right now)",
-          "gridPos": { "x": 16, "y": 34, "w": 8, "h": 6 },
-          "options": { "colorMode": "value" },
-          "fieldConfig": { "defaults": { "unit": "short" } },
-          "targets": [{ "expr": "sum(kube_job_status_active{namespace=~\"portfolio|backup\"})" }]
+          "id": 12,
+          "type": "row",
+          "title": "Secrets Sync (Infisical)",
+          "gridPos": {
+            "x": 0,
+            "y": 48,
+            "w": 24,
+            "h": 1
+          }
         },
         {
-          "id": 6, "type": "timeseries", "title": "Failed Job Runs Over Time (by job_name)",
-          "gridPos": { "x": 0, "y": 40, "w": 24, "h": 8 },
-          "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "palette-classic" } } },
-          "targets": [{
-            "expr": "sum by (job_name) (kube_job_status_failed{namespace=~\"portfolio|backup\"})",
-            "legendFormat": "{{job_name}}"
-          }]
-        },
-        {
-          "id": 12, "type": "row", "title": "Secrets Sync (Infisical)",
-          "gridPos": { "x": 0, "y": 48, "w": 24, "h": 1 }
-        },
-        {
-          "id": 13, "type": "table", "title": "InfisicalSecret Sync Status (all namespaces)",
+          "id": 13,
+          "type": "table",
+          "title": "InfisicalSecret Sync Status (all namespaces)",
           "description": "Checked every 15m by monitoring/infisical/06-checker-cronjob.yaml. 1 = Ready, 0 = not synced.",
-          "gridPos": { "x": 0, "y": 49, "w": 24, "h": 8 },
+          "gridPos": {
+            "x": 0,
+            "y": 49,
+            "w": 24,
+            "h": 8
+          },
           "fieldConfig": {
             "defaults": {
               "unit": "short",
-              "thresholds": { "steps": [{ "color": "red", "value": 0 }, { "color": "green", "value": 1 }] }
+              "thresholds": {
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": 0
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
+                ]
+              }
             }
           },
-          "targets": [{
-            "expr": "infisical_secret_synced",
-            "legendFormat": "{{namespace}}/{{name}}",
-            "instant": true,
-            "format": "table"
-          }]
+          "targets": [
+            {
+              "expr": "infisical_secret_synced",
+              "legendFormat": "{{namespace}}/{{name}}",
+              "instant": true,
+              "format": "table"
+            }
+          ]
         }
       ],
       "schemaVersion": 38,
