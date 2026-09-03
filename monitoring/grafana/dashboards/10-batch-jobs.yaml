@@ -214,7 +214,7 @@ data:
         },
         {
           "id": 1,
-          "type": "stat",
+          "type": "gauge",
           "title": "Time Until Next Scheduled Run",
           "description": "One tile per CronJob \u2014 time remaining until its next scheduled run, based on each job's own schedule. Positive = due in that long; negative = overdue by that long. Thresholds: yellow at 25% of the interval remaining, red at 15% remaining (i.e. 75%/85% elapsed).",
           "gridPos": {
@@ -224,9 +224,6 @@ data:
             "h": 8
           },
           "options": {
-            "colorMode": "value",
-            "graphMode": "none",
-            "textMode": "value_and_name",
             "reduceOptions": {
               "calcs": [
                 "lastNotNull"
@@ -278,6 +275,14 @@ data:
                         }
                       ]
                     }
+                  },
+                  {
+                    "id": "max",
+                    "value": 900
+                  },
+                  {
+                    "id": "min",
+                    "value": -135
                   }
                 ]
               },
@@ -305,6 +310,14 @@ data:
                         }
                       ]
                     }
+                  },
+                  {
+                    "id": "max",
+                    "value": 1800
+                  },
+                  {
+                    "id": "min",
+                    "value": -270
                   }
                 ]
               },
@@ -332,6 +345,14 @@ data:
                         }
                       ]
                     }
+                  },
+                  {
+                    "id": "max",
+                    "value": 28800
+                  },
+                  {
+                    "id": "min",
+                    "value": -4320
                   }
                 ]
               },
@@ -359,6 +380,14 @@ data:
                         }
                       ]
                     }
+                  },
+                  {
+                    "id": "max",
+                    "value": 86400
+                  },
+                  {
+                    "id": "min",
+                    "value": -12960
                   }
                 ]
               },
@@ -386,6 +415,14 @@ data:
                         }
                       ]
                     }
+                  },
+                  {
+                    "id": "max",
+                    "value": 86400
+                  },
+                  {
+                    "id": "min",
+                    "value": -12960
                   }
                 ]
               },
@@ -413,6 +450,14 @@ data:
                         }
                       ]
                     }
+                  },
+                  {
+                    "id": "max",
+                    "value": 86400
+                  },
+                  {
+                    "id": "min",
+                    "value": -12960
                   }
                 ]
               },
@@ -440,6 +485,14 @@ data:
                         }
                       ]
                     }
+                  },
+                  {
+                    "id": "max",
+                    "value": 86400
+                  },
+                  {
+                    "id": "min",
+                    "value": -12960
                   }
                 ]
               },
@@ -467,6 +520,14 @@ data:
                         }
                       ]
                     }
+                  },
+                  {
+                    "id": "max",
+                    "value": 86400
+                  },
+                  {
+                    "id": "min",
+                    "value": -12960
                   }
                 ]
               },
@@ -494,6 +555,14 @@ data:
                         }
                       ]
                     }
+                  },
+                  {
+                    "id": "max",
+                    "value": 604800
+                  },
+                  {
+                    "id": "min",
+                    "value": -90720
                   }
                 ]
               }
