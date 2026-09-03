@@ -69,11 +69,11 @@ data:
                   },
                   {
                     "color": "yellow",
-                    "value": 100800
+                    "value": 64800
                   },
                   {
                     "color": "red",
-                    "value": 172800
+                    "value": 73440
                   }
                 ]
               }
@@ -115,11 +115,11 @@ data:
                   },
                   {
                     "color": "yellow",
-                    "value": 100800
+                    "value": 64800
                   },
                   {
                     "color": "red",
-                    "value": 172800
+                    "value": 73440
                   }
                 ]
               }
