@@ -267,12 +267,12 @@ data:
 
           - alert: PrometheusStorageLow
             expr: |
-              (prometheus_tsdb_storage_blocks_bytes / (5 * 1024 * 1024 * 1024)) > 0.70
+              (prometheus_tsdb_storage_blocks_bytes / (15 * 1024 * 1024 * 1024)) > 0.70
             for: 10m
             labels:
               severity: warning
             annotations:
-              summary: "Prometheus storage >70% of 5Gi PVC"
+              summary: "Prometheus storage >70% of 15Gi PVC"
               description: "Prometheus is using more than 70% of its allocated storage."
 
           - alert: AuthFailureSpike
