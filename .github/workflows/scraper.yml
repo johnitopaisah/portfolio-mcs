@@ -27,7 +27,7 @@ env:
   IMAGE:    ${{ vars.IMAGE_REGISTRY_BASE }}/scraper
   NODE_VER: "20"
 
-jobs:
+jobs:    
   validate:
     name: Validate tag
     uses: ./.github/workflows/_validate-tag.yml
@@ -37,7 +37,7 @@ jobs:
   lint:
     name: Lint & audit
     needs: validate
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, free-instance-dev]
     defaults:
       run:
         working-directory: scraper
@@ -94,7 +94,7 @@ jobs:
   build-push:
     name: Build & push
     needs: [validate, lint]
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, free-instance-dev]
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -118,7 +118,7 @@ jobs:
   scan:
     name: Scan image
     needs: [validate, build-push]
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, free-instance-dev]
     permissions:
       security-events: write
     steps:
@@ -164,7 +164,7 @@ jobs:
   update-manifest:
     name: Update k8s manifest
     needs: [validate, scan]
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, free-instance-dev]
     if: needs.scan.result == 'success'
     steps:
       - name: Checkout develop
@@ -201,7 +201,7 @@ jobs:
   summary:
     name: Summary
     needs: [validate, lint, build-push, scan, update-manifest]
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, free-instance-dev]
     if: always()
     steps:
       - name: Write summary
