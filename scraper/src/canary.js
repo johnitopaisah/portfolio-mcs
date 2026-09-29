@@ -22,12 +22,21 @@ const smartrecruiters = require('./parsers/smartrecruiters');
 // swapped for theodo, currently ~150 postings). Because a single company
 // going quiet is real and not that rare, low-count failures are treated as
 // 'warning' severity below, not 'critical' — see checkOne().
+//
+// 2026-09-29: smartrecruiters/Sandisk started returning totalFound: 0
+// (canary-checker-29842920, both attempts). Confirmed via the public API
+// directly — SanDisk's postings now live under SmartRecruiters identifier
+// "WesternDigital" (335 open postings), not "Sandisk" — a company-side
+// identifier consolidation, not a parser regression. Promoted WesternDigital
+// to primary and kept Sandisk as a fallbackSlugs entry (see checkOne) so a
+// future rename/consolidation on ANY of these — not just this one — degrades
+// to a warning instead of failing the whole job the next time it happens.
 const CANARIES = [
   { platform: 'greenhouse', slug: 'gitlab', minJobs: 20 },
   { platform: 'lever', slug: 'theodo', minJobs: 20 },
   { platform: 'ashby', slug: 'notion', minJobs: 20 },
   { platform: 'workday', slug: 'visa|wd5|Visa', minJobs: 20 },
-  { platform: 'smartrecruiters', slug: 'Sandisk', minJobs: 20 },
+  { platform: 'smartrecruiters', slug: 'WesternDigital', minJobs: 20, fallbackSlugs: ['Sandisk'] },
 ];
 
 const PARSERS = { greenhouse, lever, ashby, workday, smartrecruiters };
@@ -47,34 +56,69 @@ function validateJobShape(job) {
 
 // severity: 'critical' means the PARSER is broken (threw, wrong type, bad
 // shape) — this is unambiguously our bug and should page. 'warning' means
-// the board just returned fewer jobs than expected — that's the anchor
-// company's real-world hiring activity, which we don't control and which
-// can legitimately dip to zero (see the CANARIES comment above), so it's
-// surfaced but doesn't page on its own.
-async function checkOne({ platform, slug, minJobs }) {
+// either the board returned fewer jobs than expected (the anchor company's
+// real-world hiring activity, which we don't control and which can
+// legitimately dip to zero — see the CANARIES comment above) or the primary
+// slug no longer resolves but a configured fallbackSlugs entry does (the
+// company renamed/consolidated their ATS identifier, same shape as the
+// 2026-09-29 Sandisk->WesternDigital case). Neither should page on its own,
+// but both are surfaced so the primary slug can be promoted at leisure
+// instead of under job-failure pressure.
+//
+// A candidate is only retried against fallbackSlugs when it comes back
+// null ("this identifier doesn't resolve") or throws — that's the specific
+// signature of an identifier moving. A wrong-type/bad-shape result fails
+// fast as critical without trying fallbacks, since that means the PARSER
+// broke for a board we know exists, which a different slug can't fix.
+async function checkOne({ platform, slug, fallbackSlugs = [], minJobs }) {
   const parser = PARSERS[platform];
-  try {
-    const jobs = await parser.fetchBoardJobs(slug);
+  const candidates = [slug, ...fallbackSlugs];
+  const unresolved = [];
+
+  for (const candidate of candidates) {
+    let jobs;
+    try {
+      jobs = await parser.fetchBoardJobs(candidate);
+    } catch (err) {
+      unresolved.push(`${candidate} (threw: ${err.message})`);
+      continue;
+    }
 
     if (jobs === null) {
-      return { platform, slug, ok: false, severity: 'critical', reason: `fetchBoardJobs returned null — canary board "${slug}" no longer resolves` };
+      unresolved.push(`${candidate} (no longer resolves)`);
+      continue;
     }
     if (!Array.isArray(jobs)) {
-      return { platform, slug, ok: false, severity: 'critical', reason: `fetchBoardJobs returned ${typeof jobs}, expected an array` };
+      return { platform, slug: candidate, ok: false, severity: 'critical', reason: `fetchBoardJobs returned ${typeof jobs}, expected an array` };
     }
     if (jobs.length < minJobs) {
-      return { platform, slug, ok: false, severity: 'warning', reason: `only ${jobs.length} jobs returned, expected at least ${minJobs} — likely this company's hiring activity, not a parser issue` };
+      return { platform, slug: candidate, ok: false, severity: 'warning', reason: `only ${jobs.length} jobs returned, expected at least ${minJobs} — likely this company's hiring activity, not a parser issue` };
     }
 
     const shapeProblems = validateJobShape(jobs[0]);
     if (shapeProblems.length > 0) {
-      return { platform, slug, ok: false, severity: 'critical', reason: `first job failed shape check: ${shapeProblems.join(', ')}` };
+      return { platform, slug: candidate, ok: false, severity: 'critical', reason: `first job failed shape check: ${shapeProblems.join(', ')}` };
     }
 
-    return { platform, slug, ok: true, reason: `${jobs.length} jobs, shape OK` };
-  } catch (err) {
-    return { platform, slug, ok: false, severity: 'critical', reason: `threw: ${err.message}` };
+    if (candidate !== slug) {
+      return {
+        platform,
+        slug: candidate,
+        ok: false,
+        severity: 'warning',
+        reason: `${jobs.length} jobs, shape OK via fallback slug "${candidate}" — primary "${slug}" no longer resolves; promote "${candidate}" to slug in CANARIES`,
+      };
+    }
+    return { platform, slug: candidate, ok: true, reason: `${jobs.length} jobs, shape OK` };
   }
+
+  return {
+    platform,
+    slug,
+    ok: false,
+    severity: 'critical',
+    reason: `no candidate identifier resolves (tried: ${unresolved.join('; ')})`,
+  };
 }
 
 async function runCanaryChecks() {
