@@ -177,15 +177,32 @@ jobs:
         run: |
           TAG="${{ needs.validate.outputs.tag }}"
           BASE="ghcr.io/johnitopaisah/portfolio-mcs"
-          sed -i "s|${BASE}/scraper:.*|${BASE}/scraper:${TAG}|g" k8s/scraper/03-cronjob-discovery.yaml
-          echo "✅ k8s/scraper/03-cronjob-discovery.yaml → ${BASE}/scraper:${TAG}"
+          # Discover every manifest referencing this image instead of a
+          # single hardcoded path — 2026-09-29: this step only ever bumped
+          # 03-cronjob-discovery.yaml, silently leaving
+          # 04-cronjob-canary.yaml pinned to whatever tag it happened to be
+          # on (it sat 5 releases behind before anyone noticed, since
+          # nothing failed loudly — canary-checker just kept running
+          # stale code). grep -l finds every manifest that currently
+          # references the image, so a future third cronjob on the same
+          # image gets bumped automatically too, with no manifest list to
+          # remember to update by hand.
+          MANIFESTS=$(grep -rl "${BASE}/scraper:" k8s/ 2>/dev/null || true)
+          if [ -z "$MANIFESTS" ]; then
+            echo "⚠️ No manifests reference ${BASE}/scraper: — nothing to bump"
+          fi
+          for f in $MANIFESTS; do
+            sed -i "s|${BASE}/scraper:.*|${BASE}/scraper:${TAG}|g" "$f"
+            echo "✅ ${f} → ${BASE}/scraper:${TAG}"
+          done
 
       - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           TAG="${{ needs.validate.outputs.tag }}"
-          git add k8s/scraper/03-cronjob-discovery.yaml
+          BASE="ghcr.io/johnitopaisah/portfolio-mcs"
+          git add $(grep -rl "${BASE}/scraper:" k8s/ 2>/dev/null || true)
           git diff --cached --quiet && echo "No manifest change needed" && exit 0
           git commit -m "chore: bump scraper image to ${TAG} [skip ci]"
           PUSHED=false
