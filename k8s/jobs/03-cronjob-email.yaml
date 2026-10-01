@@ -1,7 +1,7 @@
 ---
 # ============================================================
 #  Email Tracking Worker — Kubernetes CronJob
-#  Runs every 30 minutes: fetch Gmail → classify → match → update
+#  Runs every 5 minutes: fetch Gmail → classify → match → update
 # ============================================================
 
 apiVersion: batch/v1
@@ -13,7 +13,7 @@ metadata:
     app: portfolio-mcs
     component: email-tracking
 spec:
-  schedule: "*/30 * * * *"
+  schedule: "*/5 * * * *"
   successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 1
   suspend: false
