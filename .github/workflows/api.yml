@@ -25,7 +25,7 @@ permissions:
 
 env:
   IMAGE:    ${{ vars.IMAGE_REGISTRY_BASE }}/api
-  NODE_VER: "20"
+  NODE_VER: "22"   # puppeteer >= 25 requires Node >= 22.12
 
 jobs:
   validate:

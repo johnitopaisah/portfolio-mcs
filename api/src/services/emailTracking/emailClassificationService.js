@@ -7,6 +7,13 @@ const RULE_KEYWORDS = [
   'invitation', 'hr', 'hiring', 'position', 'role', 'opportunity',
 ];
 
+// Single source of truth for email_responses.ai_classification — shared by
+// the classifier tool schema and the manual /reclassify route.
+const CLASSIFICATIONS = [
+  'APPLICATION_CONFIRMATION', 'INTERVIEW_INVITE', 'REJECTION', 'TECHNICAL_TEST',
+  'OFFER', 'FOLLOW_UP_NEEDED', 'GENERAL_RESPONSE', 'UNKNOWN',
+];
+
 function passesRuleFilter({ subject = '', body_snippet = '' }) {
   const text = `${subject} ${body_snippet}`.toLowerCase();
   return RULE_KEYWORDS.some(kw => text.includes(kw));
@@ -26,12 +33,16 @@ async function classify({ subject, body_snippet, sender_email, company_name, job
       type: 'object',
       required: ['classification', 'confidence', 'summary', 'suggested_status', 'requires_user_action', 'extracted_company', 'extracted_role'],
       properties: {
-        classification:       { type: 'string', enum: ['INTERVIEW_INVITE', 'REJECTION', 'TECHNICAL_TEST', 'OFFER', 'FOLLOW_UP_NEEDED', 'GENERAL_RESPONSE', 'UNKNOWN'] },
+        classification:       {
+          type: 'string',
+          enum: CLASSIFICATIONS,
+          description: 'APPLICATION_CONFIRMATION is ONLY an acknowledgement that the recipient\'s own job application was submitted or received (e.g. "thank you for applying", "merci pour votre candidature", "your application was sent to <company>"), with no decision yet. Job alerts, job recommendations, "X is hiring", "your application was viewed", reminders to finish an incomplete application, newsletters and marketing are NOT confirmations — use GENERAL_RESPONSE or UNKNOWN for those.',
+        },
         confidence:           { type: 'number', minimum: 0, maximum: 1 },
         summary:              { type: 'string' },
         suggested_status:     {
           type: 'string',
-          enum: ['EMAIL_RECEIVED', 'HR_CONTACTED', 'INTERVIEW_INVITE', 'TECHNICAL_TEST', 'INTERVIEW_SCHEDULED', 'FINAL_INTERVIEW', 'OFFER', 'REJECTED', 'NO_RESPONSE'],
+          enum: ['APPLIED', 'EMAIL_RECEIVED', 'HR_CONTACTED', 'INTERVIEW_INVITE', 'TECHNICAL_TEST', 'INTERVIEW_SCHEDULED', 'FINAL_INTERVIEW', 'OFFER', 'REJECTED', 'NO_RESPONSE'],
         },
         requires_user_action: { type: 'boolean' },
         suggested_reply:      { type: 'string' },
@@ -63,4 +74,4 @@ async function classify({ subject, body_snippet, sender_email, company_name, job
   return toolResult.input;
 }
 
-module.exports = { classify, passesRuleFilter };
+module.exports = { classify, passesRuleFilter, CLASSIFICATIONS };

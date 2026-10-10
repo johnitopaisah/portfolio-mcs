@@ -32,7 +32,13 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN apk upgrade --no-cache
+# CMD is `node server.js` — this stage never invokes npm/npx/corepack, but
+# the base image ships them with their own bundled deps (pacote, tar,
+# brace-expansion...) that Trivy flags independently of our package.json.
+# Same approach as scraper/Dockerfile: remove the unused CLI.
+RUN apk upgrade --no-cache && \
+    rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+           /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
 
 COPY --from=builder /app/public                                ./public

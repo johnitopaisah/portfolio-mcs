@@ -13,7 +13,7 @@ function getOAuth2Client() {
 
 /**
  * Fetch emails received after `since` (Date object).
- * Returns array of { gmail_message_id, sender_email, sender_name, subject, body_snippet, received_at }
+ * Returns array of { gmail_message_id, thread_id, sender_email, sender_name, subject, body_snippet, received_at }
  * body_snippet is ALWAYS truncated to 500 chars max — never return full bodies.
  */
 async function fetchRecentEmails(since) {
@@ -53,6 +53,7 @@ async function fetchRecentEmails(since) {
 
     results.push({
       gmail_message_id: msg.id,
+      thread_id:        detail.data.threadId || msg.threadId || null,
       sender_email:     senderEmail,
       sender_name:      senderName,
       subject:          get('Subject'),

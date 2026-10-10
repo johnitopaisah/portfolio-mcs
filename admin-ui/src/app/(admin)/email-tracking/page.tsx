@@ -23,6 +23,8 @@ interface EmailResponse {
   suggested_application_id: number | null;
   suggested_company_name: string | null;
   suggested_job_title: string | null;
+  extracted_company: string | null;
+  extracted_role: string | null;
 }
 
 interface AppOption {
@@ -41,7 +43,7 @@ interface SyncStatus {
 }
 
 const CLASSIFICATIONS = [
-  'INTERVIEW_INVITE', 'REJECTION', 'TECHNICAL_TEST',
+  'APPLICATION_CONFIRMATION', 'INTERVIEW_INVITE', 'REJECTION', 'TECHNICAL_TEST',
   'OFFER', 'FOLLOW_UP_NEEDED', 'GENERAL_RESPONSE', 'UNKNOWN',
 ] as const;
 
@@ -54,6 +56,7 @@ const SOURCES = [
 // ── Helpers ───────────────────────────────────────────────────
 function classBadge(cls: string): { label: string; bg: string } {
   const map: Record<string, { label: string; bg: string }> = {
+    APPLICATION_CONFIRMATION: { label: 'Application Sent', bg: 'bg-indigo-900/40 text-indigo-300 border border-indigo-700/40' },
     INTERVIEW_INVITE: { label: 'Interview Invite', bg: 'bg-green-900/40 text-green-400 border border-green-700/40'     },
     OFFER:            { label: 'Offer',            bg: 'bg-emerald-900/40 text-emerald-400 border border-emerald-700/40' },
     TECHNICAL_TEST:   { label: 'Technical Test',   bg: 'bg-blue-900/40 text-blue-400 border border-blue-700/40'        },
@@ -230,6 +233,49 @@ function LinkAppCell({
         </button>
       )}
     </div>
+  );
+}
+
+// ── Record an email as its own application ───────────────────────
+// For an email linked (or suggested) to another application at the same
+// company that is really about a different role.
+function SplitButton({
+  email, onSplit,
+}: {
+  email: EmailResponse;
+  onSplit: (appId: number, companyName: string, jobTitle: string) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+
+  async function handleSplit() {
+    const company = window.prompt(
+      'Company for the new application',
+      email.company_name || email.suggested_company_name || email.extracted_company || ''
+    );
+    if (!company || !company.trim()) return;
+    const title = window.prompt('Job title for the new application', email.extracted_role || '');
+    if (title === null) return;
+    setBusy(true);
+    try {
+      const app = await adminApi.splitEmailResponse(email.id, { company_name: company.trim(), job_title: title.trim() });
+      onSplit(app.id, app.company_name, app.job_title);
+    } catch (err: unknown) {
+      alert((err as Error).message || 'Failed to create application');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <button
+      onClick={handleSplit}
+      disabled={busy}
+      title="Record this email as a new, separate application"
+      className="px-1.5 py-0.5 text-xs rounded bg-gray-800 border border-gray-700 text-gray-400
+        hover:text-white hover:bg-gray-700 disabled:opacity-40 transition-colors"
+    >
+      {busy ? '…' : '+ New'}
+    </button>
   );
 }
 
@@ -597,16 +643,23 @@ export default function EmailTrackingPage() {
                         {/* Linked Application */}
                         <td className="px-4 py-3.5 whitespace-nowrap text-xs">
                           {email.application_id ? (
-                            <Link
-                              href={`/applications/${email.application_id}`}
-                              className="text-indigo-400 hover:text-indigo-300 transition-colors"
-                            >
-                              <span className="font-medium">{email.company_name}</span>
-                              {email.job_title && (
-                                <span className="text-gray-500 ml-1">— {truncate(email.job_title, 30)}</span>
-                              )}
-                            </Link>
+                            <div className="flex items-center gap-2">
+                              <Link
+                                href={`/applications/${email.application_id}`}
+                                className="text-indigo-400 hover:text-indigo-300 transition-colors"
+                              >
+                                <span className="font-medium">{email.company_name}</span>
+                                {email.job_title && (
+                                  <span className="text-gray-500 ml-1">— {truncate(email.job_title, 30)}</span>
+                                )}
+                              </Link>
+                              <SplitButton
+                                email={email}
+                                onSplit={(appId, companyName, jobTitle) => handleLinked(email.id, appId, companyName, jobTitle)}
+                              />
+                            </div>
                           ) : email.suggested_application_id ? (
+                            <div className="flex items-center gap-2">
                             <SuggestionCell
                               emailId={email.id}
                               companyName={email.suggested_company_name || ''}
@@ -623,6 +676,11 @@ export default function EmailTrackingPage() {
                               }}
                               onDismiss={() => handleSuggestionDismissed(email.id)}
                             />
+                            <SplitButton
+                              email={email}
+                              onSplit={(appId, companyName, jobTitle) => handleLinked(email.id, appId, companyName, jobTitle)}
+                            />
+                            </div>
                           ) : (
                             <div className="flex items-center gap-2">
                               <span className="text-gray-600">Unlinked</span>
@@ -631,6 +689,10 @@ export default function EmailTrackingPage() {
                                 onLinked={(appId, companyName, jobTitle) =>
                                   handleLinked(email.id, appId, companyName, jobTitle)
                                 }
+                              />
+                              <SplitButton
+                                email={email}
+                                onSplit={(appId, companyName, jobTitle) => handleLinked(email.id, appId, companyName, jobTitle)}
                               />
                             </div>
                           )}

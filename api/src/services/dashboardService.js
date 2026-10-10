@@ -119,13 +119,25 @@ async function computeHealthScore() {
   return { total: Math.min(total, 100), label, color, components };
 }
 
-async function getDashboardStats() {
+// A viewer-supplied IANA zone decides where "today" starts; anything Intl
+// rejects falls back to UTC rather than reaching the query.
+function safeTimeZone(tz) {
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: tz });
+    return tz;
+  } catch {
+    return 'UTC';
+  }
+}
+
+async function getDashboardStats({ timeZone } = {}) {
+  const tz = safeTimeZone(timeZone || 'UTC');
   const weekStart = new Date();
   weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
   weekStart.setHours(0, 0, 0, 0);
 
   const [healthScore, settings, pipelineRows, recentActivity,
-         dueReminders, weeklyVelocity, skillsGap] = await Promise.all([
+         dueReminders, weeklyVelocity, skillsGap, dailyCounts] = await Promise.all([
 
     computeHealthScore(),
 
@@ -183,6 +195,20 @@ async function getDashboardStats() {
       WHERE a.created_at > NOW() - INTERVAL '90 days'
       GROUP BY skill ORDER BY cnt DESC LIMIT 5
     `),
+
+    // Last 14 days of applications per day, in the viewer's time zone.
+    // Counted by created_at, the same as the weekly velocity above.
+    pool.query(`
+      SELECT d.day::date::text AS day, COUNT(a.id)::int AS cnt
+      FROM generate_series(
+             date_trunc('day', NOW() AT TIME ZONE $1) - INTERVAL '13 days',
+             date_trunc('day', NOW() AT TIME ZONE $1),
+             INTERVAL '1 day'
+           ) AS d(day)
+      LEFT JOIN applications a
+        ON date_trunc('day', a.created_at AT TIME ZONE $1) = d.day
+      GROUP BY d.day ORDER BY d.day
+    `, [tz]),
   ]);
 
   const s   = settings.rows[0] || {};
@@ -213,6 +239,7 @@ async function getDashboardStats() {
     goal: {
       target:       goal,
       this_week:    weekApps,
+      today:        dailyCounts.rows[dailyCounts.rows.length - 1]?.cnt || 0,
       pct:          Math.min(100, Math.round((weekApps / goal) * 100)),
       streak_weeks: streak,
     },
@@ -221,6 +248,7 @@ async function getDashboardStats() {
     pipeline_counts: pipelineCounts,
     recent_activity: recentActivity.rows,
     weekly_velocity: weeklyVelocity.rows,
+    daily_counts:    dailyCounts.rows,
     skills_gap:      skillsGap.rows,
   };
 }

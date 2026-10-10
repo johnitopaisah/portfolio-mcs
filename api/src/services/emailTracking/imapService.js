@@ -55,9 +55,14 @@ async function fetchRecentEmails(since) {
         const senderEmail  = from.address || '';
         const senderName   = from.name    || '';
         const bodyText     = (parsed.text || '').slice(0, 500);
+        // No native thread id over IMAP — the root Message-ID of the
+        // References chain is stable across every reply in a conversation.
+        const references   = [].concat(parsed.references || []);
+        const threadId     = references[0] || parsed.inReplyTo || parsed.messageId || null;
 
         results.push({
           gmail_message_id: `imap_${uid}`,
+          thread_id:         threadId,
           sender_email:      senderEmail,
           sender_name:       senderName,
           subject:           parsed.subject || '',

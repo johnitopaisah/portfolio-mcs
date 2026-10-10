@@ -11,4 +11,17 @@ const VALID_STATUSES = new Set([
   'REJECTED', 'NO_RESPONSE', 'WITHDRAWN', 'GHOSTED', 'ARCHIVED',
 ]);
 
-module.exports = { VALID_STATUSES };
+// Pipeline stage groups — the buckets the dashboard Pipeline panel counts
+// and the applications list filters by (?group=). 'closed' is deliberately
+// not listed: it is every non-archived status that isn't in one of these,
+// so the list filter and the dashboard count can never disagree.
+const STATUS_GROUPS = {
+  prep:      ['DRAFT', 'CV_GENERATED', 'READY_TO_APPLY'],
+  active:    ['APPLIED', 'EMAIL_RECEIVED', 'HR_CONTACTED'],
+  interview: ['INTERVIEW_INVITE', 'INTERVIEW_SCHEDULED', 'TECHNICAL_TEST', 'FINAL_INTERVIEW'],
+  offer:     ['OFFER', 'NEGOTIATING', 'ACCEPTED', 'DECLINED_OFFER'],
+};
+const GROUP_KEYS      = [...Object.keys(STATUS_GROUPS), 'closed'];
+const GROUPED_STATUSES = Object.values(STATUS_GROUPS).flat();
+
+module.exports = { VALID_STATUSES, STATUS_GROUPS, GROUP_KEYS, GROUPED_STATUSES };

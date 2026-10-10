@@ -6,7 +6,9 @@ const { requireAuth }      = require('../middleware/auth');
 const emailSyncLogService  = require('../services/emailTracking/emailSyncLogService');
 const { renderHtmlToPdf }  = require('../services/cvGeneration/pdfService');
 const { sanitizeEditedHtml, checkAtsRisks } = require('../services/cvGeneration/manualEditService');
-const { VALID_STATUSES }   = require('../constants/applicationStatuses');
+const { CLASSIFICATIONS }  = require('../services/emailTracking/emailClassificationService');
+const { createApplicationFromEmail } = require('../services/emailTracking/emailLinkingService');
+const { VALID_STATUSES, STATUS_GROUPS, GROUP_KEYS, GROUPED_STATUSES } = require('../constants/applicationStatuses');
 
 const router = express.Router();
 
@@ -257,6 +259,57 @@ router.patch('/email-responses/:id/link', requireAuth, async (req, res) => {
   }
 });
 
+// POST /api/applications/email-responses/:id/split
+// Records the email as its own application — for when it was linked (or
+// suggested) to another application at the same company but is really about
+// a different role. The application it was on is left untouched.
+router.post('/email-responses/:id/split', requireAuth, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const emailRes = await client.query(
+      `SELECT er.*, a.company_name AS linked_company_name
+       FROM email_responses er
+       LEFT JOIN applications a ON a.id = COALESCE(er.application_id, er.suggested_application_id)
+       WHERE er.id = $1 FOR UPDATE OF er`,
+      [req.params.id]
+    );
+    if (!emailRes.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Not found' });
+    }
+    const email = emailRes.rows[0];
+
+    const companyName = (req.body.company_name || email.linked_company_name || email.extracted_company || '').trim();
+    const jobTitle    = (req.body.job_title    || email.extracted_role || '').trim();
+    if (!companyName) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'company_name is required' });
+    }
+
+    const isConfirmation = email.ai_classification === 'APPLICATION_CONFIRMATION';
+    const application = await createApplicationFromEmail(client, {
+      emailResponseId:  email.id,
+      companyName,
+      role:             jobTitle,
+      isConfirmation,
+      status:           isConfirmation ? 'APPLIED' : 'EMAIL_RECEIVED',
+      receivedAt:       email.received_at,
+      eventDescription: `${email.ai_classification}: ${email.raw_label || email.subject || ''}`.trim(),
+      matchMethod:      'manual_split',
+    });
+
+    await client.query('COMMIT');
+    res.status(201).json(application);
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
 // PATCH /api/applications/email-responses/:id/dismiss-suggestion
 // Clears an AI-suggested (but unconfirmed) application match, reverting the
 // row to fully unlinked so the user can search manually instead.
@@ -297,7 +350,7 @@ router.patch('/email-responses/:id/dismiss-suggestion', requireAuth, async (req,
  *             properties:
  *               classification:
  *                 type: string
- *                 enum: [INTERVIEW_INVITE, REJECTION, TECHNICAL_TEST, OFFER, FOLLOW_UP_NEEDED, GENERAL_RESPONSE, UNKNOWN]
+ *                 enum: [APPLICATION_CONFIRMATION, INTERVIEW_INVITE, REJECTION, TECHNICAL_TEST, OFFER, FOLLOW_UP_NEEDED, GENERAL_RESPONSE, UNKNOWN]
  *     responses:
  *       200:
  *         description: Updated email response
@@ -312,8 +365,7 @@ router.patch('/email-responses/:id/dismiss-suggestion', requireAuth, async (req,
 router.patch('/email-responses/:id/reclassify', requireAuth, async (req, res) => {
   try {
     const { classification } = req.body;
-    const valid = ['INTERVIEW_INVITE', 'REJECTION', 'TECHNICAL_TEST', 'OFFER', 'FOLLOW_UP_NEEDED', 'GENERAL_RESPONSE', 'UNKNOWN'];
-    if (!valid.includes(classification)) return res.status(400).json({ error: 'Invalid classification' });
+    if (!CLASSIFICATIONS.includes(classification)) return res.status(400).json({ error: 'Invalid classification' });
     const result = await pool.query(
       `UPDATE email_responses
        SET ai_classification = $1, reviewed_correct = FALSE, corrected_classification = $1
@@ -360,9 +412,21 @@ router.patch('/email-responses/:id/feedback', requireAuth, async (req, res) => {
  *           type: string
  *           enum: [DRAFT, CV_GENERATED, READY_TO_APPLY, APPLIED, EMAIL_RECEIVED, HR_CONTACTED, INTERVIEW_INVITE, TECHNICAL_TEST, INTERVIEW_SCHEDULED, FINAL_INTERVIEW, OFFER, REJECTED, NO_RESPONSE, ARCHIVED]
  *       - in: query
+ *         name: group
+ *         schema: { type: string, enum: [prep, active, interview, offer, closed] }
+ *         description: Pipeline stage group, as counted by the dashboard Pipeline panel
+ *       - in: query
  *         name: platform
  *         schema: { type: string }
  *         description: Source platform filter (e.g. LinkedIn, joobleApi)
+ *       - in: query
+ *         name: created_from
+ *         schema: { type: string, format: date-time }
+ *         description: Only applications created at or after this timestamp
+ *       - in: query
+ *         name: reminders
+ *         schema: { type: string, enum: [due] }
+ *         description: Set to "due" to show only applications with a reminder due within 48 hours
  *       - in: query
  *         name: needs_action
  *         schema: { type: string, enum: ['true'] }
@@ -384,7 +448,7 @@ router.patch('/email-responses/:id/feedback', requireAuth, async (req, res) => {
  */
 router.get('/', requireAuth, async (req, res) => {
   try {
-    const { status, platform, needs_action, search } = req.query;
+    const { status, group, platform, needs_action, search, created_from, reminders } = req.query;
 
     let query = `
       SELECT a.*, j.title AS job_title_ref
@@ -398,9 +462,34 @@ router.get('/', requireAuth, async (req, res) => {
       params.push(status);
       conditions.push(`a.status = $${params.length}`);
     }
+    if (group) {
+      // Same buckets as the dashboard Pipeline panel (see STATUS_GROUPS).
+      if (!GROUP_KEYS.includes(group)) return res.status(400).json({ error: 'Invalid group' });
+      if (group === 'closed') {
+        params.push([...GROUPED_STATUSES, 'ARCHIVED']);
+        conditions.push(`a.status <> ALL($${params.length})`);
+      } else {
+        params.push(STATUS_GROUPS[group]);
+        conditions.push(`a.status = ANY($${params.length})`);
+      }
+    }
     if (platform) {
       params.push(platform);
       conditions.push(`a.source_platform = $${params.length}`);
+    }
+    if (created_from) {
+      const from = new Date(created_from);
+      if (Number.isNaN(from.getTime())) return res.status(400).json({ error: 'Invalid created_from' });
+      params.push(from);
+      conditions.push(`a.created_at >= $${params.length}`);
+    }
+    if (reminders === 'due') {
+      // Same window as the dashboard Due Reminders panel.
+      conditions.push(`EXISTS (
+        SELECT 1 FROM application_reminders ar
+        WHERE ar.application_id = a.id AND ar.is_done = FALSE
+          AND ar.remind_at <= NOW() + INTERVAL '48 hours'
+      )`);
     }
     if (needs_action === 'true') {
       conditions.push(`a.status IN ('EMAIL_RECEIVED', 'INTERVIEW_INVITE', 'TECHNICAL_TEST', 'OFFER')`);

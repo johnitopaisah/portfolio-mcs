@@ -2487,6 +2487,7 @@ export default function ApplicationDetailPage() {
                 <div className="flex flex-col gap-2">
                   {emailResponses.map(er => {
                     const cls: Record<string, string> = {
+                      APPLICATION_CONFIRMATION: 'bg-indigo-900/40 text-indigo-300 border border-indigo-800/40',
                       INTERVIEW_INVITE: 'bg-green-900/40 text-green-400 border border-green-800/40',
                       OFFER:            'bg-emerald-900/40 text-emerald-400 border border-emerald-800/40',
                       TECHNICAL_TEST:   'bg-blue-900/40 text-blue-400 border border-blue-800/40',

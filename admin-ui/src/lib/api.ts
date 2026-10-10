@@ -392,6 +392,11 @@ export const adminApi = {
       method: 'PATCH',
       body: JSON.stringify({ application_id }),
     }),
+  splitEmailResponse: (id: number, body: { company_name?: string; job_title?: string } = {}) =>
+    request(`/api/applications/email-responses/${id}/split`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   dismissEmailSuggestion: (id: number) =>
     request(`/api/applications/email-responses/${id}/dismiss-suggestion`, { method: 'PATCH' }),
   reclassifyEmailResponse: (id: number, classification: string) =>
@@ -500,7 +505,9 @@ export const adminApi = {
   runAutomation: () => request('/api/dashboard/run-automation', { method: 'POST' }),
 
   // ── Dashboard ────────────────────────────────────────────────
-  getDashboardStats: () => request('/api/dashboard/stats'),
+  // tz tells the API where "today" starts for the per-day application counts.
+  getDashboardStats: () =>
+    request(`/api/dashboard/stats?tz=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC')}`),
 
   // ── CV Identity ──────────────────────────────────────────────
   getCvIdentity: () => request('/api/cv-identity'),

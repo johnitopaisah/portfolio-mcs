@@ -1,6 +1,7 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { adminApi } from '@/lib/api';
 import ImportJobDrawer from '@/components/ImportJobDrawer';
 import QuickLogDrawer from '@/components/QuickLogDrawer';
@@ -157,14 +158,38 @@ function KanbanCard({ app }: { app: Application }) {
   );
 }
 
+// Pipeline stage groups — the same buckets the dashboard Pipeline panel counts.
+const STAGE_GROUPS = [
+  { value: 'prep',      label: 'Prep' },
+  { value: 'active',    label: 'Applied' },
+  { value: 'interview', label: 'Interview' },
+  { value: 'offer',     label: 'Offer' },
+  { value: 'closed',    label: 'Closed' },
+];
+
 // ── Main page ────────────────────────────────────────────────────────────────
 export default function ApplicationsPage() {
+  return (
+    <Suspense>
+      <ApplicationsPageInner />
+    </Suspense>
+  );
+}
+
+function ApplicationsPageInner() {
+  // Filters start from the URL so dashboard panels can deep-link here
+  // (e.g. /applications?group=interview).
+  const router       = useRouter();
+  const searchParams = useSearchParams();
   const [applications,  setApplications]  = useState<Application[]>([]);
   const [loading,       setLoading]       = useState(true);
   const [error,         setError]         = useState<string | null>(null);
-  const [statusFilter,  setStatusFilter]  = useState('');
+  const [statusFilter,  setStatusFilter]  = useState(searchParams.get('status') || '');
+  const [groupFilter,   setGroupFilter]   = useState(searchParams.get('group') || '');
+  const [createdFrom,   setCreatedFrom]   = useState(searchParams.get('created_from') || '');
+  const [remindersDue,  setRemindersDue]  = useState(searchParams.get('reminders') === 'due');
   const [platformFilter,setPlatformFilter] = useState('');
-  const [needsAction,   setNeedsAction]   = useState(false);
+  const [needsAction,   setNeedsAction]   = useState(searchParams.get('needs_action') === 'true');
   const [searchQuery,   setSearchQuery]   = useState('');
   const [viewMode,      setViewMode]      = useState<'list' | 'kanban'>('list');
   const [showImport,    setShowImport]    = useState(false);
@@ -177,6 +202,9 @@ export default function ApplicationsPage() {
     try {
       const params: Record<string, string> = {};
       if (statusFilter)   params.status       = statusFilter;
+      if (groupFilter)    params.group        = groupFilter;
+      if (createdFrom)    params.created_from = createdFrom;
+      if (remindersDue)   params.reminders    = 'due';
       if (platformFilter) params.platform     = platformFilter;
       if (needsAction)    params.needs_action = 'true';
       if (searchQuery)    params.search       = searchQuery;
@@ -187,7 +215,13 @@ export default function ApplicationsPage() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, platformFilter, needsAction, searchQuery]);
+  }, [statusFilter, groupFilter, createdFrom, remindersDue, platformFilter, needsAction, searchQuery]);
+
+  function clearFilters() {
+    setStatusFilter(''); setGroupFilter(''); setCreatedFrom(''); setRemindersDue(false);
+    setPlatformFilter(''); setNeedsAction(false); setSearchQuery('');
+    if (searchParams.toString()) router.replace('/applications');
+  }
 
   useEffect(() => { fetchApplications(); }, [fetchApplications]);
 
@@ -258,6 +292,10 @@ export default function ApplicationsPage() {
           placeholder="Search company or title…"
           className="text-xs bg-gray-800 border border-gray-700 text-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500 w-48"
         />
+        <select value={groupFilter} onChange={e => setGroupFilter(e.target.value)} className={selectCls}>
+          <option value="">All stages</option>
+          {STAGE_GROUPS.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
+        </select>
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className={selectCls}>
           <option value="">All statuses</option>
           {STATUS_PIPELINE.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
@@ -273,8 +311,20 @@ export default function ApplicationsPage() {
             className="w-3.5 h-3.5 accent-indigo-500" />
           <span className="text-xs text-gray-400">Needs action</span>
         </label>
-        {(statusFilter || platformFilter || needsAction || searchQuery) && (
-          <button onClick={() => { setStatusFilter(''); setPlatformFilter(''); setNeedsAction(false); setSearchQuery(''); }}
+        {createdFrom && (
+          <button onClick={() => setCreatedFrom('')} title="Remove this filter"
+            className="text-xs px-3 py-1.5 rounded-lg text-indigo-300 bg-indigo-900/30 border border-indigo-700/40 hover:bg-indigo-900/50 transition-colors">
+            Created since {formatDate(createdFrom, true)} ✕
+          </button>
+        )}
+        {remindersDue && (
+          <button onClick={() => setRemindersDue(false)} title="Remove this filter"
+            className="text-xs px-3 py-1.5 rounded-lg text-indigo-300 bg-indigo-900/30 border border-indigo-700/40 hover:bg-indigo-900/50 transition-colors">
+            Reminders due ✕
+          </button>
+        )}
+        {(statusFilter || groupFilter || createdFrom || remindersDue || platformFilter || needsAction || searchQuery) && (
+          <button onClick={clearFilters}
             className="text-xs px-3 py-1.5 rounded-lg text-red-400 hover:text-red-300 bg-red-900/20 border border-red-800/40 hover:bg-red-900/30 transition-colors">
             Clear filters
           </button>

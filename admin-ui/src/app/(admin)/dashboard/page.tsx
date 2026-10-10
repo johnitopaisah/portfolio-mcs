@@ -9,9 +9,10 @@ import {
 
 type AvailStatus = 'active' | 'passive' | 'not_open';
 type DashStats = {
-  goal: { target: number; this_week: number; pct: number; streak_weeks: number };
+  goal: { target: number; this_week: number; today: number; pct: number; streak_weeks: number };
+  daily_counts: Array<{ day: string; cnt: number }>;
   health_score: { total: number; label: string; color: string };
-  due_reminders: Array<{ id: number; title: string; remind_at: string; company_name: string }>;
+  due_reminders: Array<{ id: number; title: string; remind_at: string; company_name: string; application_id: number }>;
   pipeline_counts: { prep: number; active: number; interview: number; offer: number; closed: number };
   recent_activity: Array<{ event_type: string; description: string; event_date: string; company_name: string; job_title: string; application_id: number }>;
 };
@@ -59,6 +60,19 @@ const PIPELINE_LABELS = [
   { key: 'offer',     label: 'Offer',     color: '#4ade80' },
   { key: 'closed',    label: 'Closed',    color: 'rgba(255,255,255,0.32)' },
 ];
+
+// Local-time boundaries, as ISO, for the applications list's created_from filter.
+function startOfToday(): string {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+}
+function startOfWeek(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+}
 
 export default function DashboardPage() {
   const [portfolioStats, setPortfolioStats] = useState<PortfolioStats>(EMPTY);
@@ -154,8 +168,9 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
 
         {/* Health score */}
-        <div
-          className="rounded-2xl p-5 flex flex-col items-center gap-3"
+        <Link
+          href="/goals"
+          className="rounded-2xl p-5 flex flex-col items-center gap-3 transition-all hover:brightness-125"
           style={{ background: 'rgba(255,255,255,0.07)', border: `1px solid ${hc?.ring || 'rgba(255,255,255,0.1)'}25` }}
         >
           <p className="text-xs font-semibold" style={{ color: '#DDD6FE' }}>Search Health</p>
@@ -175,10 +190,10 @@ export default function DashboardPage() {
               <span className="text-xl font-bold" style={{ color: hc?.ring || '#fbbf24' }}>{hs?.total ?? '—'}</span>
             </div>
           </div>
-          <Link href="/goals" className="text-xs font-medium" style={{ color: hc?.ring || '#fbbf24' }}>
+          <span className="text-xs font-medium" style={{ color: hc?.ring || '#fbbf24' }}>
             {hs?.label || 'Loading…'}
-          </Link>
-        </div>
+          </span>
+        </Link>
 
         {/* Weekly goal */}
         <div
@@ -188,9 +203,23 @@ export default function DashboardPage() {
           <p className="text-xs font-semibold" style={{ color: '#DDD6FE' }}>Weekly Goal</p>
           {dashStats ? (
             <>
-              <div className="flex items-end gap-2">
-                <span className="text-3xl font-bold" style={{ color: '#FFFFFF' }}>{dashStats.goal.this_week}</span>
-                <span className="text-sm mb-1" style={{ color: 'rgba(255,255,255,0.45)' }}>/ {dashStats.goal.target}</span>
+              <div className="flex items-end justify-between gap-2">
+                <Link
+                  href={`/applications?created_from=${encodeURIComponent(startOfWeek())}`}
+                  title="View this week's applications"
+                  className="flex items-end gap-2 rounded-lg -mx-1 px-1 transition-colors hover:bg-white/10"
+                >
+                  <span className="text-3xl font-bold" style={{ color: '#FFFFFF' }}>{dashStats.goal.this_week}</span>
+                  <span className="text-sm mb-1" style={{ color: 'rgba(255,255,255,0.45)' }}>/ {dashStats.goal.target}</span>
+                </Link>
+                <Link
+                  href={`/applications?created_from=${encodeURIComponent(startOfToday())}`}
+                  title="View today's applications"
+                  className="text-xs mb-1 rounded-lg px-2 py-1 transition-colors hover:bg-white/10"
+                  style={{ color: 'rgba(255,255,255,0.65)' }}
+                >
+                  Today <span className="font-bold" style={{ color: '#FFFFFF' }}>{dashStats.goal.today ?? 0}</span>
+                </Link>
               </div>
               <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
                 <div
@@ -205,6 +234,20 @@ export default function DashboardPage() {
                 <span className="text-base">🔥</span>
                 <span className="text-xs" style={{ color: 'rgba(255,255,255,0.65)' }}>{dashStats.goal.streak_weeks} week streak</span>
               </div>
+              {/* Applications per day, last 7 days */}
+              {dashStats.daily_counts?.length ? (
+                <div className="grid grid-cols-7 gap-1 mt-auto">
+                  {dashStats.daily_counts.slice(-7).map(d => (
+                    <div key={d.day} className="flex flex-col items-center rounded-md py-1" style={{ background: 'rgba(0,0,0,0.22)' }}
+                      title={`${new Date(`${d.day}T00:00:00`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })}: ${d.cnt}`}>
+                      <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                        {new Date(`${d.day}T00:00:00`).toLocaleDateString('en-GB', { weekday: 'narrow' })}
+                      </span>
+                      <span className="text-xs font-semibold" style={{ color: d.cnt ? '#FFFFFF' : 'rgba(255,255,255,0.32)' }}>{d.cnt}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </>
           ) : (
             <div style={{ color: 'rgba(255,255,255,0.32)' }} className="text-xs">Loading…</div>
@@ -220,18 +263,19 @@ export default function DashboardPage() {
             <p className="text-xs font-semibold" style={{ color: '#DDD6FE' }}>Pipeline</p>
             <Link href="/applications" className="text-xs" style={{ color: '#A855F7' }}>View all →</Link>
           </div>
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1">
             {PIPELINE_LABELS.map(pl => {
               const cnt = dashStats?.pipeline_counts?.[pl.key as keyof typeof dashStats.pipeline_counts] ?? 0;
               const max = Math.max(...Object.values(dashStats?.pipeline_counts || {}), 1);
               return (
-                <div key={pl.key} className="flex items-center gap-2">
+                <Link key={pl.key} href={`/applications?group=${pl.key}`} title={`View ${pl.label.toLowerCase()} applications`}
+                  className="flex items-center gap-2 rounded-md -mx-1.5 px-1.5 py-1 transition-colors hover:bg-white/10">
                   <span className="text-xs w-14 shrink-0" style={{ color: 'rgba(255,255,255,0.45)' }}>{pl.label}</span>
                   <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.22)' }}>
                     <div className="h-full rounded-full" style={{ width: `${Math.round((cnt / max) * 100)}%`, background: pl.color }} />
                   </div>
                   <span className="text-xs w-6 text-right shrink-0" style={{ color: 'rgba(255,255,255,0.65)' }}>{cnt}</span>
-                </div>
+                </Link>
               );
             })}
           </div>
@@ -245,18 +289,21 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold" style={{ color: '#DDD6FE' }}>Due Reminders</p>
             {dashStats?.due_reminders?.length ? (
-              <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171' }}>
+              <Link href="/applications?reminders=due" title="View all applications with a reminder due"
+                className="text-xs px-2 py-0.5 rounded-full transition-all hover:brightness-150"
+                style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171' }}>
                 {dashStats.due_reminders.length}
-              </span>
+              </Link>
             ) : null}
           </div>
           {dashStats?.due_reminders?.length ? (
             <div className="flex flex-col gap-2">
               {dashStats.due_reminders.slice(0, 4).map(r => (
-                <div key={r.id} className="text-xs rounded-lg px-2.5 py-2" style={{ background: 'rgba(0,0,0,0.22)' }}>
+                <Link key={r.id} href={`/applications/${r.application_id}`}
+                  className="block text-xs rounded-lg px-2.5 py-2 transition-all hover:brightness-150" style={{ background: 'rgba(0,0,0,0.22)' }}>
                   <p className="truncate font-medium" style={{ color: 'rgba(255,255,255,0.92)' }}>{r.title}</p>
                   <p className="truncate mt-0.5" style={{ color: 'rgba(255,255,255,0.45)' }}>{r.company_name}</p>
-                </div>
+                </Link>
               ))}
             </div>
           ) : (
@@ -276,7 +323,7 @@ export default function DashboardPage() {
               <Link
                 key={i}
                 href={`/applications/${a.application_id}`}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all"
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all hover:brightness-150"
                 style={{ background: 'rgba(0,0,0,0.22)' }}
               >
                 <div className="w-2 h-2 rounded-full shrink-0" style={{ background: '#A855F7' }} />

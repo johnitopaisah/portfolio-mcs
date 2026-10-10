@@ -8,9 +8,10 @@ const { runAllRules }                     = require('../services/automationServi
 const router = express.Router();
 
 // GET /api/dashboard/stats
-router.get('/stats', requireAuth, async (_req, res, next) => {
+// ?tz=<IANA zone> sets where "today" starts for the per-day counts.
+router.get('/stats', requireAuth, async (req, res, next) => {
   try {
-    const stats = await getDashboardStats();
+    const stats = await getDashboardStats({ timeZone: req.query.tz });
     res.json(stats);
   } catch (err) { next(err); }
 });
