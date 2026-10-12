@@ -34,7 +34,7 @@ function replyStatus(classification) {
  */
 async function createApplicationFromEmail(db, {
   emailResponseId, companyName, role, isConfirmation, status, receivedAt, eventDescription,
-  createdAt = null, matchMethod = 'auto_created',
+  createdAt = null, matchMethod = 'auto_created', createdDescription = null,
 }) {
   const { rows } = await db.query(
     `INSERT INTO applications
@@ -57,9 +57,9 @@ async function createApplicationFromEmail(db, {
   await db.query(
     `INSERT INTO application_events (application_id, event_type, description, event_date)
      VALUES ($1, 'APPLICATION_CREATED', $2, COALESCE($3, NOW()))`,
-    [app.id, isConfirmation
+    [app.id, createdDescription || (isConfirmation
       ? 'Auto-created from an application confirmation email'
-      : 'Auto-created from an inbound email', createdAt]
+      : 'Auto-created from an inbound email'), createdAt]
   );
   if (eventDescription) {
     await db.query(

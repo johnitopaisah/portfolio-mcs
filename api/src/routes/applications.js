@@ -288,13 +288,23 @@ router.post('/email-responses/:id/split', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'company_name is required' });
     }
 
-    const isConfirmation = email.ai_classification === 'APPLICATION_CONFIRMATION';
+    // The caller may choose the starting status; by default a confirmation
+    // email means the application was sent, anything else is a reply to one.
+    const { status } = req.body;
+    if (status !== undefined && !['APPLIED', 'EMAIL_RECEIVED'].includes(status)) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'status must be APPLIED or EMAIL_RECEIVED' });
+    }
+    const asApplied = status
+      ? status === 'APPLIED'
+      : email.ai_classification === 'APPLICATION_CONFIRMATION';
     const application = await createApplicationFromEmail(client, {
       emailResponseId:  email.id,
       companyName,
       role:             jobTitle,
-      isConfirmation,
-      status:           isConfirmation ? 'APPLIED' : 'EMAIL_RECEIVED',
+      isConfirmation:   asApplied,
+      status:           asApplied ? 'APPLIED' : 'EMAIL_RECEIVED',
+      createdDescription: 'Created manually from an email',
       receivedAt:       email.received_at,
       eventDescription: `${email.ai_classification}: ${email.raw_label || email.subject || ''}`.trim(),
       matchMethod:      'manual_split',

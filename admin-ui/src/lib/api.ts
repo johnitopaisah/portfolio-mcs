@@ -392,7 +392,7 @@ export const adminApi = {
       method: 'PATCH',
       body: JSON.stringify({ application_id }),
     }),
-  splitEmailResponse: (id: number, body: { company_name?: string; job_title?: string } = {}) =>
+  splitEmailResponse: (id: number, body: { company_name?: string; job_title?: string; status?: 'APPLIED' | 'EMAIL_RECEIVED' } = {}) =>
     request(`/api/applications/email-responses/${id}/split`, {
       method: 'POST',
       body: JSON.stringify(body),

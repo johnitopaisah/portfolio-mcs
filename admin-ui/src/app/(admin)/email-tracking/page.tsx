@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { adminApi } from '@/lib/api';
+import NewApplicationFromEmailDialog from '@/components/NewApplicationFromEmailDialog';
 
 // ── Types ─────────────────────────────────────────────────────
 interface EmailResponse {
@@ -237,45 +238,36 @@ function LinkAppCell({
 }
 
 // ── Record an email as its own application ───────────────────────
-// For an email linked (or suggested) to another application at the same
-// company that is really about a different role.
+// Opens NewApplicationFromEmailDialog. Not offered on emails the classifier
+// marked UNKNOWN (newsletters, alerts) — nothing there to file.
 function SplitButton({
   email, onSplit,
 }: {
   email: EmailResponse;
   onSplit: (appId: number, companyName: string, jobTitle: string) => void;
 }) {
-  const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
 
-  async function handleSplit() {
-    const company = window.prompt(
-      'Company for the new application',
-      email.company_name || email.suggested_company_name || email.extracted_company || ''
-    );
-    if (!company || !company.trim()) return;
-    const title = window.prompt('Job title for the new application', email.extracted_role || '');
-    if (title === null) return;
-    setBusy(true);
-    try {
-      const app = await adminApi.splitEmailResponse(email.id, { company_name: company.trim(), job_title: title.trim() });
-      onSplit(app.id, app.company_name, app.job_title);
-    } catch (err: unknown) {
-      alert((err as Error).message || 'Failed to create application');
-    } finally {
-      setBusy(false);
-    }
-  }
+  if (email.ai_classification === 'UNKNOWN') return null;
 
   return (
-    <button
-      onClick={handleSplit}
-      disabled={busy}
-      title="Record this email as a new, separate application"
-      className="px-1.5 py-0.5 text-xs rounded bg-gray-800 border border-gray-700 text-gray-400
-        hover:text-white hover:bg-gray-700 disabled:opacity-40 transition-colors"
-    >
-      {busy ? '…' : '+ New'}
-    </button>
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        title="Record this email as a new, separate application"
+        className="px-1.5 py-0.5 text-xs rounded bg-gray-800 border border-gray-700 text-gray-400
+          hover:text-white hover:bg-gray-700 transition-colors"
+      >
+        + New
+      </button>
+      {open && (
+        <NewApplicationFromEmailDialog
+          email={email}
+          onClose={() => setOpen(false)}
+          onDone={onSplit}
+        />
+      )}
+    </>
   );
 }
 
