@@ -1,10 +1,26 @@
 const router = require('express').Router();
+const rateLimit = require('express-rate-limit');
 const pool   = require('../db/client');
 const { requireAuth } = require('../middleware/auth');
 const { syncBlogFromMedium } = require('../services/blogIngestService');
 const cache  = require('../services/contentCache');
+const { recordClick, getInsights } = require('../services/blogClickService');
+const { isBot, clientIp } = require('../services/parseVisitor');
 
 const CACHE_KEY = 'blog:public';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Stops one client inflating a post's numbers. Over the limit the reader is
+// still redirected — the click just isn't recorded.
+const clickLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: false,
+  legacyHeaders: false,
+  keyGenerator: clientIp,
+  handler: (req, _res, next) => { req.skipClickRecord = true; next(); },
+});
 
 /**
  * @swagger
@@ -50,13 +66,93 @@ router.get('/', async (req, res, next) => {
 router.get('/all', requireAuth, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, title, excerpt, cover_image_url, medium_url, tags,
-              published_at, ingested_at, visible_on_site,
-              linkedin_shared_at, linkedin_post_urn
-       FROM blog_posts
-       ORDER BY published_at DESC NULLS LAST`
+      `SELECT p.id, p.title, p.excerpt, p.cover_image_url, p.medium_url, p.tags,
+              p.published_at, p.ingested_at, p.visible_on_site,
+              p.linkedin_shared_at, p.linkedin_post_urn,
+              ((SELECT COUNT(*) FROM blog_clicks c WHERE c.post_id = p.id)
+               + COALESCE((SELECT SUM(d.clicks) FROM blog_click_daily d WHERE d.post_id = p.id), 0))::int AS click_count
+       FROM blog_posts p
+       ORDER BY p.published_at DESC NULLS LAST`
     );
     res.json(rows);
+  } catch (err) { next(err); }
+});
+
+/**
+ * @swagger
+ * /api/blog/insights:
+ *   get:
+ *     summary: Blog click analytics (admin)
+ *     description: >
+ *       Clicks through to Medium. Breakdowns and recent clicks cover at most the
+ *       last 90 days; totals and the timeline for range=all include older daily totals.
+ *     tags: [Blog]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: range
+ *         schema: { type: string, enum: ['7', '30', '90', all], default: '30' }
+ *       - in: query
+ *         name: post
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Totals, timeline, top posts, breakdowns and recent clicks
+ *       400:
+ *         description: Invalid range or post
+ *       401:
+ *         description: Unauthorised
+ */
+router.get('/insights', requireAuth, async (req, res, next) => {
+  try {
+    const { range = '30', post } = req.query;
+    if (!['7', '30', '90', 'all'].includes(range)) return res.status(400).json({ error: 'Invalid range' });
+    if (post && !UUID_RE.test(post)) return res.status(400).json({ error: 'Invalid post' });
+    res.json(await getInsights({ range, postId: post || null }));
+  } catch (err) { next(err); }
+});
+
+/**
+ * @swagger
+ * /api/blog/{id}/go:
+ *   get:
+ *     summary: Record a reader's click and redirect to the post on Medium
+ *     description: >
+ *       The target comes from the database, so this can't be used as an open
+ *       redirect. The reader is redirected first and the click recorded afterwards;
+ *       a tracking failure never affects them. Bots and prefetches aren't recorded.
+ *     tags: [Blog]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *       - in: query
+ *         name: from
+ *         schema: { type: string, enum: [home, blog] }
+ *         description: Where on the site the link was
+ *     responses:
+ *       302:
+ *         description: Redirect to Medium
+ *       404:
+ *         description: Not found
+ */
+router.get('/:id/go', clickLimiter, async (req, res, next) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return res.status(404).json({ error: 'Post not found' });
+
+    const { rows } = await pool.query('SELECT id, medium_url FROM blog_posts WHERE id = $1', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Post not found' });
+
+    res.set('Cache-Control', 'no-store');
+    res.set('X-Robots-Tag', 'noindex');
+    res.redirect(302, rows[0].medium_url);
+
+    const isPrefetch = /prefetch|prerender/i.test(`${req.headers['sec-purpose'] || ''} ${req.headers.purpose || ''}`);
+    if (req.method === 'GET' && !req.skipClickRecord && !isPrefetch && !isBot(req.headers['user-agent'])) {
+      recordClick(req, rows[0].id).catch(err => console.error('[Blog] click not recorded:', err.message));
+    }
   } catch (err) { next(err); }
 });
 

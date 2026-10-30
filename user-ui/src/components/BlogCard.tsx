@@ -24,16 +24,19 @@ export default function BlogCard({
   post,
   authorName,
   authorAvatarUrl,
+  source,
 }: {
   post: BlogPost;
+  /** Where this card is shown, recorded with the click. */
+  source: 'home' | 'blog';
   authorName?: string;
   authorAvatarUrl?: string;
 }) {
   return (
     <a
-      href={post.medium_url}
+      href={`/api/blog/${post.id}/go?from=${source}`}
       target="_blank"
-      rel="noopener noreferrer"
+      rel="noopener noreferrer nofollow"
       className="card flex flex-col group overflow-hidden relative transition-all duration-300 hover:-translate-y-1"
     >
       <div className="h-44 -mx-6 -mt-6 mb-5 overflow-hidden rounded-t-2xl relative">

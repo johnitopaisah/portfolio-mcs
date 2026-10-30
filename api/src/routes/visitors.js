@@ -10,7 +10,7 @@ const pool      = require('../db/client');
 const { requireAuth } = require('../middleware/auth');
 const { geoip }       = require('../services/geoip');
 const {
-  isBot, parseBrowser, parseOs, parseDevice, labelReferer, parseLanguage,
+  isBot, parseBrowser, parseOs, parseDevice, labelReferer, parseLanguage, clientIp,
 } = require('../services/parseVisitor');
 const {
   visitorsTotal,
@@ -46,12 +46,7 @@ router.post('/', visitorLimiter, async (req, res) => {
       visitorBotsFiltered.inc();
     }
 
-    // Real IP — Cloudflare CF-Connecting-IP is most reliable
-    const ip =
-      req.headers['cf-connecting-ip'] ||
-      req.headers['x-real-ip']        ||
-      (req.headers['x-forwarded-for'] || '').split(',')[0].trim() ||
-      req.ip || '';
+    const ip = clientIp(req);
 
     const cfCountryCode = (req.headers['cf-ipcountry'] || '').toUpperCase();
     const sessionId     = req.headers['x-portfolio-sid'] || null;

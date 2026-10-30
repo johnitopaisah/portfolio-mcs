@@ -72,7 +72,7 @@ export default function BlogTeaserSection({
               style={{ animationDuration: `${duration}s`, width: 'max-content' }}>
               {[...latest, ...latest].map((post, i) => (
                 <div key={`${post.id}-${i}`} className="w-80 flex-shrink-0">
-                  <BlogCard post={post} authorName={authorName} authorAvatarUrl={authorAvatarUrl} />
+                  <BlogCard post={post} authorName={authorName} authorAvatarUrl={authorAvatarUrl} source="home" />
                 </div>
               ))}
             </div>
@@ -82,7 +82,7 @@ export default function BlogTeaserSection({
           <div className="hidden md:grid mt-8 gap-6"
             style={{ gridTemplateColumns: `repeat(${Math.min(latest.length, 3)}, 1fr)` }}>
             {latest.map(post => (
-              <BlogCard key={post.id} post={post} authorName={authorName} authorAvatarUrl={authorAvatarUrl} />
+              <BlogCard key={post.id} post={post} authorName={authorName} authorAvatarUrl={authorAvatarUrl} source="home" />
             ))}
           </div>
         )}
@@ -93,7 +93,7 @@ export default function BlogTeaserSection({
           style={{ scrollSnapType: 'x mandatory' }}>
           {latest.map(post => (
             <div key={post.id} className="w-72 flex-shrink-0" style={{ scrollSnapAlign: 'start' }}>
-              <BlogCard post={post} authorName={authorName} authorAvatarUrl={authorAvatarUrl} />
+              <BlogCard post={post} authorName={authorName} authorAvatarUrl={authorAvatarUrl} source="home" />
             </div>
           ))}
         </div>

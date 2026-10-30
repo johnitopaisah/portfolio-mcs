@@ -461,6 +461,8 @@ export const adminApi = {
   // Blog
   getBlogPosts: () => request('/api/blog/all'),
   syncBlog: () => request('/api/blog/sync', { method: 'POST' }),
+  getBlogInsights: (range: string, post?: string) =>
+    request(`/api/blog/insights?${new URLSearchParams({ range, ...(post ? { post } : {}) })}`),
   updateBlogPost: (id: string, data: Record<string, unknown>) =>
     request(`/api/blog/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 

@@ -85,6 +85,9 @@ export default async function HomePage() {
             Built with Next.js · Deployed on Kubernetes
           </p>
           <div className="flex gap-5">
+            <a href="/privacy" className="text-sm transition-colors hover:text-violet-400" style={{ color: 'var(--text-3)' }}>
+              Privacy
+            </a>
             {[
               { label: 'GitHub',   href: profile?.github_url   || '#' },
               { label: 'LinkedIn', href: profile?.linkedin_url || '#' },

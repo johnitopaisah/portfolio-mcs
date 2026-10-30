@@ -95,6 +95,10 @@ export async function middleware(request: NextRequest) {
         body:    ['GET', 'HEAD'].includes(request.method) ? undefined : request.body,
         // @ts-ignore — needed for streaming request bodies
         duplex:  'half',
+        // Hand redirects back to the browser. Following them here would fetch
+        // the target ourselves and serve it from our own domain, which breaks
+        // /api/blog/:id/go (its whole job is sending the reader to Medium).
+        redirect: 'manual',
         // Without this, a fully unreachable API (e.g. scaled to 0 — see
         // the outage that also crash-looped this pod's SSR fetches) can
         // hang a real user's request indefinitely instead of returning

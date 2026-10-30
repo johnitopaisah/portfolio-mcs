@@ -28,9 +28,10 @@ function parseBrowser(ua) {
 function parseOs(ua) {
   if (!ua) return 'Unknown';
   if (/Windows NT/i.test(ua))       return 'Windows';
+  // Before macOS: iOS user agents say "like Mac OS X".
+  if (/iPhone|iPad|iPod/i.test(ua)) return 'iOS';
   if (/Mac OS X/i.test(ua))         return 'macOS';
   if (/Android/i.test(ua))          return 'Android';
-  if (/iPhone|iPad|iPod/i.test(ua)) return 'iOS';
   if (/Linux/i.test(ua))            return 'Linux';
   if (/CrOS/i.test(ua))             return 'ChromeOS';
   return 'Other';
@@ -64,7 +65,20 @@ function labelReferer(referer) {
 function parseLanguage(acceptLanguage) {
   if (!acceptLanguage) return '';
   // Take first tag before comma or semicolon
-  return acceptLanguage.split(/[,;]/)[0].trim().slice(0, 10);
+  const tag = acceptLanguage.split(/[,;]/)[0].trim().slice(0, 10);
+  // '*' isn't a language: it's what a proxy's fetch() fills in when the client sent none.
+  return tag === '*' ? '' : tag;
 }
 
-module.exports = { isBot, parseBrowser, parseOs, parseDevice, labelReferer, parseLanguage };
+// ── Client IP ─────────────────────────────────────────────────
+// Cloudflare's CF-Connecting-IP is the most reliable source.
+function clientIp(req) {
+  return (
+    req.headers['cf-connecting-ip'] ||
+    req.headers['x-real-ip']        ||
+    (req.headers['x-forwarded-for'] || '').split(',')[0].trim() ||
+    req.ip || ''
+  );
+}
+
+module.exports = { isBot, parseBrowser, parseOs, parseDevice, labelReferer, parseLanguage, clientIp };

@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 import { adminApi } from '@/lib/api';
 
 interface BlogPost {
@@ -14,6 +15,7 @@ interface BlogPost {
   visible_on_site: boolean;
   linkedin_shared_at: string | null;
   linkedin_post_urn: string | null;
+  click_count?: number;
 }
 
 type LinkedInStatus =
@@ -137,7 +139,7 @@ export default function BlogPage() {
 
   async function toggleVisible(post: BlogPost) {
     const updated = await adminApi.updateBlogPost(post.id, { visible_on_site: !post.visible_on_site }).catch(() => null);
-    if (updated) setPosts(prev => prev.map(p => p.id === post.id ? updated : p));
+    if (updated) setPosts(prev => prev.map(p => p.id === post.id ? { ...p, ...updated } : p));
   }
 
   function startEdit(post: BlogPost) {
@@ -151,7 +153,7 @@ export default function BlogPage() {
       cover_image_url: editForm.cover_image_url,
       tags: editForm.tags.split(',').map((t: string) => t.trim()).filter(Boolean),
     }).catch(() => null);
-    if (updated) { setPosts(prev => prev.map(p => p.id === id ? updated : p)); setEditId(null); }
+    if (updated) { setPosts(prev => prev.map(p => p.id === id ? { ...p, ...updated } : p)); setEditId(null); }
   }
 
   // LinkedIn connect
@@ -219,10 +221,17 @@ export default function BlogPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-white mb-1">Blog</h1>
-      <p className="text-gray-500 text-sm mb-6">
-        Pull posts from your Medium feed, review them, and share to LinkedIn.
-      </p>
+      <div className="flex items-start justify-between gap-4 mb-6 max-w-2xl">
+        <div>
+          <h1 className="text-2xl font-bold text-white mb-1">Blog</h1>
+          <p className="text-gray-500 text-sm">
+            Pull posts from your Medium feed, review them, and share to LinkedIn.
+          </p>
+        </div>
+        <Link href="/blog/insights" className="btn-primary text-xs py-1.5 px-4 flex-shrink-0">
+          Blog Insights →
+        </Link>
+      </div>
 
       {/* ── Toast ─────────────────────────────────────────────────────────── */}
       {liToast && (
@@ -337,6 +346,10 @@ export default function BlogPage() {
                     <p className="text-xs truncate" style={{ color: 'var(--text-3)' }}>
                       {post.tags.join(', ') || 'No tags'}
                     </p>
+                    <Link href={`/blog/insights?post=${post.id}`}
+                      className="inline-block text-xs mt-0.5 hover:underline" style={{ color: 'var(--text-2)' }}>
+                      {post.click_count ?? 0} click{post.click_count === 1 ? '' : 's'}
+                    </Link>
                     {shared && (
                       <p className="text-xs mt-0.5 flex items-center gap-1" style={{ color: '#60a5fa' }}>
                         <LinkedInIcon size={10} />

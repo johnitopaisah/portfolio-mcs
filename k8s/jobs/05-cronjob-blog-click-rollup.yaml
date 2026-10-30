@@ -1,0 +1,68 @@
+---
+# ============================================================
+#  Blog Click Rollup Worker — Kubernetes CronJob
+#  Runs daily at 03:30 UTC: folds per-click blog analytics older
+#  than 90 days into daily totals and deletes the detail rows.
+# ============================================================
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: blog-click-rollup-worker
+  namespace: portfolio
+  labels:
+    app: portfolio-mcs
+    component: blog-click-rollup
+spec:
+  schedule: "30 3 * * *"          # daily at 03:30 UTC
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 1
+  suspend: false
+  concurrencyPolicy: Forbid
+
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 300   # 5 min max
+      template:
+        metadata:
+          labels:
+            app: portfolio-mcs
+            component: blog-click-rollup
+        spec:
+          restartPolicy: Never
+          serviceAccountName: job-worker
+          securityContext:
+            fsGroup: 1001
+
+          imagePullSecrets:
+            - name: ghcr-pull-secret
+
+          containers:
+          - name: worker
+            image: ghcr.io/johnitopaisah/portfolio-mcs/api:latest
+            imagePullPolicy: Always
+            command: ["node", "src/workers/blogClickRollupWorker.js"]
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 1001
+              runAsGroup: 1001
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+
+            env:
+            - name: NODE_ENV
+              value: "production"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: portfolio-secrets
+                  key: DATABASE_URL
+
+            resources:
+              requests:
+                cpu:    20m
+                memory: 48Mi
+              limits:
+                cpu:    150m
+                memory: 96Mi
