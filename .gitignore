@@ -9,6 +9,11 @@ dist/
 .claude/settings.json
 
 db/portfolio_backup_*.sql
+db/db_*.sql
+
+# Infisical CLI project link
+.infisical.yaml
+.infisical.json
 
 bootstrapping/infisical*
 bootstrapping/nginx*
