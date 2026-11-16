@@ -26,6 +26,8 @@ interface EmailResponse {
   suggested_job_title: string | null;
   extracted_company: string | null;
   extracted_role: string | null;
+  imap_folder?: string | null;
+  review_status?: 'PENDING' | 'APPROVED' | 'REJECTED' | null;
 }
 
 interface AppOption {
@@ -34,13 +36,22 @@ interface AppOption {
   job_title: string;
 }
 
+interface SyncFolderDetail {
+  path: string;
+  spam?: boolean;
+  scanned?: number;
+  new?: number;
+  error?: string | null;
+}
+
 interface SyncStatus {
   source_account: string;
-  status: 'SUCCESS' | 'FAILED';
+  status: 'SUCCESS' | 'PARTIAL' | 'FAILED';
   emails_fetched: number;
   emails_new: number;
   error_message: string | null;
   created_at: string;
+  details?: { folders?: SyncFolderDetail[]; pending_review?: number } | null;
 }
 
 const CLASSIFICATIONS = [
@@ -132,21 +143,123 @@ function SyncHealthBar() {
   return (
     <div className="flex flex-wrap gap-2">
       {statuses.map(s => {
-        const ok = s.status === 'SUCCESS';
-        const label = s.source_account === 'imap' ? 'Professional' : 'Gmail';
+        const ok      = s.status === 'SUCCESS';
+        const partial = s.status === 'PARTIAL';
+        const label   = s.source_account === 'imap' ? 'Professional' : 'Gmail';
+        const folders = s.details?.folders ?? [];
+        const folderLines = folders.map(f =>
+          `${f.path}${f.spam ? ' (review)' : ''}: ${f.error ? `error — ${f.error}` : `${f.new ?? 0} new of ${f.scanned ?? 0}`}`
+        );
+        const title = [
+          ok || partial ? `${s.emails_new} new of ${s.emails_fetched} scanned` : (s.error_message || 'Sync failed'),
+          ...(partial && s.error_message ? [s.error_message] : []),
+          ...folderLines,
+        ].join('\n');
+        const tone = ok
+          ? 'bg-gray-900 border-gray-800 text-gray-400'
+          : partial
+            ? 'bg-amber-950/40 border-amber-800/50 text-amber-400'
+            : 'bg-red-950/40 border-red-800/50 text-red-400';
+        const dot = ok ? 'bg-green-500' : partial ? 'bg-amber-500' : 'bg-red-500';
         return (
           <div
             key={s.source_account}
-            title={ok ? `${s.emails_new} new of ${s.emails_fetched} fetched` : (s.error_message || 'Sync failed')}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs border ${
-              ok ? 'bg-gray-900 border-gray-800 text-gray-400' : 'bg-red-950/40 border-red-800/50 text-red-400'
-            }`}
+            title={title}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs border ${tone}`}
           >
-            <span className={`w-1.5 h-1.5 rounded-full ${ok ? 'bg-green-500' : 'bg-red-500'}`} />
-            {label} · {ok ? `synced ${relativeTime(s.created_at)}` : 'sync failed'}
+            <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
+            {label} · {ok
+              ? `synced ${relativeTime(s.created_at)}${folders.length ? ` · ${folders.length} folders` : ''}`
+              : partial ? `partial sync ${relativeTime(s.created_at)}` : 'sync failed'}
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ── Spam review ─────────────────────────────────────────────────
+// Job-related mail found in the Spam folder is held here and only linked to
+// an application once kept.
+function SpamReviewPanel({ onKept }: { onKept: () => void }) {
+  const [items,   setItems]   = useState<EmailResponse[]>([]);
+  const [busy,    setBusy]    = useState<number | null>(null);
+  const [error,   setError]   = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    adminApi.getEmailResponses({ review: 'pending', limit: 50 })
+      .then((data: { emails: EmailResponse[] }) => setItems(data.emails || []))
+      .catch(() => setItems([]));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function decide(id: number, action: 'keep' | 'discard') {
+    setBusy(id);
+    setError(null);
+    try {
+      await adminApi.reviewEmailResponse(id, action);
+      setItems(prev => prev.filter(e => e.id !== id));
+      if (action === 'keep') onKept();
+    } catch {
+      setError('Could not save that decision — try again.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (items.length === 0) return null;
+
+  return (
+    <div className="bg-amber-950/20 border border-amber-800/40 rounded-xl p-4 flex flex-col gap-3">
+      <div>
+        <h2 className="text-sm font-semibold text-amber-300">
+          Found in Spam — {items.length} awaiting review
+        </h2>
+        <p className="text-xs text-gray-500 mt-0.5">
+          These look job-related but landed in the Spam folder. Keep one to add it to tracking
+          (and link it to its application); discard to hide it.
+        </p>
+      </div>
+      {error && <p className="text-xs text-red-400">{error}</p>}
+      <ul className="flex flex-col divide-y divide-amber-900/30">
+        {items.map(email => {
+          const badge = classBadge(email.ai_classification);
+          return (
+            <li key={email.id} className="py-2.5 flex flex-wrap items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="text-xs text-gray-200 font-medium truncate">{email.subject || '(no subject)'}</div>
+                <div className="text-xs text-gray-500 truncate">
+                  {email.sender_name ? `${email.sender_name} · ` : ''}{email.sender_email}
+                  {email.received_at && ` · ${relativeTime(email.received_at)}`}
+                </div>
+                {email.body_snippet && (
+                  <div className="text-xs text-gray-600 truncate mt-0.5">{truncate(email.body_snippet, 140)}</div>
+                )}
+              </div>
+              <span className={`text-xs px-2 py-0.5 rounded-md font-medium ${badge.bg}`}>{badge.label}</span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => decide(email.id, 'keep')}
+                  disabled={busy !== null}
+                  className="px-2.5 py-1 text-xs rounded-md bg-green-900/40 text-green-400 border border-green-800/50
+                    hover:bg-green-900/60 disabled:opacity-40"
+                >
+                  Keep
+                </button>
+                <button
+                  onClick={() => decide(email.id, 'discard')}
+                  disabled={busy !== null}
+                  className="px-2.5 py-1 text-xs rounded-md bg-gray-800 text-gray-400 border border-gray-700
+                    hover:text-red-400 disabled:opacity-40"
+                >
+                  Discard
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
@@ -544,6 +657,7 @@ export default function EmailTrackingPage() {
       </div>
 
       <SyncHealthBar />
+      <SpamReviewPanel onKept={() => fetchEmails(page, filters)} />
       <FilterBar filters={filters} onChange={handleFilterChange} />
 
       {/* Content */}
@@ -585,6 +699,9 @@ export default function EmailTrackingPage() {
                           <span className={`text-xs px-2 py-0.5 rounded-md font-medium ${srcBadge.bg}`}>
                             {srcBadge.label}
                           </span>
+                          {email.imap_folder && email.imap_folder.toUpperCase() !== 'INBOX' && (
+                            <div className="text-[10px] text-gray-500 mt-1">{email.imap_folder}</div>
+                          )}
                         </td>
 
                         {/* Sender */}

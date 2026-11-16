@@ -166,8 +166,12 @@ Workers are run as Kubernetes CronJobs on a schedule, or triggered manually:
 # Run job ingestion + AI scoring once
 node src/workers/jobWorker.js
 
-# Sync Gmail inbox
+# Sync Gmail + the professional (IMAP) mailbox — every IMAP folder except
+# Sent/Drafts/Trash; job mail found in Spam is held for review on the dashboard
 node src/workers/emailWorker.js
+
+# Re-scan the last 45 days of every IMAP folder (safe to repeat — de-duplicated by Message-ID)
+node src/workers/emailWorker.js --only=imap --backfill-days=45
 
 # Check application follow-ups
 node src/workers/followUpWorker.js
@@ -192,6 +196,10 @@ node src/workers/cvWorker.js
 | `NOTIFY_EMAIL_USER` | No | Gmail address for SMTP notifications |
 | `NOTIFY_EMAIL_PASS` | No | Gmail App Password (16 chars) |
 | `NOTIFY_EMAIL_TO` | No | Recipient inbox for digests/alerts |
+| `IMAP_HOST` | No | Professional mailbox IMAP host (enables IMAP sync); auth reuses `NOTIFY_EMAIL_USER/PASS` unless `IMAP_USER/IMAP_PASSWORD` are set |
+| `IMAP_LOOKBACK_DAYS` | No | Days scanned for a folder with no saved position yet. Default `3` |
+| `IMAP_EXCLUDE_FOLDERS` | No | Extra comma-separated folders to skip (Sent/Drafts/Trash/Templates/Snoozed always are) |
+| `EMAIL_IGNORE_SENDER_DOMAINS` | No | Sender domains never captured. Default: the mailbox's own domain (own alerts/digests) |
 | `TWILIO_ACCOUNT_SID` | No | Twilio account SID |
 | `TWILIO_AUTH_TOKEN` | No | Twilio auth token |
 | `TWILIO_FROM` | No | Twilio sender number |

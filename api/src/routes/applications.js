@@ -7,7 +7,8 @@ const emailSyncLogService  = require('../services/emailTracking/emailSyncLogServ
 const { renderHtmlToPdf }  = require('../services/cvGeneration/pdfService');
 const { sanitizeEditedHtml, checkAtsRisks } = require('../services/cvGeneration/manualEditService');
 const { CLASSIFICATIONS }  = require('../services/emailTracking/emailClassificationService');
-const { createApplicationFromEmail } = require('../services/emailTracking/emailLinkingService');
+const { createApplicationFromEmail, linkEmail } = require('../services/emailTracking/emailLinkingService');
+const { classificationFromRow }      = require('../services/emailTracking/imapSyncService');
 const { VALID_STATUSES, STATUS_GROUPS, GROUP_KEYS, GROUPED_STATUSES } = require('../constants/applicationStatuses');
 
 const router = express.Router();
@@ -114,7 +115,7 @@ router.get('/email-responses', requireAuth, async (req, res) => {
       page = 1, limit = 50, application_id,
       source_account, classification, matched,
       confidence_min, confidence_max,
-      search, date_from, date_to, domain,
+      search, date_from, date_to, domain, review,
     } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
@@ -162,6 +163,11 @@ router.get('/email-responses', requireAuth, async (req, res) => {
       params.push(`%@${domain}`);
       conditions.push(`er.sender_email ILIKE $${params.length}`);
     }
+    // Mail held from Spam is listed separately (review=pending) until the
+    // user keeps it; discarded mail is hidden unless asked for.
+    if (review === 'pending')       conditions.push(`er.review_status = 'PENDING'`);
+    else if (review === 'rejected') conditions.push(`er.review_status = 'REJECTED'`);
+    else if (review !== 'all')      conditions.push(`(er.review_status IS NULL OR er.review_status = 'APPROVED')`);
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
@@ -312,6 +318,57 @@ router.post('/email-responses/:id/split', requireAuth, async (req, res) => {
 
     await client.query('COMMIT');
     res.status(201).json(application);
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// POST /api/applications/email-responses/:id/review
+// Decides on an email held from the Spam folder.
+//   { action: 'keep' }    → APPROVED, then linked exactly as the worker would have
+//   { action: 'discard' } → REJECTED, hidden from the list
+router.post('/email-responses/:id/review', requireAuth, async (req, res) => {
+  const { action } = req.body || {};
+  if (!['keep', 'discard'].includes(action)) {
+    return res.status(400).json({ error: "action must be 'keep' or 'discard'" });
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      'SELECT * FROM email_responses WHERE id = $1 FOR UPDATE', [req.params.id]
+    );
+    if (!rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Not found' });
+    }
+    const email = rows[0];
+    if (email.review_status !== 'PENDING') {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'Email is not awaiting review' });
+    }
+
+    if (action === 'discard') {
+      await client.query(`UPDATE email_responses SET review_status = 'REJECTED' WHERE id = $1`, [email.id]);
+      await client.query('COMMIT');
+      return res.json({ id: email.id, review_status: 'REJECTED' });
+    }
+
+    await client.query(`UPDATE email_responses SET review_status = 'APPROVED' WHERE id = $1`, [email.id]);
+    const link = await linkEmail(client, {
+      sourceKey:       email.source_account,
+      emailResponseId: email.id,
+      email,
+      classification:  classificationFromRow(email),
+    });
+    await client.query('COMMIT');
+    res.json({
+      id: email.id, review_status: 'APPROVED', outcome: link.outcome,
+      application: link.application || null,
+    });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     res.status(500).json({ error: err.message });

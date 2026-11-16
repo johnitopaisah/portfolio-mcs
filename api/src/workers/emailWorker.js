@@ -2,14 +2,23 @@
 require('dotenv').config();
 const pool                       = require('../db/client');
 const gmailService               = require('../services/emailTracking/gmailService');
-const imapService                = require('../services/emailTracking/imapService');
+const imapSyncService            = require('../services/emailTracking/imapSyncService');
 const emailClassificationService = require('../services/emailTracking/emailClassificationService');
 const emailSyncLogService        = require('../services/emailTracking/emailSyncLogService');
 const emailLinkingService        = require('../services/emailTracking/emailLinkingService');
 
+// CLI: --backfill-days=N  re-scan the last N days of every IMAP folder
+//                         (duplicates are skipped by Message-ID; safe to repeat)
+//      --only=imap|gmail  run a single mailbox
+const ARGS = Object.fromEntries(process.argv.slice(2)
+  .filter(a => a.startsWith('--'))
+  .map(a => { const [k, v] = a.slice(2).split('='); return [k, v ?? 'true']; }));
+const BACKFILL_DAYS = parseInt(ARGS['backfill-days'] || process.env.EMAIL_BACKFILL_DAYS || '', 10) || null;
+const ONLY          = ARGS.only || null;
+
 const SOURCES = [
-  { key: 'gmail', label: 'Gmail',        fetch: gmailService.fetchRecentEmails, enabled: true },
-  { key: 'imap',  label: 'Professional', fetch: imapService.fetchRecentEmails,  enabled: !!process.env.IMAP_HOST },
+  { key: 'gmail', label: 'Gmail',        run: processSource,   fetch: gmailService.fetchRecentEmails, enabled: true },
+  { key: 'imap',  label: 'Professional', run: processImapSource,                                      enabled: !!process.env.IMAP_HOST },
 ];
 
 // Step 1: per-source fetch window — since last email seen FROM THAT SOURCE, or 24h ago.
@@ -107,6 +116,42 @@ async function processSource(source) {
   return { inserted, matched, skipped };
 }
 
+// Professional mailbox: every folder, UID watermarks, Message-ID dedupe —
+// see imapSyncService.js.
+async function processImapSource(source) {
+  const t0 = Date.now();
+  const r  = await imapSyncService.syncImapMailbox({
+    db: pool, sourceKey: source.key,
+    overrides: { backfillDays: BACKFILL_DAYS },
+  });
+
+  for (const f of r.folders) {
+    console.log(`[EmailWorker:${source.key}]   ${f.path.padEnd(14)} ` + (f.error
+      ? `ERROR ${f.error}`
+      : `${f.mode} scanned=${f.scanned} new-candidates=${f.candidates} dupes=${f.duplicates} own=${f.ignored} not-job=${f.irrelevant}${f.truncated ? ' (more next run)' : ''}`));
+  }
+
+  await emailSyncLogService.logSyncResult({
+    sourceAccount: source.key,
+    status:        r.status,
+    emailsFetched: r.fetched,
+    emailsNew:     r.inserted,
+    errorMessage:  r.errors.length ? r.errors.slice(0, 5).join(' | ').slice(0, 1000) : null,
+    durationMs:    Date.now() - t0,
+    details: {
+      pending_review: r.pending,
+      halted:         r.halted,
+      backfill_days:  BACKFILL_DAYS,
+      folders: r.folders.map(f => ({
+        path: f.path, spam: f.isSpam, mode: f.mode, scanned: f.scanned, new: f.candidates,
+        duplicates: f.duplicates, own: f.ignored, not_job: f.irrelevant, error: f.error || null,
+      })),
+    },
+  });
+
+  return { inserted: r.inserted, matched: r.matched, skipped: 0 };
+}
+
 async function runEmailWorker() {
   console.log('[EmailWorker] Starting…', new Date().toISOString());
   const t0 = Date.now();
@@ -114,12 +159,13 @@ async function runEmailWorker() {
   const totals = { inserted: 0, matched: 0, skipped: 0 };
 
   for (const source of SOURCES) {
+    if (ONLY && ONLY !== source.key) continue;
     if (!source.enabled) {
       console.log(`[EmailWorker:${source.key}] Skipped — not configured`);
       continue;
     }
     try {
-      const result = await processSource(source);
+      const result = await source.run(source);
       totals.inserted += result.inserted;
       totals.matched  += result.matched;
       totals.skipped   += result.skipped;
@@ -139,7 +185,8 @@ async function runEmailWorker() {
   console.log(`[EmailWorker] Done in ${secs}s — inserted: ${totals.inserted}, matched: ${totals.matched}, skipped (dupes): ${totals.skipped}`);
 }
 
-setTimeout(() => { console.error('[EmailWorker] Timeout'); process.exit(1); }, 10 * 60 * 1000);
+// A backfill classifies far more mail than a 5-minute run.
+setTimeout(() => { console.error('[EmailWorker] Timeout'); process.exit(1); }, (BACKFILL_DAYS ? 45 : 10) * 60 * 1000).unref();
 process.on('SIGTERM', () => process.exit(0));
 
 runEmailWorker()

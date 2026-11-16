@@ -399,6 +399,12 @@ export const adminApi = {
     }),
   dismissEmailSuggestion: (id: number) =>
     request(`/api/applications/email-responses/${id}/dismiss-suggestion`, { method: 'PATCH' }),
+  // Emails held from the Spam folder: keep (link like any other) or discard.
+  reviewEmailResponse: (id: number, action: 'keep' | 'discard') =>
+    request(`/api/applications/email-responses/${id}/review`, {
+      method: 'POST',
+      body: JSON.stringify({ action }),
+    }),
   reclassifyEmailResponse: (id: number, classification: string) =>
     request(`/api/applications/email-responses/${id}/reclassify`, {
       method: 'PATCH',

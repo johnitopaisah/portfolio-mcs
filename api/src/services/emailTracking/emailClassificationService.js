@@ -1,11 +1,40 @@
 'use strict';
 const Anthropic = require('@anthropic-ai/sdk');
 
-const RULE_KEYWORDS = [
-  'application', 'interview', 'unfortunately', 'next step', 'technical test',
-  'assessment', 'recruitment', 'offer', 'shortlisted', 'candidature', 'entretien',
-  'invitation', 'hr', 'hiring', 'position', 'role', 'opportunity',
+// Cheap pre-filter: only mail that looks recruitment-related reaches the AI
+// (and only that mail is stored). Matched on word boundaries — plain
+// substring matching let "hr" hit "three" and "role" hit "contrôle", which
+// let every automated notification through.
+const RULE_PATTERNS = [
+  /\bapplication/, /\bappl(?:ied|ying)\b/, /\binterview/, /\bunfortunately\b/,
+  /\bnext steps?\b/, /\btechnical test/, /\bassessment/, /\brecruit/, /\brecrut/,
+  /\boffers?\b/, /\bshortlisted\b/, /\bcandidat/, /\bentretien/, /\binvitation\b/,
+  /\bhr\b/, /\bhiring\b/, /\bpositions?\b/, /\broles?\b/, /\bopportunit/,
+  /\bpostul/, /\bmerci pour votre (?:int[ée]r[êe]t|candidature)/,
 ];
+
+function passesRuleFilter({ subject = '', body_snippet = '' }) {
+  const text = `${subject} ${body_snippet}`.toLowerCase();
+  return RULE_PATTERNS.some(re => re.test(text));
+}
+
+// Mail from the user's own domain (portfolio visit digests, job-match
+// digests, cluster alerts sent by notify.js) is never recruitment mail.
+// Defaults to the domain of the mailbox itself; EMAIL_IGNORE_SENDER_DOMAINS
+// (comma-separated) overrides.
+function ignoredSenderDomains(env = process.env) {
+  const configured = (env.EMAIL_IGNORE_SENDER_DOMAINS || '')
+    .split(',').map(d => d.trim().toLowerCase()).filter(Boolean);
+  if (configured.length) return configured;
+  const own = (env.IMAP_USER || env.NOTIFY_EMAIL_USER || '').split('@')[1];
+  return own ? [own.trim().toLowerCase()] : [];
+}
+
+function isIgnoredSender(senderEmail, domains = ignoredSenderDomains()) {
+  const domain = String(senderEmail || '').toLowerCase().split('@')[1];
+  if (!domain) return false;
+  return domains.some(d => domain === d || domain.endsWith(`.${d}`));
+}
 
 // Single source of truth for email_responses.ai_classification — shared by
 // the classifier tool schema and the manual /reclassify route.
@@ -14,12 +43,7 @@ const CLASSIFICATIONS = [
   'OFFER', 'FOLLOW_UP_NEEDED', 'GENERAL_RESPONSE', 'UNKNOWN',
 ];
 
-function passesRuleFilter({ subject = '', body_snippet = '' }) {
-  const text = `${subject} ${body_snippet}`.toLowerCase();
-  return RULE_KEYWORDS.some(kw => text.includes(kw));
-}
-
-async function classify({ subject, body_snippet, sender_email, company_name, job_title }) {
+async function classify({ subject, body_snippet, sender_email, company_name, job_title, mailbox_folder }) {
   if (!passesRuleFilter({ subject, body_snippet })) {
     return null; // not relevant — do not call AI
   }
@@ -65,7 +89,12 @@ async function classify({ subject, body_snippet, sender_email, company_name, job
     tool_choice: { type: 'tool', name: 'classify_email' },
     messages: [{
       role:    'user',
-      content: JSON.stringify({ subject, body_snippet, sender_email, company_name, job_title }),
+      // mailbox_folder is a hint only (e.g. "Newsletter" is mostly job alerts);
+      // omitted for Gmail, which has no folders.
+      content: JSON.stringify({
+        subject, body_snippet, sender_email, company_name, job_title,
+        ...(mailbox_folder ? { mailbox_folder } : {}),
+      }),
     }],
   });
 
@@ -74,4 +103,4 @@ async function classify({ subject, body_snippet, sender_email, company_name, job
   return toolResult.input;
 }
 
-module.exports = { classify, passesRuleFilter, CLASSIFICATIONS };
+module.exports = { classify, passesRuleFilter, isIgnoredSender, ignoredSenderDomains, CLASSIFICATIONS };

@@ -7,11 +7,13 @@
 
 const pool = require('../../db/client');
 
-async function logSyncResult({ sourceAccount, status, emailsFetched = 0, emailsNew = 0, errorMessage = null, durationMs = null }) {
+// status: SUCCESS | PARTIAL (some folders failed, or processing stopped
+// early to retry later) | FAILED. details: per-folder breakdown (IMAP only).
+async function logSyncResult({ sourceAccount, status, emailsFetched = 0, emailsNew = 0, errorMessage = null, durationMs = null, details = null }) {
   await pool.query(
-    `INSERT INTO email_sync_logs (source_account, status, emails_fetched, emails_new, error_message, duration_ms)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
-    [sourceAccount, status, emailsFetched, emailsNew, errorMessage, durationMs]
+    `INSERT INTO email_sync_logs (source_account, status, emails_fetched, emails_new, error_message, duration_ms, details)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [sourceAccount, status, emailsFetched, emailsNew, errorMessage, durationMs, details ? JSON.stringify(details) : null]
   );
 }
 
