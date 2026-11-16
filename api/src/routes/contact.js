@@ -1,13 +1,13 @@
 const router     = require('express').Router();
 const pool       = require('../db/client');
-const rateLimit  = require('express-rate-limit');
+const { createRateLimiter } = require('../services/rateLimit');
 const { requireAuth } = require('../middleware/auth');
 const { notify }      = require('../services/notify');
 const {
   contactSubmissionsTotal,
 } = require('../metrics');
 
-const contactLimiter = rateLimit({
+const contactLimiter = createRateLimiter('contact', {
   windowMs: 15 * 60 * 1000, max: 5,
   message: { error: 'Too many messages sent. Please wait before trying again.' },
   standardHeaders: true, legacyHeaders: false,

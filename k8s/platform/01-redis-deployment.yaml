@@ -1,0 +1,154 @@
+# ============================================================
+#  Redis — shared cache + shared rate-limit counters for the API
+#
+#  Used ONLY as a cache: no RDB snapshots, no AOF, no volume. Losing it
+#  loses nothing — the API falls back to per-pod memory while it is down
+#  (api/src/services/redisClient.js) and refills it afterwards.
+#
+#  Password: REDIS_PASSWORD in the Infisical-synced portfolio-secrets
+#  Secret (the same key the API reads). It is passed on stdin, so it never
+#  appears in the process list.
+#
+#  Metrics: redis_exporter sidecar on :9121, discovered by Prometheus via
+#  the pod annotations (scrape job "portfolio-api", component="cache").
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: portfolio-redis
+  namespace: portfolio
+  labels:
+    app: portfolio-mcs
+    component: cache
+spec:
+  replicas: 1
+  # A cache with no data worth keeping: replace in place, never run two.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: portfolio-mcs
+      component: cache
+  template:
+    metadata:
+      labels:
+        app: portfolio-mcs
+        component: cache
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port:   "9121"
+        prometheus.io/path:   "/metrics"
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: 10
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999          # "redis" user in the official image
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: redis
+          image: redis:7.4.12-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          # Config read from stdin ("-") so the password is not in argv; the
+          # here-doc (not a pipe) keeps redis-server as PID 1 so it receives
+          # SIGTERM directly. Use a hex password (openssl rand -hex 32).
+          args:
+            - |
+              exec redis-server - \
+                --save "" \
+                --appendonly no \
+                --maxmemory 96mb \
+                --maxmemory-policy allkeys-lru \
+                --protected-mode yes \
+                --dir /data <<EOF
+              requirepass ${REDIS_PASSWORD}
+              EOF
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: portfolio-secrets
+                  key: REDIS_PASSWORD
+          ports:
+            - name: redis
+              containerPort: 6379
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 999
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "20m"
+              memory: "48Mi"
+            limits:
+              cpu: "200m"
+              memory: "160Mi"   # maxmemory 96mb + overhead
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - redis-cli -a "$REDIS_PASSWORD" --no-auth-warning ping | grep -q PONG
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            tcpSocket:
+              port: 6379
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 3
+          volumeMounts:
+            - name: data
+              mountPath: /data
+
+        - name: exporter
+          image: oliver006/redis_exporter:v1.96.0-alpine
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: REDIS_ADDR
+              value: "redis://localhost:6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: portfolio-secrets
+                  key: REDIS_PASSWORD
+          ports:
+            - name: metrics
+              containerPort: 9121
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 999
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "5m"
+              memory: "16Mi"
+            limits:
+              cpu: "50m"
+              memory: "48Mi"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9121
+            periodSeconds: 30
+
+      volumes:
+        # Redis' working dir — nothing is persisted (--save "", no AOF).
+        - name: data
+          emptyDir:
+            sizeLimit: 64Mi

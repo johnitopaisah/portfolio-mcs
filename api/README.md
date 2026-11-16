@@ -200,6 +200,39 @@ node src/workers/cvWorker.js
 | `IMAP_LOOKBACK_DAYS` | No | Days scanned for a folder with no saved position yet. Default `3` |
 | `IMAP_EXCLUDE_FOLDERS` | No | Extra comma-separated folders to skip (Sent/Drafts/Trash/Templates/Snoozed always are) |
 | `EMAIL_IGNORE_SENDER_DOMAINS` | No | Sender domains never captured. Default: the mailbox's own domain (own alerts/digests) |
+| `REDIS_HOST` | No | Enables the shared content cache + shared rate-limit counters. Unset → per-pod memory |
+| `REDIS_PORT` | No | Default `6379` |
+| `REDIS_PASSWORD` | With `REDIS_HOST` | Redis `requirepass` (hex — `openssl rand -hex 32`) |
+| `MIGRATE_BASELINE_THROUGH` | No | Migration runner: on a populated DB with no history, mark files up to this one as applied |
+| `MIGRATE_BACKUP_DIR` | No | Migration runner: `pg_dump` here before applying anything |
+
+---
+
+## Database migrations
+
+SQL files in `db/migrations/` are applied **automatically** — never by hand:
+
+- They are bundled into the API image (`--build-context migrations=../db/migrations`).
+- Before every rollout, ArgoCD runs `k8s/api/migrate-job.yaml` (PreSync hook) with the
+  new image: it backs up the DB (only if something is pending), then applies each new
+  file once, in order, recording it in `schema_migrations`. If a migration fails, the
+  sync stops and the current version keeps running.
+- CronJob workers check `schema_migrations` at start and skip a run if the database is
+  behind their image.
+
+Rules for new migrations:
+
+1. Add a new file with the next number (`036_…sql`). **Never edit a file that has been
+   applied** — the runner refuses to continue if a checksum changes.
+2. A file runs in a transaction unless it contains its own `BEGIN;`, or a
+   `-- migrate:no-transaction` line (needed for `CREATE INDEX CONCURRENTLY`).
+3. No psql meta-commands (`\connect`, `\i`, …) — CI rejects them.
+
+```bash
+npm run migrate:status                 # what is applied / pending (changes nothing)
+node scripts/migrate.js --dry-run      # what would run
+npm run migrate                        # apply pending (local dev)
+```
 | `TWILIO_ACCOUNT_SID` | No | Twilio account SID |
 | `TWILIO_AUTH_TOKEN` | No | Twilio auth token |
 | `TWILIO_FROM` | No | Twilio sender number |

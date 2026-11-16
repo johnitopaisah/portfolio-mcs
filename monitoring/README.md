@@ -227,7 +227,8 @@ Alerts are defined in `monitoring/prometheus/02-configmap.yaml` and routed to Al
 
 | Alert | Condition | Severity |
 |---|---|---|
-| `APIDown` | `up{job="portfolio-api"} == 0` for 2 min | critical |
+| `APIDown` | `up{job="portfolio-api",component="api"} == 0` for 2 min | critical |
+| `RedisDown` | `redis_up == 0`, exporter absent, or no API pod connected, for 5 min (API keeps serving from memory) | warning |
 | `DatabaseDown` | `pg_up == 0` for 1 min | critical |
 | `HighErrorRate` | HTTP 5xx rate > 10% for 5 min | critical |
 | `DiskCritical` | Node disk free < 10% for 5 min | critical |

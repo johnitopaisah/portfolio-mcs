@@ -7,11 +7,11 @@
 const express       = require('express');
 const pool          = require('../db/client');
 const { requireAuth } = require('../middleware/auth');
-const rateLimit     = require('express-rate-limit');
+const { createRateLimiter } = require('../services/rateLimit');
 
 const router = express.Router();
 
-const jobLimiter = rateLimit({
+const jobLimiter = createRateLimiter('jobs', {
   windowMs: 15 * 60 * 1000,
   max: 100,
   standardHeaders: true,

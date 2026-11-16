@@ -43,6 +43,12 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY src ./src
 COPY scripts ./scripts
 COPY package.json ./
+# Schema migrations (db/migrations, outside this build context) come in as a
+# BuildKit named context so each image carries exactly the migrations its code
+# expects — applied by the ArgoCD PreSync Job (scripts/migrate.js) before rollout.
+#   docker build --build-context migrations=../db/migrations ./api
+# CI (api.yml) and docker-compose.yml both pass it.
+COPY --from=migrations . ./migrations
 
 USER nodeapp
 EXPOSE 4000

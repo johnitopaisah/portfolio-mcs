@@ -1,0 +1,32 @@
+# ============================================================
+#  Pre-migration database dumps
+#
+#  Written by the PreSync migration Job (k8s/api/migrate-job.yaml) right
+#  before it applies pending migrations — only when something is pending.
+#  pg_dump custom format (compressed); the newest 3 are kept.
+#
+#  Lives in this app (not k8s/api) because PreSync hooks run before the
+#  API app's own resources are created: the claim must already exist.
+#
+#  Restore:   pg_restore --clean --if-exists -d "$DATABASE_URL" /backups/<file>.dump
+#  This is a short-term rollback safety net — the nightly GCS backup
+#  (k8s/backup) remains the long-term backup.
+# ============================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: db-migration-backups
+  namespace: portfolio
+  labels:
+    app: portfolio-mcs
+    component: db-migrate
+  annotations:
+    # Never let ArgoCD delete the backups, even if this file is removed.
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 5Gi

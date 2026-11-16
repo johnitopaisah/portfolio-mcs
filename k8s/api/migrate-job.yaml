@@ -1,0 +1,143 @@
+# ============================================================
+#  Schema migrations — ArgoCD PreSync hook
+#
+#  Runs before every sync of the portfolio-api app, with the SAME image
+#  tag as the Deployment (CI bumps both). Applies pending db/migrations
+#  files (bundled in the image) exactly once — see api/scripts/migrate.js.
+#
+#    • nothing pending  → exits in a second, no backup taken
+#    • something pending → pg_dump to the db-migration-backups volume,
+#                          then applies each file in order
+#    • any failure      → the hook fails, ArgoCD stops the sync, and the
+#                          current API version keeps serving
+#
+#  MIGRATE_BASELINE_THROUGH is used once only: the first run finds a
+#  populated database with no migration history and records 001…034 as
+#  already applied (they were applied by hand before this Job existed).
+#  It has no effect after that.
+#
+#  Logs:  kubectl -n portfolio logs job/portfolio-api-migrate
+# ============================================================
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: portfolio-api-migrate
+  namespace: portfolio
+  labels:
+    app: portfolio-mcs
+    component: db-migrate
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    # Keep the finished Job (and its logs) until the next sync replaces it.
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 0                # never auto-retry a migration
+  activeDeadlineSeconds: 1200
+  template:
+    metadata:
+      labels:
+        app: portfolio-mcs
+        component: db-migrate
+    spec:
+      restartPolicy: Never
+      # minikube's hostPath provisioner creates the backup volume's directory
+      # on the control-plane node only (same reason k8s/db pins the DB there);
+      # on any other node the path would be an empty root-owned directory.
+      nodeSelector:
+        kubernetes.io/hostname: devops-minikube
+      serviceAccountName: portfolio-api
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+
+      initContainers:
+        - name: wait-for-db
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z portfolio-db 5432; do
+                echo "waiting for portfolio-db:5432 …"
+                sleep 3
+              done
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1001
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "16Mi"
+            limits:
+              cpu: "50m"
+              memory: "32Mi"
+
+      containers:
+        - name: migrate
+          image: ghcr.io/johnitopaisah/portfolio-mcs/api:v0.1.16-rc1
+          imagePullPolicy: IfNotPresent
+          # Images built before automated migrations have no runner: skip
+          # rather than fail the sync (only matters for the first rollout).
+          command:
+            - sh
+            - -c
+            - |
+              if [ ! -f scripts/migrate.js ] || [ ! -d migrations ]; then
+                echo "[migrate] image has no migration runner — skipping"
+                exit 0
+              fi
+              exec node scripts/migrate.js
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: MIGRATE_BASELINE_THROUGH
+              value: "034_blog_click_tracking.sql"
+            - name: MIGRATE_BACKUP_DIR
+              value: "/backups"
+            - name: MIGRATE_BACKUP_KEEP
+              value: "3"
+            - name: MIGRATE_LOCK_TIMEOUT
+              value: "60s"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: portfolio-secrets
+                  key: DATABASE_URL
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1001
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          volumeMounts:
+            - name: backups
+              mountPath: /backups
+            - name: tmp
+              mountPath: /tmp
+
+      volumes:
+        - name: backups
+          persistentVolumeClaim:
+            claimName: db-migration-backups
+        - name: tmp
+          emptyDir: {}

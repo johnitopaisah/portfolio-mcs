@@ -2,7 +2,7 @@
 
 const router    = require('express').Router();
 const pool      = require('../db/client');
-const rateLimit = require('express-rate-limit');
+const { createRateLimiter } = require('../services/rateLimit');
 const { requireAuth } = require('../middleware/auth');
 const {
   sendContactRequestSubmittedToRequester,
@@ -19,7 +19,7 @@ const {
 } = require('../metrics');
 
 // Rate limit: 3 submissions per 15 min per IP
-const submitLimiter = rateLimit({
+const submitLimiter = createRateLimiter('referee-contact', {
   windowMs: 15 * 60 * 1000,
   max: 3,
   standardHeaders: true,

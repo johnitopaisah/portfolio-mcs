@@ -73,6 +73,16 @@ jobs:
             test -f "$f" && echo "✅ $f" || (echo "❌ Missing: $f" && exit 1)
           done
 
+      # db/migrations is applied automatically by the ArgoCD PreSync Job
+      # (scripts/migrate.js) — catch files it cannot run before they ship.
+      - name: Validate migrations
+        run: |
+          test -f scripts/migrate.js && test -f src/db/migrations.js
+          if grep -ln "^\\\\" ../db/migrations/*.sql; then
+            echo "❌ psql meta-commands (\\...) are not supported by the migration runner"; exit 1
+          fi
+          node -e 'const m = require("./src/db/migrations"); const f = m.listMigrationFiles("../db/migrations"); if (!f.length) process.exit(1); console.log("✅", f.length, "migrations, last:", f[f.length - 1].filename)'
+
       - name: Security audit (high severity only)
         run: npm audit --audit-level=high --omit=dev
 

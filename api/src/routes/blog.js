@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const rateLimit = require('express-rate-limit');
+const { createRateLimiter } = require('../services/rateLimit');
 const pool   = require('../db/client');
 const { requireAuth } = require('../middleware/auth');
 const { syncBlogFromMedium } = require('../services/blogIngestService');
@@ -13,7 +13,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 // Stops one client inflating a post's numbers. Over the limit the reader is
 // still redirected — the click just isn't recorded.
-const clickLimiter = rateLimit({
+const clickLimiter = createRateLimiter('blog-click', {
   windowMs: 60 * 1000,
   max: 30,
   standardHeaders: false,
@@ -176,7 +176,7 @@ router.get('/:id/go', clickLimiter, async (req, res, next) => {
 router.post('/sync', requireAuth, async (req, res, next) => {
   try {
     const result = await syncBlogFromMedium();
-    cache.invalidate(CACHE_KEY);
+    await cache.invalidate(CACHE_KEY);
     res.json(result);
   } catch (err) {
     if (err.message?.includes('MEDIUM_FEED_URL')) {
@@ -224,7 +224,7 @@ router.put('/:id', requireAuth, async (req, res, next) => {
       [excerpt ?? null, cover_image_url ?? null, tags ?? null, visible_on_site ?? null, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Post not found' });
-    cache.invalidate(CACHE_KEY);
+    await cache.invalidate(CACHE_KEY);
     res.json(rows[0]);
   } catch (err) { next(err); }
 });

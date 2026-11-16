@@ -204,8 +204,18 @@ const frontendErrorsTotal = new client.Counter({
   registers: [register],
 });
 
+// ── Redis (shared cache + rate-limit counters) ───────────────
+// 1 while this pod has a ready Redis connection; 0 means it is serving
+// from its in-memory fallback. Not exported when REDIS_HOST is unset.
+const redisConnected = new client.Gauge({
+  name: 'portfolio_redis_connected',
+  help: '1 if this API pod is connected to Redis, 0 if using the in-memory fallback',
+  registers: [register],
+});
+
 module.exports = {
   register,
+  redisConnected,
   httpRequestsTotal,
   httpRequestDurationSeconds,
   httpRequestsInFlight,

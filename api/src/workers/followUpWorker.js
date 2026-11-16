@@ -1,12 +1,14 @@
 'use strict';
 require('dotenv').config();
 const pool                = require('../db/client');
+const { schemaReady }      = require('../db/migrations');
 const notificationService = require('../services/jobIngestion/notificationService');
 
 const FOLLOW_UP_AFTER_DAYS = 7;
 
 async function runFollowUpWorker() {
   console.log('[FollowUpWorker] Starting…', new Date().toISOString());
+  if (!(await schemaReady(pool, 'FollowUpWorker'))) return; // DB behind this image — skip run
 
   // Find applications that are APPLIED, older than 7 days, with no response yet,
   // and have not already received a FOLLOW_UP_NEEDED event in the last 7 days.

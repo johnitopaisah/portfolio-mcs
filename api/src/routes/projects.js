@@ -196,7 +196,7 @@ router.post('/', requireAuth, upload.single('image'), async (req, res, next) => 
         ongoing === 'true',
       ]
     );
-    cache.invalidate(CACHE_KEY);
+    await cache.invalidate(CACHE_KEY);
     res.status(201).json(rows[0]);
   } catch (err) { next(err); }
 });
@@ -268,7 +268,7 @@ router.put('/:id', requireAuth, upload.single('image'), async (req, res, next) =
       ]
     );
     if (!rows.length) return res.status(404).json({ error: 'Project not found' });
-    cache.invalidate(CACHE_KEY);
+    await cache.invalidate(CACHE_KEY);
     res.json(rows[0]);
   } catch (err) { next(err); }
 });
@@ -298,7 +298,7 @@ router.delete('/:id', requireAuth, async (req, res, next) => {
   try {
     const { rowCount } = await pool.query('DELETE FROM projects WHERE id = $1', [req.params.id]);
     if (!rowCount) return res.status(404).json({ error: 'Project not found' });
-    cache.invalidate(CACHE_KEY);
+    await cache.invalidate(CACHE_KEY);
     res.status(204).end();
   } catch (err) { next(err); }
 });

@@ -9,3 +9,8 @@ data:
   ALLOWED_ORIGINS: "https://johnisah.com,https://admin.johnisah.com"
   SITE_URL: "https://johnisah.com"
   ADMIN_URL: "https://admin.johnisah.com"
+  # Shared cache + rate-limit counters (k8s/platform). Password comes from
+  # REDIS_PASSWORD in portfolio-secrets. If Redis is down the API falls back
+  # to per-pod memory, so this is not a hard dependency.
+  REDIS_HOST: "portfolio-redis"
+  REDIS_PORT: "6379"

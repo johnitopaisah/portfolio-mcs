@@ -5,7 +5,7 @@
 // ============================================================
 
 const router    = require('express').Router();
-const rateLimit = require('express-rate-limit');
+const { createRateLimiter } = require('../services/rateLimit');
 const pool      = require('../db/client');
 const { requireAuth } = require('../middleware/auth');
 const { geoip }       = require('../services/geoip');
@@ -24,7 +24,7 @@ const {
 // ── Rate limiter ──────────────────────────────────────────────
 // Generous limit — legitimate browsers hit this once per page load.
 // Protects the DB from direct API abuse without blocking real traffic.
-const visitorLimiter = rateLimit({
+const visitorLimiter = createRateLimiter('visitors', {
   windowMs: 60 * 1000, // 1 minute
   max: 30,             // 30 pings/min per IP — well above any real browser need
   standardHeaders: true,

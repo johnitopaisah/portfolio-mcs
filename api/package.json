@@ -8,7 +8,9 @@
     "dev": "nodemon src/index.js",
     "test": "mocha test/**/*.test.js --timeout 10000",
     "test:watch": "mocha test/**/*.test.js --watch --timeout 10000",
-    "worker": "node src/workers/jobWorker.js"
+    "worker": "node src/workers/jobWorker.js",
+    "migrate": "node scripts/migrate.js",
+    "migrate:status": "node scripts/migrate.js --status"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.97.1",
@@ -22,6 +24,7 @@
     "googleapis": "^171.4.0",
     "helmet": "^7.1.0",
     "imapflow": "^1.4.2",
+    "ioredis": "^5.11.1",
     "jsonwebtoken": "^9.0.2",
     "mailparser": "^3.9.11",
     "morgan": "^1.10.0",

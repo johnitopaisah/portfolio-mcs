@@ -9,10 +9,10 @@
 
 const router    = require('express').Router();
 const crypto    = require('crypto');
-const rateLimit = require('express-rate-limit');
+const { createRateLimiter } = require('../services/rateLimit');
 const { webVitalsSeconds, frontendErrorsTotal } = require('../metrics');
 
-const rumLimiter = rateLimit({
+const rumLimiter = createRateLimiter('rum', {
   windowMs: 60 * 1000, max: 60, // generous — one real page load reports ~5 vitals
   standardHeaders: true, legacyHeaders: false,
   handler: (_req, res) => res.status(429).json({ error: 'Too many RUM reports' }),

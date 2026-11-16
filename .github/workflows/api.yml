@@ -89,6 +89,16 @@ jobs:
             test -f "$f" && echo "✅ $f" || (echo "❌ Missing: $f" && exit 1)
           done
 
+      # db/migrations is applied automatically by the ArgoCD PreSync Job
+      # (scripts/migrate.js) — catch files it cannot run before they ship.
+      - name: Validate migrations
+        run: |
+          test -f scripts/migrate.js && test -f src/db/migrations.js
+          if grep -ln "^\\\\" ../db/migrations/*.sql; then
+            echo "❌ psql meta-commands (\\...) are not supported by the migration runner"; exit 1
+          fi
+          node -e 'const m = require("./src/db/migrations"); const f = m.listMigrationFiles("../db/migrations"); if (!f.length) process.exit(1); console.log("✅", f.length, "migrations, last:", f[f.length - 1].filename)'
+
       - name: Security audit (high severity only)
         run: npm audit --audit-level=high --omit=dev
 
@@ -118,6 +128,10 @@ jobs:
       - uses: docker/build-push-action@v5
         with:
           context:    ./api
+          # db/migrations is bundled into the image (see api/Dockerfile) so the
+          # ArgoCD PreSync migration Job applies exactly what this code expects.
+          build-contexts: |
+            migrations=./db/migrations
           push:       true
           provenance: false
           tags: |
@@ -185,19 +199,28 @@ jobs:
           ref: develop
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Update image tag in manifest
+      - name: Update image tag in manifests
         run: |
           TAG="${{ needs.validate.outputs.tag }}"
           BASE="ghcr.io/johnitopaisah/portfolio-mcs"
-          sed -i "s|${BASE}/api:.*|${BASE}/api:${TAG}|g" k8s/api/deployment.yaml
-          echo "✅ k8s/api/deployment.yaml → ${BASE}/api:${TAG}"
+          # Deployment, the PreSync migration Job, and every CronJob that runs
+          # the API image move together, so workers never run code newer than
+          # the schema (they also check schema_migrations themselves).
+          # One line: the list is written to $GITHUB_ENV, which rejects newlines.
+          FILES="k8s/api/deployment.yaml k8s/api/migrate-job.yaml $(grep -l "${BASE}/api:" k8s/jobs/*.yaml | tr '\n' ' ')"
+          for f in $FILES; do
+            sed -i "s|${BASE}/api:[^\"[:space:]]*|${BASE}/api:${TAG}|g" "$f"
+            echo "✅ $f → ${BASE}/api:${TAG}"
+          done
+          echo "FILES=$FILES" >> "$GITHUB_ENV"
 
       - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           TAG="${{ needs.validate.outputs.tag }}"
-          git add k8s/api/deployment.yaml
+          # shellcheck disable=SC2086  # FILES is a space-separated list — split on purpose
+          git add $FILES
           git diff --cached --quiet && echo "No manifest change needed" && exit 0
           git commit -m "chore: bump api image to ${TAG} [skip ci]"
           PUSHED=false

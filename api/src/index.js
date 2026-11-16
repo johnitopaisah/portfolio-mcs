@@ -7,7 +7,8 @@ const morgan            = require('morgan');
 const compression       = require('compression');
 const swaggerUi         = require('swagger-ui-express');
 const swaggerSpec       = require('./swagger');
-const { register }      = require('./metrics');
+const { register, redisConnected } = require('./metrics');
+const { getRedis, isRedisReady, onConnectionChange } = require('./services/redisClient');
 const metricsMiddleware = require('./metricsMiddleware');
 const pool              = require('./db/client');
 const { startDailyDigest }           = require('./services/visitorDigest');
@@ -20,6 +21,13 @@ const { errorHandler } = require('./middleware/errorHandler');
 
 const app  = express();
 const PORT = process.env.PORT || 4000;
+
+// Connect to Redis (shared cache + rate limits) at startup rather than on
+// the first request. No-op when REDIS_HOST is unset.
+if (getRedis()) {
+  redisConnected.set(0);
+  onConnectionChange(up => redisConnected.set(up ? 1 : 0));
+}
 
 // ── Security ────────────────────────────────────────────────
 app.set('trust proxy', 1);
@@ -89,10 +97,13 @@ app.get('/metrics', async (_req, res) => {
 // Pings the DB too, not just the Express process — the frontend's
 // backend-unreachable detection (MaintenanceOverlay) polls this endpoint
 // and needs a DB-down outage to look the same as an API-down one.
+// Redis is reported but never fails the check: the API serves from its
+// in-memory fallback while Redis is down.
 app.get('/api/health', async (_req, res) => {
   try {
     await pool.query('SELECT 1');
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    const redis = !process.env.REDIS_HOST ? 'disabled' : (isRedisReady() ? 'connected' : 'fallback');
+    res.json({ status: 'ok', redis, timestamp: new Date().toISOString() });
   } catch (err) {
     res.status(503).json({ status: 'degraded', error: 'database unreachable', timestamp: new Date().toISOString() });
   }

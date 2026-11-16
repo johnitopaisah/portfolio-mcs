@@ -141,7 +141,9 @@ data:
       - name: critical
         rules:
           - alert: APIDown
-            expr: absent(up{job="portfolio-api"}) == 1 or up{job="portfolio-api"} == 0
+            # component="api": the portfolio-api scrape job also discovers the
+            # Redis exporter sidecar (component="cache") — that must not page as APIDown.
+            expr: absent(up{job="portfolio-api",component="api"}) == 1 or up{job="portfolio-api",component="api"} == 0
             for: 2m
             labels:
               severity: critical
@@ -203,6 +205,21 @@ data:
 
       - name: warning
         rules:
+          # Warning, not critical: the API serves from its per-pod in-memory
+          # fallback while Redis is down — only cross-pod cache invalidation
+          # and shared rate-limit counts are lost.
+          - alert: RedisDown
+            expr: |
+              redis_up == 0
+              or absent(up{job="portfolio-api",component="cache"}) == 1
+              or max(portfolio_redis_connected) == 0
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Redis (shared cache / rate limits) is unavailable"
+              description: "API pods are using their in-memory fallback: content edits may take up to 60s to show on every pod and rate limits are per-pod."
+
           - alert: HighLatency
             expr: |
               histogram_quantile(0.95,

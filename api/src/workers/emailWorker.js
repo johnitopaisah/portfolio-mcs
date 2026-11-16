@@ -1,6 +1,7 @@
 'use strict';
 require('dotenv').config();
 const pool                       = require('../db/client');
+const { schemaReady }      = require('../db/migrations');
 const gmailService               = require('../services/emailTracking/gmailService');
 const imapSyncService            = require('../services/emailTracking/imapSyncService');
 const emailClassificationService = require('../services/emailTracking/emailClassificationService');
@@ -154,6 +155,8 @@ async function processImapSource(source) {
 
 async function runEmailWorker() {
   console.log('[EmailWorker] Starting…', new Date().toISOString());
+  // Database behind this image (migration Job hasn't run yet): skip this run.
+  if (!(await schemaReady(pool, 'EmailWorker'))) return;
   const t0 = Date.now();
 
   const totals = { inserted: 0, matched: 0, skipped: 0 };

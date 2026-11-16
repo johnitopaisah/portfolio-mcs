@@ -20,6 +20,7 @@ const aiFilteringService   = require('../services/jobIngestion/aiFilteringServic
 const notificationService  = require('../services/jobIngestion/notificationService');
 const jobMetrics           = require('../metrics/jobMetrics');
 const pool                 = require('../db/client');
+const { schemaReady }      = require('../db/migrations');
 
 const WORKER_TIMEOUT    = 30 * 60 * 1000; // 30 min hard limit
 const BACKUP_KEEP       = 3;               // number of backup files to retain
@@ -34,6 +35,9 @@ async function runJobWorker() {
   console.log('[Worker] ======================================\n');
 
   const t0 = Date.now();
+
+  // Database behind this image (migration Job hasn't run yet): skip this run.
+  if (!(await schemaReady(pool, 'Worker'))) process.exit(0);
 
   try {
     // Step 1: AI filter new raw jobs (discovered by scraper/'s own CronJob)

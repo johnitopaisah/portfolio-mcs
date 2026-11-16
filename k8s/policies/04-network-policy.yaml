@@ -100,6 +100,18 @@ spec:
         - protocol: TCP
           port: 5432
 
+    # Redis — shared cache + rate-limit counters (k8s/platform)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: portfolio
+          podSelector:
+            matchLabels:
+              component: cache
+      ports:
+        - protocol: TCP
+          port: 6379
+
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0
@@ -257,6 +269,18 @@ spec:
           podSelector:
             matchLabels:
               component: job-ingestion
+      ports:
+        - protocol: TCP
+          port: 5432
+
+    # Schema migration PreSync Job (k8s/api/migrate-job.yaml)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: portfolio
+          podSelector:
+            matchLabels:
+              component: db-migrate
       ports:
         - protocol: TCP
           port: 5432
@@ -420,3 +444,91 @@ spec:
       ports:
         - protocol: TCP
           port: 443
+
+---
+
+# ── 7. Redis (shared cache + rate limits) ────────────────────
+# Ingress:  API pods (6379), Prometheus (redis_exporter sidecar, 9121)
+# Egress:   none — Redis never initiates connections
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-redis
+  namespace: portfolio
+  labels:
+    app.kubernetes.io/part-of: portfolio-mcs
+    app.kubernetes.io/managed-by: argocd
+spec:
+  podSelector:
+    matchLabels:
+      app: portfolio-mcs
+      component: cache
+  policyTypes:
+    - Ingress
+    - Egress
+
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: portfolio
+          podSelector:
+            matchLabels:
+              component: api
+      ports:
+        - protocol: TCP
+          port: 6379
+
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 9121
+
+  egress: []
+
+---
+
+# ── 8. Schema migration PreSync Job ──────────────────────────
+# Ingress:  none
+# Egress:   CoreDNS, DB (5432)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-db-migrate
+  namespace: portfolio
+  labels:
+    app.kubernetes.io/part-of: portfolio-mcs
+    app.kubernetes.io/managed-by: argocd
+spec:
+  podSelector:
+    matchLabels:
+      app: portfolio-mcs
+      component: db-migrate
+  policyTypes:
+    - Ingress
+    - Egress
+
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: portfolio
+          podSelector:
+            matchLabels:
+              component: database
+      ports:
+        - protocol: TCP
+          port: 5432

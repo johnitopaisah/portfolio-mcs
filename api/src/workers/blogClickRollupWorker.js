@@ -1,10 +1,12 @@
 'use strict';
 require('dotenv').config();
 const pool = require('../db/client');
+const { schemaReady }      = require('../db/migrations');
 const { rollupOldClicks, RETENTION_DAYS } = require('../services/blogClickService');
 
 async function runBlogClickRollupWorker() {
   console.log('[BlogClickRollup] Starting…', new Date().toISOString());
+  if (!(await schemaReady(pool, 'BlogClickRollup'))) return; // DB behind this image — skip run
   const { rolledUp } = await rollupOldClicks();
   console.log(`[BlogClickRollup] Done — ${rolledUp} clicks older than ${RETENTION_DAYS} days moved to daily totals`);
 }
