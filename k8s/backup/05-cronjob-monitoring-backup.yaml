@@ -54,7 +54,7 @@ spec:
                 - -c
                 - |
                   set -e
-                  apt-get update -qq && apt-get install -y -qq kubectl wget
+                  apt-get update -qq && apt-get install -y -qq kubectl wget pigz
                   source /scripts/backup-monitoring.sh
 
               env:
@@ -66,7 +66,7 @@ spec:
                   cpu: "100m"
                   memory: "512Mi"
                 limits:
-                  cpu: "800m"
+                  cpu: "1500m"   # pigz -p 2 compresses here, not in the Prometheus pod
                   memory: "1Gi"
 
               volumeMounts:

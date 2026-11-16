@@ -94,6 +94,40 @@ spec:
             - name: prometheus-data
               mountPath: /prometheus
 
+        # Reloads Prometheus when ArgoCD updates the prometheus-config
+        # ConfigMap (scrape config or alert rules). Without it, rule changes
+        # synced from git were not live until the pod happened to restart.
+        # Kubelet refreshes the mounted files ~1 min after the ConfigMap
+        # changes; this watches them and POSTs /-/reload (--web.enable-lifecycle).
+        - name: config-reloader
+          image: ghcr.io/jimmidyson/configmap-reload:v0.15.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - --volume-dir=/etc/prometheus
+            - --volume-dir=/etc/prometheus/rules
+            - --webhook-url=http://127.0.0.1:9090/-/reload
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "5m"
+              memory: "8Mi"
+            limits:
+              cpu: "20m"
+              memory: "24Mi"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus
+              readOnly: true
+            - name: rules
+              mountPath: /etc/prometheus/rules
+              readOnly: true
+
       volumes:
         - name: config
           configMap:

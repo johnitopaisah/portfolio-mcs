@@ -38,8 +38,20 @@ spec:
             component: scraper
         spec:
           restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            runAsGroup: 1001
+            fsGroup: 1001
+            seccompProfile:
+              type: RuntimeDefault
           imagePullSecrets:
             - name: ghcr-pull-secret
+
+          volumes:
+            - name: tmp
+              emptyDir:
+                sizeLimit: 64Mi
 
           containers:
           - name: canary
@@ -51,6 +63,12 @@ spec:
               runAsUser: 1001
               runAsGroup: 1001
               allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true      # only /tmp is writable
+              capabilities:
+                drop: ["ALL"]
+            volumeMounts:
+              - name: tmp
+                mountPath: /tmp
 
             resources:
               requests:

@@ -36,6 +36,22 @@
 # ============================================================
 
 # Section A — gosu / Go stdlib (no fixed gosu release available)
+# Added 2026-11-16 — same gosu 1.19 / go1.24.6 binary (re-checked: postgres:16-
+# and 17-alpine still ship it); newer stdlib CVE IDs, same zero-reach rationale.
+CVE-2026-111943
+CVE-2026-27145
+CVE-2026-33818
+CVE-2026-39821
+CVE-2026-39822
+CVE-2026-42504
+CVE-2026-56853
+CVE-2026-56858
+CVE-2026-56859
+CVE-2026-56860
+CVE-2026-56862
+CVE-2026-78667
+CVE-2026-78669
+CVE-2026-97031
 CVE-2025-68121
 CVE-2025-61726
 CVE-2025-61729

@@ -34,6 +34,25 @@ describe('Migration files', () => {
     assert.strictEqual(files[0].checksum, migrations.checksumOf('SELECT 1;\n'), 'CRLF and LF checksum the same');
   });
 
+  it('splits statements without breaking quotes, identifiers, dollar bodies or comments', () => {
+    const sql = [
+      "-- header; comment",
+      "CREATE INDEX CONCURRENTLY a ON t (x);",
+      "DO $$ BEGIN RAISE NOTICE 'a;b'; END $$;",
+      "DO $fn$ BEGIN PERFORM 1; /* ; */ END $fn$;",
+      "INSERT INTO \"we;ird\" VALUES ('it''s;', E'esc\\';x');",
+      "/* block ; /* nested ; */ */ SELECT 1",
+      ";;  -- trailing",
+    ].join('\n');
+    const parts = migrations.splitStatements(sql);
+    assert.strictEqual(parts.length, 5, JSON.stringify(parts, null, 1));
+    assert.match(parts[0], /^-- header; comment\nCREATE INDEX CONCURRENTLY a ON t \(x\)$/);
+    assert.match(parts[1], /RAISE NOTICE 'a;b'; END \$\$$/);
+    assert.match(parts[2], /PERFORM 1; \/\* ; \*\/ END \$fn\$$/);
+    assert.match(parts[3], /'it''s;', E'esc\\';x'\)$/);
+    assert.match(parts[4], /SELECT 1$/);
+  });
+
   it('every repository migration is runnable by the driver (no psql meta-commands)', () => {
     const files = migrations.listMigrationFiles(path.resolve(__dirname, '../../db/migrations'));
     assert(files.length > 30);
@@ -90,6 +109,22 @@ describe('Migration files', () => {
     const r2 = await run();
     assert.strictEqual(r2.code, 0);
     assert.match(r2.out, /up to date/);
+  });
+
+  it('runs a no-transaction file statement by statement (CREATE INDEX CONCURRENTLY works)', async () => {
+    write('001_t.sql', 'CREATE TABLE t (id int, note text);');
+    write('002_idx.sql', [
+      '-- migrate:no-transaction',
+      'CREATE INDEX CONCURRENTLY IF NOT EXISTS t_id_idx ON t (id);',
+      "DO $$ BEGIN RAISE NOTICE 'semicolon; inside'; END $$;",
+      'CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS t_pk_idx ON t (id);',
+      'ALTER TABLE t ADD CONSTRAINT t_pkey PRIMARY KEY USING INDEX t_pk_idx;',
+    ].join('\n'));
+    const r = await run();
+    assert.strictEqual(r.code, 0, r.out);
+    const idx = await q(`SELECT indexname FROM pg_indexes WHERE tablename = 't' ORDER BY 1`);
+    assert.deepStrictEqual(idx.map(i => i.indexname), ['t_id_idx', 't_pkey']);
+    assert.deepStrictEqual(await applied(), ['001_t.sql:migrate', '002_idx.sql:migrate']);
   });
 
   it('refuses a populated database with no history unless a baseline is given', async () => {
