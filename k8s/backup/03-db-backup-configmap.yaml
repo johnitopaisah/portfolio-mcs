@@ -121,7 +121,11 @@ data:
       PROM_POD=$(kubectl get pod -n monitoring -l app=prometheus -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
       if [ -n "$PROM_POD" ]; then
         SIZE_FILE=$(mktemp)
-        kubectl exec -n monitoring "$PROM_POD" -- tar czf - -C /prometheus . \
+        # Uncompressed tar out of the pod; compress HERE with pigz. gzip inside
+        # the Prometheus container shared its 200m CPU limit — the backup grew to
+        # ~3h (deadline exceeded 16 Nov 2026) and starved Prometheus nightly.
+        kubectl exec -n monitoring "$PROM_POD" -c prometheus -- tar cf - -C /prometheus . \
+          | pigz -p 2 -c \
           | tee >(wc -c > "$SIZE_FILE") \
           | gcloud storage cp - "${BUCKET}/monitoring/prometheus_${TIMESTAMP}.tar.gz"
         TOTAL_BYTES=$((TOTAL_BYTES + $(cat "$SIZE_FILE")))
@@ -136,7 +140,8 @@ data:
       GRAFANA_POD=$(kubectl get pod -n monitoring -l app.kubernetes.io/name=grafana -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
       if [ -n "$GRAFANA_POD" ]; then
         SIZE_FILE=$(mktemp)
-        kubectl exec -n monitoring "$GRAFANA_POD" -- tar czf - -C /var/lib/grafana . \
+        kubectl exec -n monitoring "$GRAFANA_POD" -c grafana -- tar cf - -C /var/lib/grafana . \
+          | pigz -p 2 -c \
           | tee >(wc -c > "$SIZE_FILE") \
           | gcloud storage cp - "${BUCKET}/monitoring/grafana_${TIMESTAMP}.tar.gz"
         TOTAL_BYTES=$((TOTAL_BYTES + $(cat "$SIZE_FILE")))
@@ -173,13 +178,13 @@ data:
       prometheus)
         PROM_POD=$(kubectl get pod -n monitoring -l app=prometheus -o jsonpath='{.items[0].metadata.name}')
         echo "[$(date)] Restoring Prometheus data from ${BUCKET}/monitoring/${FILENAME}"
-        gcloud storage cat "${BUCKET}/monitoring/${FILENAME}" | kubectl exec -n monitoring -i "$PROM_POD" -- tar xzf - -C /prometheus
+        gcloud storage cat "${BUCKET}/monitoring/${FILENAME}" | kubectl exec -n monitoring -i "$PROM_POD" -c prometheus -- tar xzf - -C /prometheus
         echo "[$(date)] ✓ Prometheus restore complete"
         ;;
       grafana)
         GRAFANA_POD=$(kubectl get pod -n monitoring -l app.kubernetes.io/name=grafana -o jsonpath='{.items[0].metadata.name}')
         echo "[$(date)] Restoring Grafana data from ${BUCKET}/monitoring/${FILENAME}"
-        gcloud storage cat "${BUCKET}/monitoring/${FILENAME}" | kubectl exec -n monitoring -i "$GRAFANA_POD" -- tar xzf - -C /var/lib/grafana
+        gcloud storage cat "${BUCKET}/monitoring/${FILENAME}" | kubectl exec -n monitoring -i "$GRAFANA_POD" -c grafana -- tar xzf - -C /var/lib/grafana
         kubectl rollout restart deployment/grafana -n monitoring
         echo "[$(date)] ✓ Grafana restore complete and restarted"
         ;;

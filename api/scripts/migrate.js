@@ -122,7 +122,15 @@ async function apply(db, f) {
   log(`applying ${f.filename}${wrap ? '' : ownTxn ? ' (own transaction)' : ' (no transaction)'}`);
   try {
     if (wrap) await db.query('BEGIN');
-    await db.query(f.sql);
+    if (noTxn) {
+      // One statement per query: a multi-statement string would run as one
+      // implicit transaction, where CREATE INDEX CONCURRENTLY is refused.
+      // Such files must be re-runnable (IF NOT EXISTS) — a failure part-way
+      // leaves the earlier statements applied.
+      for (const stmt of m.splitStatements(f.sql)) await db.query(stmt);
+    } else {
+      await db.query(f.sql);
+    }
     await db.query(
       `INSERT INTO ${m.TABLE} (filename, checksum, duration_ms) VALUES ($1, $2, $3)`,
       [f.filename, f.checksum, Date.now() - t0]);

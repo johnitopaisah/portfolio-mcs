@@ -35,6 +35,12 @@ spec:
         fsGroup: 977   # searxng group id in the upstream image
 
       volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+        - name: cache
+          emptyDir:
+            sizeLimit: 128Mi
         - name: searxng-settings
           secret:
             secretName: portfolio-secrets
@@ -43,19 +49,22 @@ spec:
                 path: settings.yml
 
       containers:
-        # trivy:ignore:KSV-0014 searxng writes its own runtime cache/temp
-        # files beyond just /etc/searxng (mounted read-only from the
-        # settings Secret above) — a read-only rootfs isn't safe here
-        # without auditing every path the upstream image writes to.
+        # Read-only root filesystem, audited against this exact image digest
+        # (Nov 2026): searxng only needs /tmp and /var/cache/searxng writable.
+        # Pinned by digest — :latest could pull a build that writes elsewhere.
+        # To upgrade: pull the new digest, re-test with a read-only root, bump.
         - name: searxng
-          image: searxng/searxng:latest
-          imagePullPolicy: Always
+          image: searxng/searxng:latest@sha256:c7cc75852051bf6254afda6ed1b920dd1677d8efe4ab141bf558f02e582f4371
+          imagePullPolicy: IfNotPresent
 
           securityContext:
             runAsNonRoot: true
             runAsUser: 977
             runAsGroup: 977
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
 
           ports:
             - name: http
@@ -65,7 +74,11 @@ spec:
           volumeMounts:
             - name: searxng-settings
               mountPath: /etc/searxng
-              readOnly: false   
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+            - name: cache
+              mountPath: /var/cache/searxng
               
           resources:
             requests:

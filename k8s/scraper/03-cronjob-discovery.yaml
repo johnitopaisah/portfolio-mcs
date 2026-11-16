@@ -64,6 +64,11 @@ spec:
           imagePullSecrets:
             - name: ghcr-pull-secret
 
+          volumes:
+            - name: tmp
+              emptyDir:
+                sizeLimit: 256Mi   # Chromium profile + temp files
+
           containers:
           - name: scraper
             image: ghcr.io/johnitopaisah/portfolio-mcs/scraper:v0.1.14-rc1
@@ -74,8 +79,18 @@ spec:
               runAsUser: 1001
               runAsGroup: 1001
               allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true      # only /tmp is writable; Chromium also needs HOME there
+              capabilities:
+                drop: ["ALL"]
+            volumeMounts:
+              - name: tmp
+                mountPath: /tmp
 
             env:
+            # Playwright/Chromium writes its profile under $HOME — keep it on the
+            # writable /tmp emptyDir (read-only root filesystem).
+            - name: HOME
+              value: /tmp
             - name: NODE_ENV
               value: "production"
 

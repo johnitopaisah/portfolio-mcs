@@ -1,0 +1,76 @@
+# ============================================================
+#  Trivy IaC scan — reviewed exceptions (iac-scan.yml, scan-ref: k8s)
+#
+#  Every entry is scoped to the exact files it covers, says WHY it is
+#  accepted, and EXPIRES. After expired_at the finding fails CI again, so
+#  nothing here can be forgotten. Any NEW HIGH/CRITICAL finding — in any
+#  file, including these ones for a different rule — still fails the scan.
+#
+#  Phase 2 removes most of these (Nov 2026 plan):
+#    • backup CronJobs: build a backup image with postgresql-client and
+#      gsutil pre-installed, so they no longer apt-get install as root at
+#      runtime → non-root + read-only root filesystem
+#    • portfolio-db: read-only root with emptyDir /var/run/postgresql and
+#      /tmp (needs a planned DB restart; the DB app is manual-sync)
+#
+#  Format: https://trivy.dev/latest/docs/configuration/filtering/#trivyignoreyaml
+# ============================================================
+
+misconfigurations:
+
+  # ── Phase 2: backup CronJobs install tools at runtime ─────────
+  - id: KSV-0014
+    paths:
+      - "backup/04-cronjob-db-backup.yaml"
+      - "backup/05-cronjob-monitoring-backup.yaml"
+      - "backup/08-cronjob-shopnow-db-backup.yaml"
+      - "backup/09-cronjob-pvc-metrics.yaml"
+    statement: >-
+      google/cloud-sdk:slim containers run `apt-get install postgresql-client`
+      on every run, which needs a writable root filesystem. Fixed in Phase 2
+      by a prebuilt backup image.
+    expired_at: 2027-02-28
+
+  - id: KSV-0118
+    paths:
+      - "backup/04-cronjob-db-backup.yaml"
+      - "backup/05-cronjob-monitoring-backup.yaml"
+      - "backup/08-cronjob-shopnow-db-backup.yaml"
+      - "backup/09-cronjob-pvc-metrics.yaml"
+    statement: >-
+      Same backup CronJobs: apt-get at runtime requires root, so no
+      non-root pod securityContext yet. Fixed in Phase 2 with the prebuilt
+      backup image.
+    expired_at: 2027-02-28
+
+  # ── Phase 2: database StatefulSet ──────────────────────────────
+  - id: KSV-0014
+    paths:
+      - "db/statefulset.yaml"
+    statement: >-
+      Postgres writes /var/run/postgresql and /tmp outside its data volume.
+      A read-only root needs emptyDir mounts and a DB restart; the DB app is
+      manual-sync and the change is scheduled with the next planned restart.
+    expired_at: 2027-02-28
+
+  # ── Accepted: false positive ──────────────────────────────────
+  - id: KSV-0109
+    paths:
+      - "backup/03-db-backup-configmap.yaml"
+      - "backup/07-shopnow-db-backup-configmap.yaml"
+    statement: >-
+      False positive. The ConfigMaps hold backup shell scripts that reference
+      the PGPASSWORD / POSTGRES_* variable NAMES; the values come from Secrets
+      (backup-db-secrets) via env at runtime. No secret is stored.
+    expired_at: 2027-02-28
+
+  # ── Accepted: required by design ──────────────────────────────
+  - id: KSV-0053
+    paths:
+      - "backup/01-rbac.yaml"
+    statement: >-
+      backup-monitoring-exec needs pods/exec in the monitoring namespace to
+      tar Prometheus/Grafana data from inside their pods (their PVCs are
+      ReadWriteOnce and already mounted). Scoped to one namespace via a Role,
+      not a ClusterRole. Revisit with volume snapshots.
+    expired_at: 2027-02-28

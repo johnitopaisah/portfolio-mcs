@@ -31,6 +31,11 @@ spec:
     namespace: monitoring
   syncPolicy:
     automated:
+      # Explicit: auto-sync had been switched off in the cluster (enabled:
+      # false) — invisible as drift while git omitted the field, so alert-rule
+      # changes silently never reached Prometheus. monitoring-root now
+      # restores this if it is turned off again.
+      enabled: true
       selfHeal: true
       prune: false   # protects prometheus-pvc from accidental deletion
     syncOptions:

@@ -226,6 +226,11 @@ Rules for new migrations:
    applied** — the runner refuses to continue if a checksum changes.
 2. A file runs in a transaction unless it contains its own `BEGIN;`, or a
    `-- migrate:no-transaction` line (needed for `CREATE INDEX CONCURRENTLY`).
+   No-transaction files are sent one statement at a time and must be
+   re-runnable (`IF NOT EXISTS`, guarded `DO` blocks): if one fails part-way,
+   the next rollout runs the whole file again. See `037_repair_indexes.sql`.
+4. `db/schema.sql` is generated (schema-only `pg_dump` + migration history) and
+   is only used to initialise a brand-new database.
 3. No psql meta-commands (`\connect`, `\i`, …) — CI rejects them.
 
 ```bash

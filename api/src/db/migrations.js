@@ -43,6 +43,62 @@ function checksumOf(sql) {
   return crypto.createHash('sha256').update(sql.replace(/\r\n/g, '\n')).digest('hex');
 }
 
+/**
+ * Splits a SQL script into top-level statements, so a "-- migrate:no-transaction"
+ * file can be sent one statement at a time. (Postgres runs a multi-statement
+ * query string as one implicit transaction, where CREATE INDEX CONCURRENTLY is
+ * not allowed.) Semicolons inside quotes, quoted identifiers, dollar-quoted
+ * bodies ($$ … $$, $tag$ … $tag$) and comments do not split.
+ * @returns {string[]} statements without the trailing ';', empty ones dropped
+ */
+function splitStatements(sql) {
+  const out = [];
+  let start = 0, i = 0;
+  const n = sql.length;
+  const push = end => {
+    const stmt = sql.slice(start, end).trim();
+    if (stmt.replace(/--[^\n]*|\/\*[\s\S]*?\*\//g, '').trim()) out.push(stmt);
+  };
+  while (i < n) {
+    const c = sql[i], d = sql[i + 1];
+    if (c === '-' && d === '-') {                          // line comment
+      const nl = sql.indexOf('\n', i);
+      i = nl === -1 ? n : nl + 1;
+    } else if (c === '/' && d === '*') {                   // block comment (nestable)
+      let depth = 1; i += 2;
+      while (i < n && depth) {
+        if (sql[i] === '/' && sql[i + 1] === '*') { depth++; i += 2; }
+        else if (sql[i] === '*' && sql[i + 1] === '/') { depth--; i += 2; }
+        else i++;
+      }
+    } else if (c === '\'') {                               // string; E'' allows \' escapes
+      const escapes = /[eE]/.test(sql[i - 1] || '') && !/[\w$]/.test(sql[i - 2] || '');
+      i++;
+      while (i < n) {
+        if (escapes && sql[i] === '\\') { i += 2; continue; }
+        if (sql[i] === '\'') { if (sql[i + 1] === '\'') { i += 2; continue; } i++; break; }
+        i++;
+      }
+    } else if (c === '"') {                                // quoted identifier
+      i++;
+      while (i < n) {
+        if (sql[i] === '"') { if (sql[i + 1] === '"') { i += 2; continue; } i++; break; }
+        i++;
+      }
+    } else if (c === '$' && !/[\w$]/.test(sql[i - 1] || '')) {   // dollar quote
+      const m = /^\$([A-Za-z_][A-Za-z0-9_]*)?\$/.exec(sql.slice(i));
+      if (m) {
+        const close = sql.indexOf(m[0], i + m[0].length);
+        i = close === -1 ? n : close + m[0].length;
+      } else i++;
+    } else if (c === ';') {
+      push(i); i++; start = i;
+    } else i++;
+  }
+  push(n);
+  return out;
+}
+
 async function ensureTable(db) {
   await db.query(`
     CREATE TABLE IF NOT EXISTS ${TABLE} (
@@ -111,6 +167,6 @@ async function schemaReady(db, workerName, { env = process.env, log = console } 
 
 module.exports = {
   TABLE, LOCK_KEY,
-  resolveMigrationsDir, listMigrationFiles, checksumOf,
+  resolveMigrationsDir, listMigrationFiles, checksumOf, splitStatements,
   ensureTable, appliedMigrations, compare, schemaReady,
 };
