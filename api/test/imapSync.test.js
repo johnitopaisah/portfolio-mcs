@@ -249,7 +249,9 @@ function zohoLikeServer() {
   // Fake "now" so the 3-day look-back covers the fixture timestamps.
   let realNow;
   beforeEach(() => { realNow = Date.now; Date.now = () => T0 + 120 * 60000; });
-  afterEach(() => { Date.now = realNow; });
+  // Restore only what was replaced — if an earlier hook failed, realNow is
+  // unset and assigning it would break Date.now for every later test file.
+  afterEach(() => { if (realNow) { Date.now = realNow; realNow = null; } });
 
   it('reads every folder, skips own notifications and non-job mail, holds Spam for review', async () => {
     const s = zohoLikeServer();

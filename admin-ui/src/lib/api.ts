@@ -297,6 +297,12 @@ export const adminApi = {
     request(`/api/applications/${appId}/reminders/${rid}`, { method: 'DELETE' }),
   getDueReminders: () =>
     request('/api/applications/reminders/due'),
+  // Marks reminders done that have been overdue for more than N days.
+  clearOverdueReminders: (olderThanDays = 30) =>
+    request('/api/applications/reminders/clear-overdue', {
+      method: 'POST',
+      body: JSON.stringify({ older_than_days: olderThanDays }),
+    }) as Promise<{ cleared: number; older_than_days: number }>,
 
   // Submitted doc + interview prep
   setSubmittedDoc: (appId: number | string, docId: number | null) =>

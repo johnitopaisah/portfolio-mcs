@@ -54,11 +54,13 @@ async function runFollowUp7d() {
     FROM applications a
     WHERE a.status = 'APPLIED'
       AND a.applied_at < NOW() - INTERVAL '7 days'
+      -- One follow-up per application. Checking only OPEN reminders re-created
+      -- a new (immediately overdue) one ~7 days after each was marked done,
+      -- so reminders piled up forever (187 overdue, Nov 2026).
       AND NOT EXISTS (
         SELECT 1 FROM application_reminders r
         WHERE r.application_id = a.id
           AND r.reminder_type = 'follow_up'
-          AND r.is_done = FALSE
       )
   `);
 
@@ -172,6 +174,14 @@ async function runStale14d() {
     FROM applications a
     WHERE a.status IN ('APPLIED','EMAIL_RECEIVED','HR_CONTACTED')
       AND a.updated_at < NOW() - INTERVAL '14 days'
+      -- Once reviewed (reminder open or done), don't ask again until the
+      -- application has changed since — not every 14 days forever.
+      AND NOT EXISTS (
+        SELECT 1 FROM application_reminders r
+        WHERE r.application_id = a.id
+          AND r.reminder_type = 'review'
+          AND r.created_at >= a.updated_at
+      )
   `);
 
   let created = 0;

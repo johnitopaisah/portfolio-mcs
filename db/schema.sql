@@ -3135,6 +3135,99 @@ ALTER TABLE ONLY public.reference_usage
 -- PostgreSQL database dump complete
 --
 
+-- ── Reference data ────────────────────────────────────────────
+-- Default rows the migrations seed (copied verbatim, all idempotent).
+-- Schema-only dumps leave them out; a fresh install needs them
+-- (the automation rules, system email templates, settings singletons).
+-- pg_dump above empties search_path; these statements use plain table names.
+SET search_path = public;
+
+-- from 002_job_system.sql
+INSERT INTO job_preferences (
+  id,
+  desired_roles,
+  desired_locations,
+  required_tech_stack,
+  min_relevance_score,
+  digest_time
+) VALUES (
+  '00000000-0000-0000-0000-000000000001'::uuid,
+  ARRAY['DevOps','SRE','Cloud','Infrastructure','Platform','Kubernetes','Embedded'],
+  ARRAY['Remote','France','EU','Europe','Germany','Netherlands'],
+  ARRAY['Kubernetes','Docker','AWS','Terraform','Linux'],
+  65,
+  '08:15'
+) ON CONFLICT (id) DO NOTHING;
+
+-- from 018_full_feature_expansion.sql
+INSERT INTO automation_rules (rule_key, name, description, trigger_type, config) VALUES
+('follow_up_7d',
+ 'Follow-up reminder after 7 days',
+ 'Creates a reminder when application sits in APPLIED for 7+ days with no follow-up',
+ 'time_since_status',
+ '{"days":7,"statuses":["APPLIED"],"reminder_type":"follow_up","reminder_title":"Follow up with {{company}}"}'
+),
+('interview_prep_24h',
+ 'Interview prep reminder 24h before',
+ 'Creates a prep reminder when interview_at is within 24 hours',
+ 'schedule',
+ '{"hours_before":24,"reminder_type":"preparation","reminder_title":"Prep session: {{company}} interview tomorrow"}'
+),
+('post_interview_3d',
+ 'Post-interview follow-up after 3 days',
+ 'Flags application 3 days after interview with no status change',
+ 'time_since_status',
+ '{"days":3,"statuses":["INTERVIEW_SCHEDULED","FINAL_INTERVIEW","TECHNICAL_TEST"],"reminder_type":"follow_up","reminder_title":"Send thank-you / chase {{company}}"}'
+),
+('offer_deadline_48h',
+ 'Offer response reminder 48h before deadline',
+ 'Creates reminder when offer follow_up_at is within 48 hours',
+ 'schedule',
+ '{"hours_before":48,"reminder_type":"deadline","reminder_title":"Respond to offer from {{company}}"}'
+),
+('stale_14d',
+ 'Stale application alert after 14 days',
+ 'Flags applications with no activity for 14+ days in active statuses',
+ 'time_since_status',
+ '{"days":14,"statuses":["APPLIED","EMAIL_RECEIVED","HR_CONTACTED"],"reminder_type":"review","reminder_title":"Review stale application: {{company}}"}'
+)
+ON CONFLICT (rule_key) DO NOTHING;
+
+INSERT INTO email_templates (name, category, subject_template, body_template, is_system)
+VALUES
+('Follow-up after applying','follow_up',
+ 'Following up — {{role}} application',
+ E'Hi {{recruiter_name}},\n\nI hope you''re well. I''m writing to follow up on my application for the {{role}} position at {{company}}, submitted on {{applied_date}}.\n\nI remain very excited about this opportunity and would love to discuss how my background aligns with your needs.\n\nThank you for your time.\n\nBest regards,\n{{your_name}}',
+ TRUE),
+('Post-interview thank you','thank_you',
+ 'Thank you — {{role}} interview at {{company}}',
+ E'Hi {{recruiter_name}},\n\nThank you for taking the time to speak with me today about the {{role}} role at {{company}}. I genuinely enjoyed our conversation and came away even more enthusiastic about the opportunity.\n\nI''d welcome the chance to continue the discussion. Please let me know if you need anything further.\n\nBest regards,\n{{your_name}}',
+ TRUE),
+('Request for timeline update','timeline_request',
+ 'Quick check-in — {{role}} at {{company}}',
+ E'Hi {{recruiter_name}},\n\nI wanted to reach out regarding the {{role}} position. I''m still very interested and wondered if you could share an update on the timeline or next steps.\n\nI''m happy to provide any additional information.\n\nThank you,\n{{your_name}}',
+ TRUE),
+('Withdrawal — accepted another offer','withdrawal',
+ 'Withdrawing application — {{role}} at {{company}}',
+ E'Hi {{recruiter_name}},\n\nI''m writing to let you know that I''ve accepted another position and would like to withdraw my application for the {{role}} role at {{company}}.\n\nI appreciate the time and consideration given to my application. I hold {{company}} in high regard and hope our paths cross in the future.\n\nBest wishes,\n{{your_name}}',
+ TRUE),
+('Salary negotiation opener','negotiation',
+ 'Re: Offer — {{role}} at {{company}}',
+ E'Hi {{recruiter_name}},\n\nThank you for the offer for the {{role}} position — I''m genuinely excited about the opportunity and the team.\n\nAfter careful consideration, I was hoping we could discuss the base salary. Based on my research and experience, I was expecting something closer to [TARGET FIGURE]. Would there be any flexibility on this?\n\nI''m very keen to make this work and look forward to your thoughts.\n\nBest regards,\n{{your_name}}',
+ TRUE),
+('Rejection feedback request','rejection_feedback',
+ 'Feedback request — {{role}} at {{company}}',
+ E'Hi {{recruiter_name}},\n\nThank you for letting me know about your decision regarding the {{role}} role at {{company}}. While I''m disappointed, I fully respect the decision.\n\nI''d be grateful if you could spare a moment to share any feedback on my application or interviews — it would be genuinely valuable for my development.\n\nThank you again for your time.\n\nBest,\n{{your_name}}',
+ TRUE),
+('Reconnect with recruiter','reconnect',
+ 'Checking in — open to new opportunities',
+ E'Hi {{recruiter_name}},\n\nI hope you''re doing well. I''m reaching out as I''m actively exploring new opportunities and thought of you.\n\nI''d love to reconnect and hear if you have anything that might be a good fit for my background.\n\nBest regards,\n{{your_name}}',
+ TRUE)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO user_settings DEFAULT VALUES
+ON CONFLICT DO NOTHING;
+
 -- ── Migration history included in this snapshot ───────────────
 INSERT INTO public.schema_migrations (filename, checksum, applied_by) VALUES
   ('001_add_visitor_logs.sql', 'bb132a00963ad465c18f08e3294327a01e9aa6950cfa9123089249d9cd8ec402', 'baseline'),  -- gitleaks:allow (sha256 checksum)

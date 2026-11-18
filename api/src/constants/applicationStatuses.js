@@ -24,4 +24,11 @@ const STATUS_GROUPS = {
 const GROUP_KEYS      = [...Object.keys(STATUS_GROUPS), 'closed'];
 const GROUPED_STATUSES = Object.values(STATUS_GROUPS).flat();
 
-module.exports = { VALID_STATUSES, STATUS_GROUPS, GROUP_KEYS, GROUPED_STATUSES };
+// Statuses where the application is finished: nothing left to follow up.
+// A DB trigger (migration 038) closes open reminders when an application
+// enters one of these — keep both lists identical (a test checks it).
+const FINAL_STATUSES = [
+  'REJECTED', 'NO_RESPONSE', 'WITHDRAWN', 'GHOSTED', 'ARCHIVED', 'ACCEPTED', 'DECLINED_OFFER',
+];
+
+module.exports = { VALID_STATUSES, STATUS_GROUPS, GROUP_KEYS, GROUPED_STATUSES, FINAL_STATUSES };

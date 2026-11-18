@@ -8,11 +8,13 @@ import {
 } from '@/components/Icons';
 
 type AvailStatus = 'active' | 'passive' | 'not_open';
+type HealthComponent = { key: string; label: string; pts: number; max: number; ok: boolean; detail?: string };
 type DashStats = {
   goal: { target: number; this_week: number; today: number; pct: number; streak_weeks: number };
   daily_counts: Array<{ day: string; cnt: number }>;
-  health_score: { total: number; label: string; color: string };
+  health_score: { total: number; label: string; color: string; components?: HealthComponent[] };
   due_reminders: Array<{ id: number; title: string; remind_at: string; company_name: string; application_id: number }>;
+  reminder_counts?: { due: number; overdue: number; overdue_30d: number };
   pipeline_counts: { prep: number; active: number; interview: number; offer: number; closed: number };
   recent_activity: Array<{ event_type: string; description: string; event_date: string; company_name: string; job_title: string; application_id: number }>;
 };
@@ -80,6 +82,7 @@ export default function DashboardPage() {
   const [availStatus, setAvailStatus]       = useState<AvailStatus | null>(null);
   const [savingAvail, setSavingAvail]       = useState(false);
   const [loading, setLoading]               = useState(true);
+  const [clearing, setClearing]             = useState(false);
 
   useEffect(() => {
     Promise.allSettled([
@@ -116,6 +119,17 @@ export default function DashboardPage() {
     }).finally(() => setLoading(false));
   }, []);
 
+  async function clearOldReminders(count: number) {
+    if (clearing) return;
+    if (!window.confirm(`Mark ${count} reminder${count === 1 ? '' : 's'} overdue for more than 30 days as done?`)) return;
+    setClearing(true);
+    try {
+      await adminApi.clearOverdueReminders(30);
+      setDashStats(await adminApi.getDashboardStats() as DashStats);
+    } catch { /* leave the card as it was */ }
+    finally { setClearing(false); }
+  }
+
   async function setAvail(val: AvailStatus) {
     if (val === availStatus || savingAvail) return;
     const prev = availStatus;
@@ -127,6 +141,12 @@ export default function DashboardPage() {
   }
 
   const hs   = dashStats?.health_score;
+  // What is costing points, biggest first — shown under the ring.
+  const missing = (hs?.components || [])
+    .filter(c => c.pts < c.max)
+    .sort((a, b) => (b.max - b.pts) - (a.max - a.pts));
+  const rc = dashStats?.reminder_counts;
+  const dueCount = rc?.due ?? dashStats?.due_reminders?.length ?? 0;
   const hc   = HEALTH_COLORS[hs?.color || 'yellow'];
   const circ = 2 * Math.PI * 40;
 
@@ -193,6 +213,18 @@ export default function DashboardPage() {
           <span className="text-xs font-medium" style={{ color: hc?.ring || '#fbbf24' }}>
             {hs?.label || 'Loading…'}
           </span>
+          {missing.length > 0 && (
+            <ul className="w-full flex flex-col gap-1 mt-1" title="Points still available — open Goals for the full breakdown">
+              {missing.slice(0, 4).map(c => (
+                <li key={c.key} className="flex items-center justify-between gap-2 text-[11px]">
+                  <span className="truncate" style={{ color: 'rgba(255,255,255,0.65)' }}>
+                    {c.label}{c.detail ? <span style={{ color: 'rgba(255,255,255,0.38)' }}> · {c.detail}</span> : null}
+                  </span>
+                  <span className="shrink-0 font-semibold" style={{ color: '#f87171' }}>−{c.max - c.pts}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </Link>
 
         {/* Weekly goal */}
@@ -288,14 +320,30 @@ export default function DashboardPage() {
         >
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold" style={{ color: '#DDD6FE' }}>Due Reminders</p>
-            {dashStats?.due_reminders?.length ? (
+            {dueCount ? (
               <Link href="/applications?reminders=due" title="View all applications with a reminder due"
                 className="text-xs px-2 py-0.5 rounded-full transition-all hover:brightness-150"
                 style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171' }}>
-                {dashStats.due_reminders.length}
+                {dueCount}
               </Link>
             ) : null}
           </div>
+          {rc && rc.overdue > 0 && (
+            <div className="flex items-center justify-between gap-2 text-[11px]">
+              <span className="whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.45)' }}>{rc.overdue} overdue</span>
+              {rc.overdue_30d > 0 && (
+                <button
+                  onClick={() => clearOldReminders(rc.overdue_30d)}
+                  disabled={clearing}
+                  title="Mark reminders overdue for more than 30 days as done"
+                  className="px-2 py-0.5 rounded-full whitespace-nowrap transition-all hover:brightness-150 disabled:opacity-40"
+                  style={{ background: 'rgba(255,255,255,0.06)', color: '#DDD6FE', border: '1px solid rgba(255,255,255,0.12)' }}
+                >
+                  {clearing ? 'Clearing…' : `Clear ${rc.overdue_30d} older than 30d`}
+                </button>
+              )}
+            </div>
+          )}
           {dashStats?.due_reminders?.length ? (
             <div className="flex flex-col gap-2">
               {dashStats.due_reminders.slice(0, 4).map(r => (

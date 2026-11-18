@@ -2,6 +2,15 @@
 
 const pool = require('../db/client');
 
+// Weekly goal is scored in proportion to progress (29/30 → 14/15) rather
+// than all-or-nothing (rounded down: full marks only once the goal is met),
+// so being one application short doesn't score the
+// same as not applying at all.
+function weeklyGoalPoints(count, goal, max) {
+  if (!goal || goal <= 0) return max;
+  return Math.floor(Math.min(1, Math.max(0, count) / goal) * max);   // full marks only when met
+}
+
 async function computeHealthScore() {
   const components = [];
   let total = 0;
@@ -18,17 +27,20 @@ async function computeHealthScore() {
   );
   const appliedThisWeek = weekApps[0].cnt > 0;
   const pts1 = appliedThisWeek ? 15 : 0;
-  components.push({ key: 'applied_this_week', label: 'Applied this week', pts: pts1, max: 15, ok: appliedThisWeek });
+  components.push({ key: 'applied_this_week', label: 'Applied this week', pts: pts1, max: 15, ok: appliedThisWeek, detail: `${weekApps[0].cnt} this week` });
   total += pts1;
 
-  // 2. No stale follow-ups (APPLIED > 7 days with no follow-up reminder) (+15)
+  // 2. No stale follow-ups (APPLIED > 7 days with no follow-up planned or done) (+15)
+  // A done follow-up counts — otherwise marking it done (or clearing old
+  // ones) made the application look "never followed up". Overdue open
+  // follow-ups are still penalised by check 6 (reminders cleared).
   const { rows: staleApps } = await pool.query(`
     SELECT COUNT(*)::int AS cnt FROM applications a
     WHERE a.status = 'APPLIED'
       AND a.applied_at < NOW() - INTERVAL '7 days'
       AND NOT EXISTS (
         SELECT 1 FROM application_reminders r
-        WHERE r.application_id = a.id AND r.reminder_type='follow_up' AND r.is_done=FALSE
+        WHERE r.application_id = a.id AND r.reminder_type='follow_up'
       )
   `);
   const noStaleFollowups = staleApps[0].cnt === 0;
@@ -50,21 +62,29 @@ async function computeHealthScore() {
   const ip = interviewsPrep[0];
   const interviewsPrepped = ip.total === 0 || ip.prepped >= ip.total;
   const pts3 = ip.total === 0 ? 15 : Math.round((ip.prepped / ip.total) * 15);
-  components.push({ key: 'interviews_prepped', label: 'Interviews have prep', pts: pts3, max: 15, ok: interviewsPrepped });
+  components.push({ key: 'interviews_prepped', label: 'Interviews have prep', pts: pts3, max: 15, ok: interviewsPrepped, detail: `${ip.prepped}/${ip.total} with a prep checklist` });
   total += pts3;
 
-  // 4. All submitted applications have a CV doc attached (+10)
+  // 4. Submitted applications have a document attached (+10)
+  // Any attached document counts (a generated CV/cover letter, or one
+  // explicitly marked as submitted). Applications the email worker detected
+  // (e.g. LinkedIn Easy Apply confirmations) were sent outside this app, so
+  // there is no document to attach — they are not counted.
   const { rows: docCheck } = await pool.query(`
     SELECT
       COUNT(*)::int AS total,
-      COUNT(*) FILTER (WHERE submitted_doc_id IS NOT NULL)::int AS with_doc
-    FROM applications
-    WHERE status NOT IN ('DRAFT','CV_GENERATED','READY_TO_APPLY')
+      COUNT(*) FILTER (
+        WHERE a.submitted_doc_id IS NOT NULL
+           OR EXISTS (SELECT 1 FROM application_documents d WHERE d.application_id = a.id)
+      )::int AS with_doc
+    FROM applications a
+    WHERE a.status NOT IN ('DRAFT','CV_GENERATED','READY_TO_APPLY')
+      AND a.entry_method IS DISTINCT FROM 'email_detected'
   `);
   const dc = docCheck[0];
   const docsAttached = dc.total === 0 || dc.with_doc >= dc.total;
   const pts4 = dc.total === 0 ? 10 : Math.round((dc.with_doc / dc.total) * 10);
-  components.push({ key: 'docs_attached', label: 'Submitted docs attached', pts: pts4, max: 10, ok: docsAttached, detail: `${dc.with_doc}/${dc.total}` });
+  components.push({ key: 'docs_attached', label: 'Submitted docs attached', pts: pts4, max: 10, ok: docsAttached, detail: `${dc.with_doc}/${dc.total} with a document` });
   total += pts4;
 
   // 5. Contacts added for final-stage applications (+10)
@@ -80,7 +100,7 @@ async function computeHealthScore() {
   const cc = contactCheck[0];
   const contactsOk = cc.total === 0 || cc.with_contact >= cc.total;
   const pts5 = cc.total === 0 ? 10 : Math.round((cc.with_contact / cc.total) * 10);
-  components.push({ key: 'contacts_in_finals', label: 'Contacts for interviews', pts: pts5, max: 10, ok: contactsOk });
+  components.push({ key: 'contacts_in_finals', label: 'Contacts for interviews', pts: pts5, max: 10, ok: contactsOk, detail: `${cc.with_contact}/${cc.total} with a contact` });
   total += pts5;
 
   // 6. All due reminders cleared (+10)
@@ -100,7 +120,7 @@ async function computeHealthScore() {
   `, [weekStart]);
   const pipelineMoved = pipelineMove[0].cnt > 0;
   const pts7 = pipelineMoved ? 10 : 0;
-  components.push({ key: 'pipeline_moved', label: 'Pipeline moved this week', pts: pts7, max: 10, ok: pipelineMoved });
+  components.push({ key: 'pipeline_moved', label: 'Pipeline moved this week', pts: pts7, max: 10, ok: pipelineMoved, detail: `${pipelineMove[0].cnt} status change(s)` });
   total += pts7;
 
   // 8. Weekly goal met (+15)
@@ -109,8 +129,8 @@ async function computeHealthScore() {
   );
   const goal = goalRows[0]?.weekly_application_goal || 5;
   const weeklyGoalMet = weekApps[0].cnt >= goal;
-  const pts8 = weeklyGoalMet ? 15 : 0;
-  components.push({ key: 'weekly_goal_met', label: 'Weekly goal met', pts: pts8, max: 15, ok: weeklyGoalMet });
+  const pts8 = weeklyGoalPoints(weekApps[0].cnt, goal, 15);
+  components.push({ key: 'weekly_goal_met', label: 'Weekly goal', pts: pts8, max: 15, ok: weeklyGoalMet, detail: `${weekApps[0].cnt}/${goal} this week` });
   total += pts8;
 
   const label = total >= 71 ? 'Excellent' : total >= 41 ? 'On Track' : 'Needs Attention';
@@ -137,7 +157,7 @@ async function getDashboardStats({ timeZone } = {}) {
   weekStart.setHours(0, 0, 0, 0);
 
   const [healthScore, settings, pipelineRows, recentActivity,
-         dueReminders, weeklyVelocity, skillsGap, dailyCounts] = await Promise.all([
+         dueReminders, weeklyVelocity, skillsGap, dailyCounts, reminderCounts] = await Promise.all([
 
     computeHealthScore(),
 
@@ -209,6 +229,17 @@ async function getDashboardStats({ timeZone } = {}) {
         ON date_trunc('day', a.created_at AT TIME ZONE $1) = d.day
       GROUP BY d.day ORDER BY d.day
     `, [tz]),
+
+    // Real totals — the list above is capped at 5 rows, so its length is
+    // not the number of reminders waiting.
+    pool.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE remind_at <= NOW() + INTERVAL '48 hours')::int AS due,
+        COUNT(*) FILTER (WHERE remind_at <  NOW())::int                        AS overdue,
+        COUNT(*) FILTER (WHERE remind_at <  NOW() - INTERVAL '30 days')::int  AS overdue_30d
+      FROM application_reminders
+      WHERE is_done = FALSE
+    `),
   ]);
 
   const s   = settings.rows[0] || {};
@@ -245,6 +276,7 @@ async function getDashboardStats({ timeZone } = {}) {
     },
     health_score:    healthScore,
     due_reminders:   dueReminders.rows,
+    reminder_counts: reminderCounts.rows[0],
     pipeline_counts: pipelineCounts,
     recent_activity: recentActivity.rows,
     weekly_velocity: weeklyVelocity.rows,
@@ -253,4 +285,4 @@ async function getDashboardStats({ timeZone } = {}) {
   };
 }
 
-module.exports = { getDashboardStats, computeHealthScore };
+module.exports = { getDashboardStats, computeHealthScore, weeklyGoalPoints };

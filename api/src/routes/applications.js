@@ -1541,6 +1541,29 @@ router.get('/reminders/due', requireAuth, async (req, res) => {
   }
 });
 
+// ── Clear old overdue reminders (dashboard "Clear" button) ────
+// Marks reminders done that have been overdue for more than N days
+// (default 30, minimum 1) — automatic follow-up/review nudges that were
+// never acted on. Recent ones are kept so nothing current is lost.
+router.post('/reminders/clear-overdue', requireAuth, async (req, res) => {
+  try {
+    const raw  = req.body?.older_than_days ?? 30;
+    const days = Number.parseInt(raw, 10);
+    if (!Number.isInteger(days) || days < 1 || days > 3650) {
+      return res.status(400).json({ error: 'older_than_days must be a whole number between 1 and 3650' });
+    }
+    const result = await pool.query(
+      `UPDATE application_reminders
+       SET is_done = TRUE
+       WHERE is_done = FALSE AND remind_at < NOW() - make_interval(days => $1)`,
+      [days]
+    );
+    res.json({ cleared: result.rowCount, older_than_days: days });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Generate CV + Cover Letter together (bundle) ──────────────
 router.post('/:id/generate-bundle', requireAuth, async (req, res) => {
   try {
