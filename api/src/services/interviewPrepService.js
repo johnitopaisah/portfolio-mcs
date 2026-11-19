@@ -89,8 +89,12 @@ async function generateQuestions(applicationId) {
   const { rows: profileRows } = await pool.query(`
     SELECT name AS full_name, cv_display_name, cv_headline,
            (SELECT string_agg(name || ' (' || category || ')', ', ') FROM skills) AS skills_summary,
-           (SELECT string_agg(title || ' at ' || company || ' (' || start_date::text || ')', '; ')
-            FROM experiences ORDER BY start_date DESC LIMIT 4) AS recent_exp
+           -- experiences has "role" (not "title"); the 4 most recent are
+           -- picked in a subquery — ORDER BY/LIMIT can't wrap an aggregate.
+           (SELECT string_agg(role || ' at ' || company || ' (' || start_date::text || ')', '; '
+                              ORDER BY start_date DESC)
+            FROM (SELECT role, company, start_date FROM experiences
+                  ORDER BY start_date DESC LIMIT 4) recent) AS recent_exp
     FROM profile LIMIT 1
   `);
   const profile = profileRows[0] || {};
@@ -151,12 +155,20 @@ For company questions, make them insightful and specific to this company/role.
       [applicationId]
     );
 
+    // interview_questions.difficulty only accepts easy|medium|hard — normalise
+    // whatever the model returns ("Hard", "intermediate"…) instead of failing
+    // the whole generation on a CHECK constraint.
+    const normaliseDifficulty = d => {
+      const v = String(d || '').trim().toLowerCase();
+      return ['easy', 'medium', 'hard'].includes(v) ? v : 'medium';
+    };
     const insertQ = async (question, type, difficulty, hint) => {
+      if (!question || !String(question).trim()) return;
       await client.query(
         `INSERT INTO interview_questions
            (application_id, question, question_type, difficulty, ai_hint)
          VALUES ($1,$2,$3,$4,$5)`,
-        [applicationId, question, type, difficulty || 'medium', hint || null]
+        [applicationId, String(question).trim(), type, normaliseDifficulty(difficulty), hint || null]
       );
     };
 

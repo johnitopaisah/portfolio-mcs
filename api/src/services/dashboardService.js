@@ -1,6 +1,7 @@
 'use strict';
 
 const pool = require('../db/client');
+const { FINAL_STATUSES } = require('../constants/applicationStatuses');
 
 // Weekly goal is scored in proportion to progress (29/30 → 14/15) rather
 // than all-or-nothing (rounded down: full marks only once the goal is met),
@@ -48,26 +49,28 @@ async function computeHealthScore() {
   components.push({ key: 'no_stale_followups', label: 'No overdue follow-ups', pts: pts2, max: 15, ok: noStaleFollowups, detail: `${staleApps[0].cnt} need follow-up` });
   total += pts2;
 
-  // 3. All interviews have prep checklist (+15)
+  // 3. All interviews have prep (+15) — a prep checklist item OR AI-generated
+  // interview questions (Interview tab) both count as preparation.
   const { rows: interviewsPrep } = await pool.query(`
     SELECT
       COUNT(*)::int AS total,
       COUNT(*) FILTER (
-        WHERE interview_prep IS NOT NULL
-          AND jsonb_array_length(COALESCE(interview_prep->'checklist','[]'::jsonb)) > 0
+        WHERE jsonb_array_length(COALESCE(a.interview_prep->'checklist','[]'::jsonb)) > 0
+           OR EXISTS (SELECT 1 FROM interview_questions q WHERE q.application_id = a.id)
       )::int AS prepped
-    FROM applications
-    WHERE status IN ('INTERVIEW_INVITE','INTERVIEW_SCHEDULED','TECHNICAL_TEST','FINAL_INTERVIEW')
+    FROM applications a
+    WHERE a.status IN ('INTERVIEW_INVITE','INTERVIEW_SCHEDULED','TECHNICAL_TEST','FINAL_INTERVIEW')
   `);
   const ip = interviewsPrep[0];
   const interviewsPrepped = ip.total === 0 || ip.prepped >= ip.total;
   const pts3 = ip.total === 0 ? 15 : Math.round((ip.prepped / ip.total) * 15);
-  components.push({ key: 'interviews_prepped', label: 'Interviews have prep', pts: pts3, max: 15, ok: interviewsPrepped, detail: `${ip.prepped}/${ip.total} with a prep checklist` });
+  components.push({ key: 'interviews_prepped', label: 'Interviews have prep', pts: pts3, max: 15, ok: interviewsPrepped, detail: `${ip.prepped}/${ip.total} prepared` });
   total += pts3;
 
   // 4. Submitted applications have a document attached (+10)
   // Any attached document counts (a generated CV/cover letter, or one
-  // explicitly marked as submitted). Applications the email worker detected
+  // explicitly marked as submitted). Finished applications are left out.
+  // Applications the email worker detected
   // (e.g. LinkedIn Easy Apply confirmations) were sent outside this app, so
   // there is no document to attach — they are not counted.
   const { rows: docCheck } = await pool.query(`
@@ -79,8 +82,9 @@ async function computeHealthScore() {
       )::int AS with_doc
     FROM applications a
     WHERE a.status NOT IN ('DRAFT','CV_GENERATED','READY_TO_APPLY')
+      AND a.status <> ALL($1::text[])          -- finished (rejected, withdrawn…): nothing left to send
       AND a.entry_method IS DISTINCT FROM 'email_detected'
-  `);
+  `, [FINAL_STATUSES]);
   const dc = docCheck[0];
   const docsAttached = dc.total === 0 || dc.with_doc >= dc.total;
   const pts4 = dc.total === 0 ? 10 : Math.round((dc.with_doc / dc.total) * 10);
@@ -236,6 +240,7 @@ async function getDashboardStats({ timeZone } = {}) {
       SELECT
         COUNT(*) FILTER (WHERE remind_at <= NOW() + INTERVAL '48 hours')::int AS due,
         COUNT(*) FILTER (WHERE remind_at <  NOW())::int                        AS overdue,
+        COUNT(*) FILTER (WHERE remind_at <  NOW() - INTERVAL '7 days')::int   AS overdue_7d,
         COUNT(*) FILTER (WHERE remind_at <  NOW() - INTERVAL '30 days')::int  AS overdue_30d
       FROM application_reminders
       WHERE is_done = FALSE

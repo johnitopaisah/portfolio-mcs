@@ -1692,6 +1692,7 @@ export default function ApplicationDetailPage() {
 
   // Interview prep
   const [prepSaving,       setPrepSaving]       = useState(false);
+  const [newPrepItem,      setNewPrepItem]      = useState('');
 
   const fetchApp = useCallback(async () => {
     try {
@@ -1805,6 +1806,29 @@ export default function ApplicationDetailPage() {
     try { await adminApi.updateInterviewPrep(id, prep as Record<string, unknown>); await fetchApp(); }
     catch { /* non-fatal */ }
     finally { setPrepSaving(false); }
+  }
+
+  // Saves a new checklist. interview_prep may not exist yet for applications
+  // added without AI parsing — it is created on the first item.
+  async function savePrepChecklist(checklist: { text: string; done: boolean }[]) {
+    if (!app) return;
+    setPrepSaving(true);
+    const prep = { ...(app.interview_prep || {}), checklist };
+    try { await adminApi.updateInterviewPrep(id, prep as Record<string, unknown>); await fetchApp(); }
+    catch { alert('Could not save the checklist — try again.'); }
+    finally { setPrepSaving(false); }
+  }
+
+  async function handleAddPrepItem() {
+    const text = newPrepItem.trim();
+    if (!text || prepSaving) return;
+    await savePrepChecklist([...(app?.interview_prep?.checklist || []), { text: text.slice(0, 200), done: false }]);
+    setNewPrepItem('');
+  }
+
+  async function handleRemovePrepItem(idx: number) {
+    if (prepSaving) return;
+    await savePrepChecklist((app?.interview_prep?.checklist || []).filter((_, i) => i !== idx));
   }
 
   async function handleMarkApplied() {
@@ -2646,15 +2670,32 @@ export default function ApplicationDetailPage() {
             <div className="lg:col-span-2 flex flex-col gap-4">
               <div className="rounded-2xl p-5" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
                 <p className="text-sm font-semibold mb-3" style={{ color: '#DDD6FE' }}>Prep Checklist</p>
-                {app.interview_prep?.checklist?.map((item, i) => (
-                  <div key={i} className="flex items-center gap-2 py-1.5">
-                    <div className="w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0"
+                {app.interview_prep?.checklist?.length ? app.interview_prep.checklist.map((item, i) => (
+                  <div key={i} className="group flex items-center gap-2 py-1.5">
+                    <button onClick={() => handleTogglePrepItem(i)} disabled={prepSaving}
+                      aria-label={item.done ? 'Mark not done' : 'Mark done'}
+                      className="w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 disabled:opacity-50"
                       style={{ borderColor: item.done ? '#4ade80' : 'rgba(255,255,255,0.18)', background: item.done ? 'rgba(74,222,128,0.15)' : 'transparent' }}>
                       {item.done && <span className="text-xs" style={{ color: '#4ade80' }}>✓</span>}
-                    </div>
-                    <p className="text-xs" style={{ color: item.done ? 'rgba(255,255,255,0.32)' : 'rgba(255,255,255,0.75)', textDecoration: item.done ? 'line-through' : 'none' }}>{item.text}</p>
+                    </button>
+                    <p className="flex-1 text-xs" style={{ color: item.done ? 'rgba(255,255,255,0.32)' : 'rgba(255,255,255,0.75)', textDecoration: item.done ? 'line-through' : 'none' }}>{item.text}</p>
+                    <button onClick={() => handleRemovePrepItem(i)} disabled={prepSaving} aria-label="Remove item"
+                      className="text-xs px-1 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity disabled:opacity-30"
+                      style={{ color: '#f87171' }}>✕</button>
                   </div>
-                )) || <p className="text-xs" style={{ color: 'rgba(255,255,255,0.32)' }}>No checklist items.</p>}
+                )) : <p className="text-xs" style={{ color: 'rgba(255,255,255,0.32)' }}>No checklist items yet.</p>}
+                <form className="flex gap-2 mt-3" onSubmit={e => { e.preventDefault(); handleAddPrepItem(); }}>
+                  <input value={newPrepItem} onChange={e => setNewPrepItem(e.target.value)} maxLength={200}
+                    aria-label="New prep checklist item"
+                    placeholder="Add a prep item, e.g. Review Kubernetes networking"
+                    className="flex-1 min-w-0 px-2.5 py-1.5 text-xs rounded-lg outline-none"
+                    style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.12)', color: '#FFFFFF' }} />
+                  <button type="submit" disabled={!newPrepItem.trim() || prepSaving}
+                    className="px-3 py-1.5 text-xs rounded-lg font-medium disabled:opacity-40"
+                    style={{ background: 'rgba(168,85,247,0.25)', color: '#E9D5FF', border: '1px solid rgba(168,85,247,0.4)' }}>
+                    {prepSaving ? 'Saving…' : 'Add'}
+                  </button>
+                </form>
               </div>
             </div>
           </div>

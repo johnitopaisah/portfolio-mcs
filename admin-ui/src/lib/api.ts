@@ -297,7 +297,13 @@ export const adminApi = {
     request(`/api/applications/${appId}/reminders/${rid}`, { method: 'DELETE' }),
   getDueReminders: () =>
     request('/api/applications/reminders/due'),
-  // Marks reminders done that have been overdue for more than N days.
+  // Bulk actions from the Applications list (checkboxes).
+  bulkApplications: (ids: number[], action: 'complete_reminders' | 'set_status', status?: string) =>
+    request('/api/applications/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ ids, action, ...(status ? { status } : {}) }),
+    }) as Promise<{ action: string; updated: number; status?: string }>,
+  // Marks reminders done that have been overdue for more than N days (0 = all overdue).
   clearOverdueReminders: (olderThanDays = 30) =>
     request('/api/applications/reminders/clear-overdue', {
       method: 'POST',

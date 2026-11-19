@@ -58,7 +58,7 @@ const DB_URL = process.env.TEST_DATABASE_URL;
   this.timeout(60000);
   const { Client } = require('pg');
   const name = `health_test_${process.pid}`;
-  let admin, url, db, svc, server, base, token;
+  let admin, url, db, svc, server, base, token, aiStub, lastPrompt = null;
 
   const q = (sql, p) => db.query(sql, p).then(r => r.rows);
   const component = (h, key) => h.components.find(c => c.key === key);
@@ -83,6 +83,22 @@ const DB_URL = process.env.TEST_DATABASE_URL;
     assert.strictEqual(r.status, 0, r.stdout + r.stderr);
     assert.match(r.stdout, /applied {2}038_close_reminders_on_final_status\.sql/);
 
+    aiStub = http.createServer((req, res) => {
+      let body = ''; req.on('data', c => body += c); req.on('end', () => {
+        lastPrompt = JSON.parse(body).messages[0].content;
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ id: 'm', type: 'message', role: 'assistant', model: 'stub', stop_reason: 'tool_use',
+          usage: { input_tokens: 1, output_tokens: 1 },
+          content: [{ type: 'tool_use', id: 't', name: 'submit_interview_prep', input: {
+            technical_questions: [{ question: 'Explain a K8s rollout', difficulty: 'Hard', hint: 'h' }, { question: 'Terraform state?', difficulty: 'intermediate' }],
+            behavioral_questions: [{ question: 'A conflict you solved', star_theme: 'teamwork' }],
+            situational_questions: [], company_questions: ['What does success look like?'],
+            key_talking_points: ['Built CI/CD'], red_flags_to_probe: [] } }] }));
+      });
+    }).listen(0);
+    process.env.ANTHROPIC_API_KEY  = 'stub';
+    process.env.ANTHROPIC_BASE_URL = `http://127.0.0.1:${aiStub.address().port}`;
+
     process.env.DATABASE_URL = url;
     process.env.JWT_SECRET   = 'health-test';
     process.env.NODE_ENV     = 'test';
@@ -92,6 +108,9 @@ const DB_URL = process.env.TEST_DATABASE_URL;
     delete require.cache[require.resolve('../src/routes/applications')];
     const app = express(); app.use(express.json());
     app.use('/api/applications', require('../src/routes/applications'));
+    delete require.cache[require.resolve('../src/routes/interviewPrep')];
+    delete require.cache[require.resolve('../src/services/interviewPrepService')];
+    app.use('/api/interview-prep', require('../src/routes/interviewPrep'));
     server = http.createServer(app).listen(0);
     base   = `http://127.0.0.1:${server.address().port}/api/applications`;
     token  = require('jsonwebtoken').sign({ id: 1, role: 'admin' }, 'health-test');
@@ -99,6 +118,7 @@ const DB_URL = process.env.TEST_DATABASE_URL;
 
   after(async () => {
     server?.close();
+    aiStub?.close();
     await require('../src/db/client').end().catch(() => {});
     await db?.end();
     await admin.query(`DROP DATABASE IF EXISTS ${name} WITH (FORCE)`);
@@ -106,7 +126,7 @@ const DB_URL = process.env.TEST_DATABASE_URL;
   });
 
   beforeEach(async () => {
-    await q('TRUNCATE applications, application_reminders, application_documents, application_events, automation_log RESTART IDENTITY CASCADE');
+    await q('TRUNCATE applications, application_reminders, application_documents, application_events, automation_log, interview_questions, experiences RESTART IDENTITY CASCADE');
     await q(`UPDATE user_settings SET weekly_application_goal = 30`);
     if (!(await q('SELECT 1 FROM user_settings')).length) await q(`INSERT INTO user_settings (weekly_application_goal) VALUES (30)`);
   });
@@ -178,7 +198,7 @@ const DB_URL = process.env.TEST_DATABASE_URL;
     for (let i = 0; i < 3; i++) await reminder(id, 2);        // 3 recent overdue
     const stats = await svc.getDashboardStats();
     assert.strictEqual(stats.due_reminders.length, 5);
-    assert.deepStrictEqual(stats.reminder_counts, { due: 10, overdue: 10, overdue_30d: 7 });
+    assert.deepStrictEqual(stats.reminder_counts, { due: 10, overdue: 10, overdue_7d: 7, overdue_30d: 7 });
     assert.strictEqual(component(stats.health_score, 'reminders_cleared').detail, '10 overdue');
   });
 
@@ -216,6 +236,89 @@ const DB_URL = process.env.TEST_DATABASE_URL;
     assert.strictEqual(await count(id, 'review'), 2, 'new review after a newer update');
   });
 
+  const api = (path, body, method = 'POST') => fetch(`${base}${path}`, {
+    method, headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+
+  it('interview prep: generated questions OR a checklist item count as prepared', async () => {
+    const withQuestions = await app('INTERVIEW_SCHEDULED');
+    const withChecklist = await app('TECHNICAL_TEST');
+    await app('FINAL_INTERVIEW');                                          // not prepared
+    await q(`INSERT INTO interview_questions (application_id, question, difficulty) VALUES ($1, 'Why us?', 'easy')`, [withQuestions]);
+    const r = await api(`/${withChecklist}/interview-prep`, { interview_prep: { checklist: [{ text: 'Review K8s', done: false }] } }, 'PATCH');
+    assert.strictEqual(r.status, 200);
+    const c = component(await svc.computeHealthScore(), 'interviews_prepped');
+    assert.strictEqual(c.detail, '2/3 prepared');
+    assert.strictEqual(c.pts, 10);
+  });
+
+  it('documents check leaves finished applications out', async () => {
+    const live = await app('APPLIED');
+    await q(`INSERT INTO application_documents (application_id, document_type) VALUES ($1, 'CV')`, [live]);
+    await app('REJECTED'); await app('WITHDRAWN');                       // no documents, but finished
+    const d = component(await svc.computeHealthScore(), 'docs_attached');
+    assert.strictEqual(d.detail, '1/1 with a document');
+    assert.strictEqual(d.ok, true);
+  });
+
+  it('clear-overdue with 0 clears every overdue reminder but never future ones', async () => {
+    const id = await app('APPLIED');
+    await reminder(id, 1); await reminder(id, 2); await reminder(id, 40);
+    await q(`INSERT INTO application_reminders (application_id, reminder_type, title, remind_at) VALUES ($1, 'custom', 'Next week', NOW() + INTERVAL '7 days')`, [id]);
+    assert.deepStrictEqual(await (await api('/reminders/clear-overdue', { older_than_days: 0 })).json(), { cleared: 3, older_than_days: 0 });
+    assert.strictEqual(await openReminders(id), 1, 'future reminder kept');
+    assert.strictEqual((await api('/reminders/clear-overdue', { older_than_days: -1 })).status, 400);
+  });
+
+  it('bulk: validates input and requires auth', async () => {
+    for (const body of [{}, { ids: [], action: 'complete_reminders' }, { ids: [1], action: 'nope' },
+                        { ids: [1], action: 'set_status', status: 'BOGUS' }, { ids: ['x'], action: 'complete_reminders' },
+                        { ids: Array.from({ length: 501 }, (_, i) => i + 1), action: 'complete_reminders' }]) {
+      assert.strictEqual((await api('/bulk', body)).status, 400, JSON.stringify(body).slice(0, 60));
+    }
+    assert.strictEqual((await fetch(`${base}/bulk`, { method: 'POST' })).status, 401);
+  });
+
+  it('bulk: mark reminders done only on the selected applications', async () => {
+    const a = await app('APPLIED'), b = await app('APPLIED'), other = await app('APPLIED');
+    for (const id of [a, b, other]) { await reminder(id, 3); await reminder(id, 9, 'review'); }
+    const r = await (await api('/bulk', { ids: [a, b], action: 'complete_reminders' })).json();
+    assert.deepStrictEqual(r, { action: 'complete_reminders', updated: 4 });
+    assert.strictEqual(await openReminders(a), 0);
+    assert.strictEqual(await openReminders(b), 0);
+    assert.strictEqual(await openReminders(other), 2);
+  });
+
+  it('bulk: set status closes reminders, logs one event per changed application, skips unchanged ones', async () => {
+    const a = await app('APPLIED'), b = await app('EMAIL_RECEIVED'), already = await app('GHOSTED');
+    for (const id of [a, b]) await reminder(id, 5);
+    const r = await (await api('/bulk', { ids: [a, b, already, a], action: 'set_status', status: 'GHOSTED' })).json();
+    assert.deepStrictEqual(r, { action: 'set_status', updated: 2, status: 'GHOSTED' });
+    const rows = await q('SELECT id, status, last_response_at IS NOT NULL AS responded FROM applications WHERE id = ANY($1) ORDER BY id', [[a, b]]);
+    assert(rows.every(x => x.status === 'GHOSTED' && x.responded));
+    assert.strictEqual(await openReminders(a) + await openReminders(b), 0, 'trigger closed reminders');
+    const ev = await q(`SELECT application_id FROM application_events WHERE event_type = 'STATUS_CHANGED' ORDER BY 1`);
+    assert.deepStrictEqual(ev.map(e => e.application_id), [a, b], 'no event for the unchanged one, none duplicated');
+  });
+
+  it('generating interview questions works end-to-end (stub AI): experience reaches the prompt, odd difficulty values are normalised', async () => {
+    await q(`INSERT INTO profile (name, headline, bio, email) SELECT 'John', 'DevOps', 'bio', 'j@example.com' WHERE NOT EXISTS (SELECT 1 FROM profile)`);
+    await q(`INSERT INTO experiences (company, role, description, start_date) VALUES ('Acme', 'DevOps Engineer', 'k8s', '2025-01-01'), ('Beta', 'SRE Intern', 'x', '2024-01-01')`);
+    const id = await app('INTERVIEW_SCHEDULED');
+    const r = await fetch(base.replace('/api/applications', `/api/interview-prep/${id}/generate`), {
+      method: 'POST', headers: { authorization: `Bearer ${token}` },
+    });
+    assert.strictEqual(r.status, 200, await r.text());
+    const prompt = lastPrompt;
+    assert.match(prompt, /DevOps Engineer at Acme/, 'recent experience (role) is in the prompt');
+    assert(prompt.indexOf('DevOps Engineer at Acme') < prompt.indexOf('SRE Intern at Beta'), 'most recent first');
+    const qs = await q('SELECT question_type, difficulty FROM interview_questions WHERE application_id = $1 ORDER BY id', [id]);
+    assert.deepStrictEqual(qs.map(x => x.question_type + ':' + x.difficulty),
+      ['technical:hard', 'technical:medium', 'behavioral:medium', 'company:easy']);
+    assert.strictEqual(component(await svc.computeHealthScore(), 'interviews_prepped').ok, true);
+  });
+
   it('clear-overdue marks only reminders older than N days, and validates input', async () => {
     const id = await app('APPLIED');
     for (let i = 0; i < 4; i++) await reminder(id, 45);
@@ -223,7 +326,7 @@ const DB_URL = process.env.TEST_DATABASE_URL;
     const call = body => fetch(`${base}/reminders/clear-overdue`, {
       method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify(body),
     });
-    assert.strictEqual((await call({ older_than_days: 0 })).status, 400);
+    assert.strictEqual((await call({ older_than_days: -1 })).status, 400);
     assert.strictEqual((await call({ older_than_days: 'x' })).status, 400);
     const unauth = await fetch(`${base}/reminders/clear-overdue`, { method: 'POST' });
     assert.strictEqual(unauth.status, 401);

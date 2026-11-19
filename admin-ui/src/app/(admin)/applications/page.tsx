@@ -24,6 +24,16 @@ interface Application {
 }
 
 // ── Status pipeline ──────────────────────────────────────────────────────────
+// Statuses offered by the bulk "Set status" action — the usual way to tidy up
+// applications that went quiet. Final statuses close open reminders (DB trigger).
+const BULK_STATUSES = [
+  { value: 'NO_RESPONSE', label: 'No Response' },
+  { value: 'GHOSTED',     label: 'Ghosted' },
+  { value: 'REJECTED',    label: 'Rejected' },
+  { value: 'WITHDRAWN',   label: 'Withdrawn' },
+  { value: 'ARCHIVED',    label: 'Archived' },
+];
+
 const STATUS_PIPELINE = [
   { value: 'DRAFT',               label: 'Draft',             group: 'prep' },
   { value: 'CV_GENERATED',        label: 'CV Ready',          group: 'prep' },
@@ -119,6 +129,7 @@ function HealthBadge({ app }: { app: Application }) {
 function SkeletonRow() {
   return (
     <tr className="border-b border-gray-800">
+      <td className="pl-4 py-3 w-8"><div className="h-3.5 w-3.5 rounded bg-gray-800 animate-pulse" /></td>
       {[40, 48, 16, 24, 24, 20].map((w, i) => (
         <td key={i} className="px-4 py-3">
           <div className={`h-4 rounded bg-gray-800 animate-pulse w-${w}`} />
@@ -195,6 +206,9 @@ function ApplicationsPageInner() {
   const [showImport,    setShowImport]    = useState(false);
   const [showQuickLog,  setShowQuickLog]  = useState(false);
   const [archiving,     setArchiving]     = useState<number | null>(null);
+  const [selected,      setSelected]      = useState<Set<number>>(new Set());
+  const [bulkStatus,    setBulkStatus]    = useState('NO_RESPONSE');
+  const [bulkBusy,      setBulkBusy]      = useState(false);
 
   const fetchApplications = useCallback(async () => {
     setLoading(true);
@@ -210,6 +224,7 @@ function ApplicationsPageInner() {
       if (searchQuery)    params.search       = searchQuery;
       const data = await adminApi.getApplications(params);
       setApplications(data);
+      setSelected(new Set());
     } catch (err: unknown) {
       setError((err as Error).message || 'Failed to load applications');
     } finally {
@@ -235,6 +250,33 @@ function ApplicationsPageInner() {
       alert((err as Error).message || 'Failed to archive');
     } finally {
       setArchiving(null);
+    }
+  }
+
+  const allSelected = applications.length > 0 && applications.every(a => selected.has(a.id));
+  function toggleOne(id: number) {
+    setSelected(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  }
+  function toggleAll() {
+    setSelected(allSelected ? new Set() : new Set(applications.map(a => a.id)));
+  }
+
+  async function runBulk(action: 'complete_reminders' | 'set_status') {
+    const ids = Array.from(selected);
+    if (!ids.length || bulkBusy) return;
+    const label = BULK_STATUSES.find(s => s.value === bulkStatus)?.label || bulkStatus;
+    const msg = action === 'complete_reminders'
+      ? `Mark all open reminders on ${ids.length} application${ids.length === 1 ? '' : 's'} as done?`
+      : `Set ${ids.length} application${ids.length === 1 ? '' : 's'} to "${label}"? Their open reminders will close.`;
+    if (!window.confirm(msg)) return;
+    setBulkBusy(true);
+    try {
+      await adminApi.bulkApplications(ids, action, action === 'set_status' ? bulkStatus : undefined);
+      await fetchApplications();
+    } catch (err: unknown) {
+      alert((err as Error).message || 'Bulk action failed');
+    } finally {
+      setBulkBusy(false);
     }
   }
 
@@ -335,12 +377,41 @@ function ApplicationsPageInner() {
         <div className="mb-4 px-4 py-3 rounded-lg bg-red-900/30 border border-red-800/50 text-red-400 text-sm">{error}</div>
       )}
 
+      {/* ── Bulk actions (shown when rows are selected) ── */}
+      {viewMode === 'list' && selected.size > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-950/50 border border-indigo-800/50">
+          <span className="text-xs font-semibold text-indigo-200">{selected.size} selected</span>
+          <button onClick={() => runBulk('complete_reminders')} disabled={bulkBusy}
+            className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 disabled:opacity-40 transition-colors">
+            Mark reminders done
+          </button>
+          <span className="text-xs text-gray-500 ml-1">Set status</span>
+          <select value={bulkStatus} onChange={e => setBulkStatus(e.target.value)} disabled={bulkBusy}
+            aria-label="Status to set" className={selectCls}>
+            {BULK_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+          </select>
+          <button onClick={() => runBulk('set_status')} disabled={bulkBusy}
+            className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium disabled:opacity-40 transition-colors">
+            {bulkBusy ? 'Working…' : 'Apply'}
+          </button>
+          <button onClick={() => setSelected(new Set())} disabled={bulkBusy}
+            className="ml-auto text-xs px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition-colors">
+            Clear selection
+          </button>
+        </div>
+      )}
+
       {/* ── List view ── */}
       {viewMode === 'list' && (
         <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-800 text-left">
+                <th className="pl-4 py-3 w-8">
+                  <input type="checkbox" checked={allSelected} onChange={toggleAll}
+                    disabled={loading || applications.length === 0}
+                    aria-label="Select all applications in this list" className="w-3.5 h-3.5 accent-indigo-500" />
+                </th>
                 {['Company', 'Role', 'Score', 'Status', 'Source', 'Applied', 'Actions'].map(h => (
                   <th key={h} className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
                 ))}
@@ -351,7 +422,7 @@ function ApplicationsPageInner() {
                 Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)
               ) : applications.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-20 text-center">
+                  <td colSpan={8} className="px-4 py-20 text-center">
                     <div className="text-gray-500 text-sm mb-3">No applications found.</div>
                     <button onClick={() => setShowImport(true)}
                       className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm rounded-lg transition-colors">
@@ -361,7 +432,11 @@ function ApplicationsPageInner() {
                 </tr>
               ) : (
                 applications.map(app => (
-                  <tr key={app.id} className="border-b border-gray-800/60 hover:bg-gray-800/30 transition-colors">
+                  <tr key={app.id} className={`border-b border-gray-800/60 hover:bg-gray-800/30 transition-colors ${selected.has(app.id) ? 'bg-indigo-950/30' : ''}`}>
+                    <td className="pl-4 py-3 w-8">
+                      <input type="checkbox" checked={selected.has(app.id)} onChange={() => toggleOne(app.id)}
+                        aria-label={`Select ${app.company_name}`} className="w-3.5 h-3.5 accent-indigo-500" />
+                    </td>
                     <td className="px-4 py-3 text-white font-medium whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         {app.company_name}

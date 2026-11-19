@@ -1541,16 +1541,78 @@ router.get('/reminders/due', requireAuth, async (req, res) => {
   }
 });
 
+// ── Bulk actions (Applications list checkboxes) ───────────────
+//   { ids: [..], action: 'complete_reminders' }            → open reminders marked done
+//   { ids: [..], action: 'set_status', status: 'GHOSTED' }  → same as PATCH /:id/status per app
+// One transaction: all selected applications change, or none do. Setting a
+// final status (No Response, Ghosted, Rejected…) also closes their open
+// reminders through the 038 database trigger.
+router.post('/bulk', requireAuth, async (req, res) => {
+  const { ids, action, status } = req.body || {};
+  const appIds = Array.isArray(ids) ? [...new Set(ids.map(Number))] : [];
+  if (!appIds.length || appIds.length > 500 || !appIds.every(n => Number.isInteger(n) && n > 0)) {
+    return res.status(400).json({ error: 'ids must be 1–500 application ids' });
+  }
+  if (!['complete_reminders', 'set_status'].includes(action)) {
+    return res.status(400).json({ error: "action must be 'complete_reminders' or 'set_status'" });
+  }
+  if (action === 'set_status' && !VALID_STATUSES.has(status)) {
+    return res.status(400).json({ error: `Invalid status. Valid values: ${[...VALID_STATUSES].join(', ')}` });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    let updated = 0;
+    if (action === 'complete_reminders') {
+      const r = await client.query(
+        `UPDATE application_reminders SET is_done = TRUE
+         WHERE application_id = ANY($1::int[]) AND is_done = FALSE`,
+        [appIds]
+      );
+      updated = r.rowCount;
+    } else {
+      const sets = ['status = $1', 'updated_at = NOW()'];
+      if (status === 'APPLIED') sets.push('applied_at = NOW()');
+      if (['OFFER', 'NEGOTIATING', 'ACCEPTED', 'DECLINED_OFFER', 'REJECTED', 'NO_RESPONSE', 'GHOSTED'].includes(status)) {
+        sets.push('last_response_at = NOW()');
+      }
+      // Only rows whose status actually changes — no duplicate events.
+      const r = await client.query(
+        `UPDATE applications SET ${sets.join(', ')}
+         WHERE id = ANY($2::int[]) AND status IS DISTINCT FROM $1
+         RETURNING id`,
+        [status, appIds]
+      );
+      updated = r.rowCount;
+      if (updated) {
+        await client.query(
+          `INSERT INTO application_events (application_id, event_type, description)
+           SELECT unnest($1::int[]), 'STATUS_CHANGED', $2`,
+          [r.rows.map(x => x.id), `Status updated to ${status} (bulk)`]
+        );
+      }
+    }
+    await client.query('COMMIT');
+    res.json({ action, updated, ...(status ? { status } : {}) });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
 // ── Clear old overdue reminders (dashboard "Clear" button) ────
 // Marks reminders done that have been overdue for more than N days
-// (default 30, minimum 1) — automatic follow-up/review nudges that were
-// never acted on. Recent ones are kept so nothing current is lost.
+// (default 30). 0 = every overdue reminder, whatever its age. Reminders
+// not yet due are never touched.
 router.post('/reminders/clear-overdue', requireAuth, async (req, res) => {
   try {
     const raw  = req.body?.older_than_days ?? 30;
     const days = Number.parseInt(raw, 10);
-    if (!Number.isInteger(days) || days < 1 || days > 3650) {
-      return res.status(400).json({ error: 'older_than_days must be a whole number between 1 and 3650' });
+    if (!Number.isInteger(days) || days < 0 || days > 3650) {
+      return res.status(400).json({ error: 'older_than_days must be a whole number between 0 and 3650' });
     }
     const result = await pool.query(
       `UPDATE application_reminders

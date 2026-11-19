@@ -14,7 +14,7 @@ type DashStats = {
   daily_counts: Array<{ day: string; cnt: number }>;
   health_score: { total: number; label: string; color: string; components?: HealthComponent[] };
   due_reminders: Array<{ id: number; title: string; remind_at: string; company_name: string; application_id: number }>;
-  reminder_counts?: { due: number; overdue: number; overdue_30d: number };
+  reminder_counts?: { due: number; overdue: number; overdue_7d?: number; overdue_30d: number };
   pipeline_counts: { prep: number; active: number; interview: number; offer: number; closed: number };
   recent_activity: Array<{ event_type: string; description: string; event_date: string; company_name: string; job_title: string; application_id: number }>;
 };
@@ -83,6 +83,7 @@ export default function DashboardPage() {
   const [savingAvail, setSavingAvail]       = useState(false);
   const [loading, setLoading]               = useState(true);
   const [clearing, setClearing]             = useState(false);
+  const [clearMenuOpen, setClearMenuOpen]   = useState(false);
 
   useEffect(() => {
     Promise.allSettled([
@@ -119,12 +120,15 @@ export default function DashboardPage() {
     }).finally(() => setLoading(false));
   }, []);
 
-  async function clearOldReminders(count: number) {
-    if (clearing) return;
-    if (!window.confirm(`Mark ${count} reminder${count === 1 ? '' : 's'} overdue for more than 30 days as done?`)) return;
+  // days = 0 → every overdue reminder; otherwise only those overdue longer.
+  async function clearReminders(days: number, count: number) {
+    setClearMenuOpen(false);
+    if (clearing || !count) return;
+    const scope = days === 0 ? 'overdue' : `overdue for more than ${days} days`;
+    if (!window.confirm(`Mark ${count} reminder${count === 1 ? '' : 's'} ${scope} as done?`)) return;
     setClearing(true);
     try {
-      await adminApi.clearOverdueReminders(30);
+      await adminApi.clearOverdueReminders(days);
       setDashStats(await adminApi.getDashboardStats() as DashStats);
     } catch { /* leave the card as it was */ }
     finally { setClearing(false); }
@@ -331,17 +335,37 @@ export default function DashboardPage() {
           {rc && rc.overdue > 0 && (
             <div className="flex items-center justify-between gap-2 text-[11px]">
               <span className="whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.45)' }}>{rc.overdue} overdue</span>
-              {rc.overdue_30d > 0 && (
+              <div className="relative">
                 <button
-                  onClick={() => clearOldReminders(rc.overdue_30d)}
+                  onClick={() => setClearMenuOpen(o => !o)}
                   disabled={clearing}
-                  title="Mark reminders overdue for more than 30 days as done"
+                  aria-haspopup="menu"
+                  aria-expanded={clearMenuOpen}
+                  title="Mark overdue reminders as done"
                   className="px-2 py-0.5 rounded-full whitespace-nowrap transition-all hover:brightness-150 disabled:opacity-40"
                   style={{ background: 'rgba(255,255,255,0.06)', color: '#DDD6FE', border: '1px solid rgba(255,255,255,0.12)' }}
                 >
-                  {clearing ? 'Clearing…' : `Clear ${rc.overdue_30d} older than 30d`}
+                  {clearing ? 'Clearing…' : 'Clear overdue ▾'}
                 </button>
-              )}
+                {clearMenuOpen && (
+                  <div role="menu" className="absolute right-0 top-7 z-20 w-48 rounded-lg overflow-hidden shadow-xl"
+                    style={{ background: '#1e1033', border: '1px solid rgba(255,255,255,0.14)' }}>
+                    {[
+                      { days: 0,  label: 'All overdue',         count: rc.overdue },
+                      { days: 7,  label: 'Older than 7 days',   count: rc.overdue_7d ?? 0 },
+                      { days: 30, label: 'Older than 30 days',  count: rc.overdue_30d },
+                    ].map(o => (
+                      <button key={o.days} role="menuitem" disabled={!o.count}
+                        onClick={() => clearReminders(o.days, o.count)}
+                        className="w-full flex items-center justify-between px-3 py-2 text-left text-xs transition-colors hover:bg-white/10 disabled:opacity-40 disabled:hover:bg-transparent"
+                        style={{ color: 'rgba(255,255,255,0.85)' }}>
+                        <span>{o.label}</span>
+                        <span style={{ color: '#f87171' }}>{o.count}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
           {dashStats?.due_reminders?.length ? (
