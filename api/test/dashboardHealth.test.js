@@ -43,6 +43,13 @@ describe('Final statuses', () => {
     assert.strictEqual(lists.length, 2, 'trigger + one-off update');
     for (const l of lists) assert.deepStrictEqual(l, [...FINAL_STATUSES].sort());
   });
+  it('migration 040 allows exactly VALID_STATUSES (repair filter + CHECK constraint)', () => {
+    const { VALID_STATUSES } = require('../src/constants/applicationStatuses');
+    const sql = fs.readFileSync(path.resolve(__dirname, '../../db/migrations/040_valid_application_status.sql'), 'utf8');
+    const lists = [...sql.matchAll(/status (?:NOT )?IN \(([^)]*)\)/g)].map(m => m[1].match(/'([A-Z_]+)'/g).map(s => s.slice(1, -1)).sort());
+    assert.strictEqual(lists.length, 2, 'repair filter + constraint');
+    for (const l of lists) assert.deepStrictEqual(l, [...VALID_STATUSES].sort());
+  });
 });
 
 function loadDashboardService() {
