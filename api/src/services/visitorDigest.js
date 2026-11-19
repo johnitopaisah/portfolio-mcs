@@ -6,6 +6,7 @@
 // ============================================================
 
 const nodemailer = require('nodemailer');
+const { digestPlan, claimDigest } = require('./digestSchedule');
 const pool       = require('../db/client');
 
 // ── Schedule helper ───────────────────────────────────────────
@@ -66,8 +67,8 @@ function createTransport() {
 }
 
 // ── Query helpers ─────────────────────────────────────────────
-async function getStats() {
-  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+async function getStats(hours = 24) {
+  const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
 
   const [
     totalRes, uniqueRes, countryRes, refererRes, deviceRes, hourRes, botRes, allTimeRes,
@@ -151,7 +152,7 @@ function deviceIcon(d) {
 }
 
 // ── Build HTML email ──────────────────────────────────────────
-function buildHtml(stats, dateStr) {
+function buildHtml(stats, dateStr, period = 'daily') {
   const noVisits = stats.total === 0;
 
   const countryRows = stats.countries.map(c =>
@@ -178,13 +179,13 @@ function buildHtml(stats, dateStr) {
   return `
 <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
   <div style="background:#7c3aed;padding:24px 32px;border-radius:12px 12px 0 0">
-    <h2 style="color:#fff;margin:0;font-size:20px">📊 Daily Visitor Report</h2>
+    <h2 style="color:#fff;margin:0;font-size:20px">📊 ${period === 'weekly' ? 'Weekly' : 'Daily'} Visitor Report</h2>
     <p style="color:#c4b5fd;margin:6px 0 0;font-size:14px">${dateStr} · johnisah.com</p>
   </div>
 
   <div style="background:#18181b;padding:28px 32px;border:1px solid #27272a;border-top:none">
 
-    ${noVisits ? `<p style="color:#71717a;font-size:14px;text-align:center;padding:24px 0">No visitors recorded in the last 24 hours.</p>` : ''}
+    ${noVisits ? `<p style="color:#71717a;font-size:14px;text-align:center;padding:24px 0">No visitors recorded in the last ${period === 'weekly' ? '7 days' : '24 hours'}.</p>` : ''}
 
     <!-- Summary strip -->
     <table style="width:100%;border-collapse:collapse;margin-bottom:28px">
@@ -240,14 +241,29 @@ function buildHtml(stats, dateStr) {
 }
 
 // ── Send digest ───────────────────────────────────────────────
-async function sendDailyDigest() {
+// scheduled: true from the daily timer — honours the digest schedule (daily /
+// weekly / off) and lets only one API pod send (they used to send one each).
+async function sendDailyDigest({ scheduled = false } = {}) {
   if (!process.env.NOTIFY_EMAIL_USER || !process.env.NOTIFY_EMAIL_PASS) {
     console.warn('[digest] Email env vars not set — skipping daily digest');
     return;
   }
 
+  let period = 'daily', hours = 24;
+  if (scheduled) {
+    try {
+      const plan = await digestPlan();
+      if (!plan.send) { console.log(`[digest] Not sending — ${plan.reason}`); return; }
+      if (!(await claimDigest('visitor_digest'))) { console.log('[digest] Another API instance is sending this digest — skipping'); return; }
+      ({ period, hours } = plan);
+    } catch (err) {
+      console.error('[digest] Could not check the digest schedule:', err.message);
+      return;
+    }
+  }
+
   try {
-    const stats   = await getStats();
+    const stats   = await getStats(hours);
     const dateStr = new Date().toLocaleDateString('en-GB', {
       weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
       timeZone: 'Europe/Paris',
@@ -256,10 +272,10 @@ async function sendDailyDigest() {
     await createTransport().sendMail({
       from:    `"Portfolio Notifications" <${process.env.NOTIFY_EMAIL_USER}>`,
       to:      process.env.NOTIFY_EMAIL_TO || process.env.NOTIFY_EMAIL_USER,
-      subject: `[Portfolio] ${stats.total} visit${stats.total !== 1 ? 's' : ''} today — ${new Date().toLocaleDateString('en-GB')}`,
-      html:    buildHtml(stats, dateStr),
+      subject: `[Portfolio] ${stats.total} visit${stats.total !== 1 ? 's' : ''} ${period === 'weekly' ? 'this week' : 'today'} — ${new Date().toLocaleDateString('en-GB')}`,
+      html:    buildHtml(stats, dateStr, period),
       text:    [
-        `Daily Visitor Report — ${dateStr}`,
+        `${period === 'weekly' ? 'Weekly' : 'Daily'} Visitor Report — ${dateStr}`,
         ``,
         `Total visits: ${stats.total}`,
         `Unique sessions: ${stats.unique}`,
@@ -282,7 +298,7 @@ async function sendDailyDigest() {
 // ── Public API ────────────────────────────────────────────────
 function startDailyDigest() {
   // Send at 08:00 Europe/Paris every day
-  scheduleDaily(sendDailyDigest, 8, 0, 'Europe/Paris');
+  scheduleDaily(() => sendDailyDigest({ scheduled: true }), 8, 0, 'Europe/Paris');
 }
 
 module.exports = { startDailyDigest, sendDailyDigest };

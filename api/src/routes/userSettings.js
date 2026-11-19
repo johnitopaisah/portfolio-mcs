@@ -26,7 +26,18 @@ router.patch('/', requireAuth, async (req, res, next) => {
     'target_role', 'target_salary_min', 'target_salary_max',
     'target_locations', 'target_work_arrangements',
     'available_from', 'notice_period_days',
+    // Notification preferences (Goals page) — see digestSchedule.js / outboxService.js
+    'preferred_reminder_channel', 'digest_schedule',
   ];
+  const ALLOWED_VALUES = {
+    preferred_reminder_channel: ['email', 'in_app'],
+    digest_schedule:            ['daily', 'weekly', 'off'],
+  };
+  for (const [key, values] of Object.entries(ALLOWED_VALUES)) {
+    if (req.body[key] !== undefined && !values.includes(req.body[key])) {
+      return res.status(400).json({ error: `${key} must be one of: ${values.join(', ')}` });
+    }
+  }
   const fields = [];
   const vals   = [];
   let i = 1;

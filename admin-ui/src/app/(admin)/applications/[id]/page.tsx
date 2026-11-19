@@ -4,6 +4,8 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { adminApi } from '@/lib/api';
 import DocumentEditor from '@/components/DocumentEditor';
+import ApplicationContextCard from '@/components/ApplicationContextCard';
+import { confirmDialog, showError } from '@/lib/dialog';
 
 // ── Types ────────────────────────────────────────────────────
 interface AppEvent {
@@ -86,7 +88,7 @@ interface Application {
   interview_prep: {
     tech_to_review?: string[];
     key_requirements?: string[];
-    checklist?: { text: string; done: boolean }[];
+    checklist?: { text: string; done: boolean; source?: 'ai' }[];
     star_prompts?: string[];
   } | null;
   created_at: string;
@@ -1682,6 +1684,7 @@ export default function ApplicationDetailPage() {
   const [showCommsForm,  setShowCommsForm]  = useState(false);
   const [commsForm,      setCommsForm]      = useState({ direction: 'OUTBOUND', channel: 'email', subject: '', body_preview: '' });
   const [commsSaving,    setCommsSaving]    = useState(false);
+  const [draftingEmail,  setDraftingEmail]  = useState(false);
   const [linkedIn,       setLinkedIn]       = useState<Array<{ id: number; target_name: string; connection_note?: string; status: string; sent_at?: string }>>([]);
   const [liLoading,      setLiLoading]      = useState(false);
 
@@ -1693,6 +1696,7 @@ export default function ApplicationDetailPage() {
   // Interview prep
   const [prepSaving,       setPrepSaving]       = useState(false);
   const [newPrepItem,      setNewPrepItem]      = useState('');
+  const [checklistGenerating, setChecklistGenerating] = useState(false);
 
   const fetchApp = useCallback(async () => {
     try {
@@ -1724,8 +1728,9 @@ export default function ApplicationDetailPage() {
     if (activeSection === 'interview' && interviewQs.length === 0 && !iqLoading) {
       setIqLoading(true);
       adminApi.getInterviewQuestions(Number(id))
-        .then((d: unknown) => setInterviewQs((d as { questions?: typeof interviewQs }).questions ?? []))
-        .catch(() => {})
+        // The API returns { questions }; accept a bare array from older API images.
+        .then((d: unknown) => setInterviewQs(Array.isArray(d) ? d as typeof interviewQs : (d as { questions?: typeof interviewQs }).questions ?? []))
+        .catch(err => showError(err, "Couldn't load the saved interview questions."))
         .finally(() => setIqLoading(false));
     }
     if (activeSection === 'comms' && comms.length === 0 && !commsLoading) {
@@ -1757,7 +1762,7 @@ export default function ApplicationDetailPage() {
       await adminApi.patchApplicationStatus(id, newStatus, statusChangeNote || undefined);
       setStatusChangeNote('');
       await fetchApp();
-    } catch (err: unknown) { alert((err as Error).message || 'Failed'); }
+    } catch (err: unknown) { showError(err, 'Failed'); }
     finally { setStatusChanging(false); }
   }
 
@@ -1769,14 +1774,14 @@ export default function ApplicationDetailPage() {
       setContactFormData({ name: '', title: '', email: '', linkedin_url: '', role: 'recruiter', notes: '' });
       setShowContactForm(false);
       await fetchApp();
-    } catch (err: unknown) { alert((err as Error).message || 'Failed'); }
+    } catch (err: unknown) { showError(err, 'Failed'); }
     finally { setContactSaving(false); }
   }
 
   async function handleDeleteContact(cid: number) {
-    if (!window.confirm('Remove this contact?')) return;
+    if (!(await confirmDialog({ title: "Remove this contact?", message: "They are removed from this application.", confirmLabel: 'Remove', tone: 'danger' }))) return;
     try { await adminApi.deleteContact(id, cid); await fetchApp(); }
-    catch (err: unknown) { alert((err as Error).message || 'Failed'); }
+    catch (err: unknown) { showError(err, 'Failed'); }
   }
 
   async function handleAddReminder() {
@@ -1787,13 +1792,13 @@ export default function ApplicationDetailPage() {
       setReminderFormData({ title: '', remind_at: '', reminder_type: 'follow_up' });
       setShowReminderForm(false);
       await fetchApp();
-    } catch (err: unknown) { alert((err as Error).message || 'Failed'); }
+    } catch (err: unknown) { showError(err, 'Failed'); }
     finally { setReminderSaving(false); }
   }
 
   async function handleToggleReminder(rid: number, is_done: boolean) {
     try { await adminApi.patchReminder(id, rid, { is_done }); await fetchApp(); }
-    catch (err: unknown) { alert((err as Error).message || 'Failed'); }
+    catch (err: unknown) { showError(err, 'Failed'); }
   }
 
   async function handleTogglePrepItem(idx: number) {
@@ -1815,7 +1820,7 @@ export default function ApplicationDetailPage() {
     setPrepSaving(true);
     const prep = { ...(app.interview_prep || {}), checklist };
     try { await adminApi.updateInterviewPrep(id, prep as Record<string, unknown>); await fetchApp(); }
-    catch { alert('Could not save the checklist — try again.'); }
+    catch { showError("Couldn't save the checklist — please try again."); }
     finally { setPrepSaving(false); }
   }
 
@@ -1837,17 +1842,17 @@ export default function ApplicationDetailPage() {
     try {
       await adminApi.patchApplicationStatus(id, 'APPLIED');
       await fetchApp();
-    } catch (err: unknown) { alert((err as Error).message || 'Failed'); }
+    } catch (err: unknown) { showError(err, 'Failed'); }
     finally { setActionBusy(null); }
   }
 
   async function handleArchive() {
-    if (!app || !window.confirm(`Archive application for ${app.company_name}?`)) return;
+    if (!app || !(await confirmDialog({ title: `Archive ${app.company_name}?`, message: 'It leaves your active pipeline and its open reminders close. You can still find it under Archived.', confirmLabel: 'Archive' }))) return;
     setActionBusy('archive');
     try {
       await adminApi.archiveApplication(app.id);
       router.push('/applications');
-    } catch (err: unknown) { alert((err as Error).message || 'Failed'); setActionBusy(null); }
+    } catch (err: unknown) { showError(err, 'Failed'); setActionBusy(null); }
   }
 
   async function handleAddNote(e: React.FormEvent) {
@@ -1855,7 +1860,7 @@ export default function ApplicationDetailPage() {
     if (!note.trim()) return;
     setNoteSubmitting(true);
     try { await adminApi.addNote(id, note.trim()); setNote(''); await fetchApp(); }
-    catch (err: unknown) { alert((err as Error).message || 'Failed'); }
+    catch (err: unknown) { showError(err, 'Failed'); }
     finally { setNoteSubmitting(false); }
   }
 
@@ -1904,7 +1909,7 @@ export default function ApplicationDetailPage() {
       setDeleteConfirmDoc(null);
       await fetchApp();
     } catch (err: unknown) {
-      alert((err as Error).message || 'Delete failed');
+      showError(err, 'Delete failed');
     } finally {
       setDeleteLoading(false);
     }
@@ -1917,8 +1922,20 @@ export default function ApplicationDetailPage() {
     try {
       const d = await adminApi.generateInterviewQuestions(Number(id)) as { questions?: typeof interviewQs };
       setInterviewQs(d.questions ?? []);
-    } catch (err: unknown) { alert((err as Error).message || 'Generation failed'); }
+      await fetchApp();   // generation also adds AI items to the prep checklist
+    } catch (err: unknown) { showError(err, 'Generation failed'); }
     finally { setIqGenerating(false); }
+  }
+
+  // AI checklist items are added after yours; nothing you wrote is replaced.
+  async function handleGenerateChecklist() {
+    if (!id) return;
+    setChecklistGenerating(true);
+    try {
+      await adminApi.generatePrepChecklist(Number(id));
+      await fetchApp();
+    } catch (err: unknown) { showError(err, "Couldn't generate the checklist."); }
+    finally { setChecklistGenerating(false); }
   }
 
   async function handleSaveDebrief() {
@@ -1942,6 +1959,18 @@ export default function ApplicationDetailPage() {
       setShowCommsForm(false);
     } catch {}
     finally { setCommsSaving(false); }
+  }
+
+  // Drafts a recruiter email in the Outbox (AI-polished) and opens it there
+  // for review — nothing is sent until you approve it.
+  async function handleNewOutboxEmail() {
+    if (!id) return;
+    setDraftingEmail(true);
+    try {
+      const d = await adminApi.createOutboxDraft({ application_id: Number(id) }) as { id: number };
+      router.push(`/outbox?id=${d.id}`);
+    } catch (err: unknown) { showError(err, "Couldn't draft the email."); }
+    finally { setDraftingEmail(false); }
   }
 
   // ── Company Research handler ─────────────────────────────────
@@ -2669,7 +2698,14 @@ export default function ApplicationDetailPage() {
             </div>
             <div className="lg:col-span-2 flex flex-col gap-4">
               <div className="rounded-2xl p-5" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
-                <p className="text-sm font-semibold mb-3" style={{ color: '#DDD6FE' }}>Prep Checklist</p>
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <p className="text-sm font-semibold" style={{ color: '#DDD6FE' }}>Prep Checklist</p>
+                  <button onClick={handleGenerateChecklist} disabled={checklistGenerating || prepSaving}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50"
+                    style={{ background: 'linear-gradient(135deg, #A855F7, #7C3AED)', color: '#fff' }}>
+                    {checklistGenerating ? 'Generating…' : 'Generate with AI'}
+                  </button>
+                </div>
                 {app.interview_prep?.checklist?.length ? app.interview_prep.checklist.map((item, i) => (
                   <div key={i} className="group flex items-center gap-2 py-1.5">
                     <button onClick={() => handleTogglePrepItem(i)} disabled={prepSaving}
@@ -2679,6 +2715,8 @@ export default function ApplicationDetailPage() {
                       {item.done && <span className="text-xs" style={{ color: '#4ade80' }}>✓</span>}
                     </button>
                     <p className="flex-1 text-xs" style={{ color: item.done ? 'rgba(255,255,255,0.32)' : 'rgba(255,255,255,0.75)', textDecoration: item.done ? 'line-through' : 'none' }}>{item.text}</p>
+                    {item.source === 'ai' && <span className="text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0" title="Suggested by AI"
+                      style={{ background: 'rgba(168,85,247,0.15)', color: '#C4B5FD' }}>AI</span>}
                     <button onClick={() => handleRemovePrepItem(i)} disabled={prepSaving} aria-label="Remove item"
                       className="text-xs px-1 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity disabled:opacity-30"
                       style={{ color: '#f87171' }}>✕</button>
@@ -2697,6 +2735,7 @@ export default function ApplicationDetailPage() {
                   </button>
                 </form>
               </div>
+              <ApplicationContextCard appId={Number(id)} />
             </div>
           </div>
         )}
@@ -2707,11 +2746,19 @@ export default function ApplicationDetailPage() {
             <div className="rounded-2xl p-5" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
               <div className="flex items-center justify-between mb-4">
                 <p className="text-sm font-semibold" style={{ color: '#DDD6FE' }}>Communication Log</p>
+                <div className="flex items-center gap-2">
+                <button onClick={handleNewOutboxEmail} disabled={draftingEmail}
+                  title="Draft an email to the recruiter — it is only sent after you approve it in the Outbox"
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50"
+                  style={{ background: 'linear-gradient(135deg, #A855F7, #7C3AED)', color: '#fff' }}>
+                  {draftingEmail ? 'Drafting…' : '✉ New email'}
+                </button>
                 <button onClick={() => setShowCommsForm(p => !p)}
                   className="px-3 py-1.5 rounded-lg text-xs font-medium"
                   style={{ background: 'rgba(168,85,247,0.15)', color: '#DDD6FE' }}>
                   + Log
                 </button>
+                </div>
               </div>
               {showCommsForm && (
                 <div className="mb-4 p-4 rounded-xl flex flex-col gap-3" style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(168,85,247,0.15)' }}>

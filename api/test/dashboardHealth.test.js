@@ -102,6 +102,7 @@ const DB_URL = process.env.TEST_DATABASE_URL;
     process.env.DATABASE_URL = url;
     process.env.JWT_SECRET   = 'health-test';
     process.env.NODE_ENV     = 'test';
+    require('./support/freshSrc')();
     svc = loadDashboardService();
 
     const express = require('express');

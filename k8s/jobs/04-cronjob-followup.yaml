@@ -117,6 +117,11 @@ spec:
                   name: portfolio-secrets
                   key: NOTIFY_EMAIL_PASS
                   optional: true
+            # Links in the Outbox approval email (see services/outboxService.js)
+            - name: API_PUBLIC_URL
+              value: "https://api.johnisah.com"
+            - name: ADMIN_URL
+              value: "https://admin.johnisah.com"
             - name: NOTIFY_EMAIL_TO
               valueFrom:
                 secretKeyRef:

@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { adminApi } from '@/lib/api';
+import { confirmDialog } from '@/lib/dialog';
 
 type Tab = 'targets' | 'discovery';
 
@@ -316,7 +317,7 @@ export default function TargetsPage() {
   }
 
   async function remove(id: string) {
-    if (!confirm('Delete this target? Discovery will stop searching for it immediately.')) return;
+    if (!(await confirmDialog({ title: "Delete this target?", message: "Job discovery will stop searching for it immediately.", confirmLabel: 'Delete', tone: 'danger' }))) return;
     try {
       await adminApi.deleteJobTarget(id);
       await load();

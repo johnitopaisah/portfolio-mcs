@@ -581,6 +581,28 @@ export const adminApi = {
     request(`/api/interview-prep/${appId}/questions/${qId}`, { method: 'DELETE' }),
   saveInterviewDebrief: (appId: number, data: Record<string, unknown>) =>
     request(`/api/interview-prep/${appId}/debrief`, { method: 'PATCH', body: JSON.stringify(data) }),
+  generatePrepChecklist: (appId: number) =>
+    request(`/api/interview-prep/${appId}/checklist`, { method: 'POST' }),
+
+  // ── Application context (CV used + job description, fed to the AI) ──
+  getCvOptions: () => request('/api/applications/context/cv-options'),
+  getApplicationContext: (appId: number) => request(`/api/applications/${appId}/context`),
+  setApplicationContext: (appId: number, data: { cv_source?: string | null; job_description?: string | null }) =>
+    request(`/api/applications/${appId}/context`, { method: 'PUT', body: JSON.stringify(data) }),
+  uploadApplicationCv: (appId: number, file: File) => {
+    const fd = new FormData(); fd.append('cv', file);
+    return upload(`/api/applications/${appId}/context/cv-upload`, fd);
+  },
+
+  // ── Outbox (recruiter emails sent only after approval) ───────
+  getOutbox: (status?: string) => request(status ? `/api/outbox?status=${encodeURIComponent(status)}` : '/api/outbox'),
+  getOutboxEmail: (id: number) => request(`/api/outbox/${id}`),
+  createOutboxDraft: (data: { application_id: number; to_email?: string; to_name?: string; subject?: string; body?: string; polish?: boolean }) =>
+    request('/api/outbox', { method: 'POST', body: JSON.stringify(data) }),
+  updateOutboxEmail: (id: number, data: { to_email?: string; to_name?: string; subject?: string; body?: string }) =>
+    request(`/api/outbox/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  outboxAction: (id: number, action: 'approve' | 'skip' | 'undo' | 'polish') =>
+    request(`/api/outbox/${id}/${action}`, { method: 'POST' }),
 
   // ── Email Templates ──────────────────────────────────────────
   getEmailTemplates: (category?: string) =>

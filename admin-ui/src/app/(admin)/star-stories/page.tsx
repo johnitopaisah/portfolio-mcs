@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { adminApi } from '@/lib/api';
+import { confirmDialog } from '@/lib/dialog';
 
 const THEMES = [
   'Leadership', 'Teamwork', 'Problem Solving', 'Communication', 'Adaptability',
@@ -103,7 +104,7 @@ export default function StarStoriesPage() {
   }
 
   async function handleDelete(id: number) {
-    if (!confirm('Delete this STAR story?')) return;
+    if (!(await confirmDialog({ title: "Delete this STAR story?", message: "This can't be undone.", confirmLabel: 'Delete', tone: 'danger' }))) return;
     try { await adminApi.deleteStarStory(id); await load(); }
     catch { setError('Delete failed'); }
   }

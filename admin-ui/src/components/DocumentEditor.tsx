@@ -11,6 +11,7 @@ import {
   ClassParagraph, ClassHeading, ClassListItem, ClassBulletList, ClassOrderedList,
 } from '@/lib/tiptapPassthrough';
 import { adminApi } from '@/lib/api';
+import { showError } from '@/lib/dialog';
 
 interface DocumentEditorProps {
   appId: number | string;
@@ -155,7 +156,7 @@ export default function DocumentEditor({
       setWarnings(w);
       onSaved(w);
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : 'Save failed');
+      showError(e, 'Save failed');
     } finally {
       setSaving(false);
     }

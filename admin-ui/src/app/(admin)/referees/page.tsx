@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import { adminApi } from '@/lib/api';
+import { confirmDialog, showError } from '@/lib/dialog';
 
 interface StarConfig {
   enabled: boolean;
@@ -105,7 +106,7 @@ function StarSettingsModal({ referee, onClose, onPublished }: {
       await adminApi.saveStarConfig(referee.id, config as unknown as Record<string, unknown>);
       setLiveConfig(config);
       onPublished(referee.id, config);
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { showError(e); }
     finally { setSaving(false); }
   }
 
@@ -382,7 +383,7 @@ function InviteModal({ refereeId, refereeName, onClose, onDone }: {
         : await adminApi.createInvitation(payload);
       setResult(inv);
       onDone(inv);
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { showError(e); }
     finally { setSaving(false); }
   }
 
@@ -620,7 +621,7 @@ function ContactRequestDetail({
     try {
       const updated = await fn();
       if (updated) onUpdate(updated);
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { showError(e); }
     finally { setActionLoading(false); }
   }
 
@@ -883,9 +884,9 @@ function ContactRequestDetail({
 
       {/* Delete */}
       <div className="pt-2 flex justify-end">
-        <button onClick={() => {
-          if (!confirm('Delete this request permanently?')) return;
-          adminApi.deleteContactRequest(req.id).then(() => onDelete(req.id)).catch((e: any) => alert(e.message));
+        <button onClick={async () => {
+          if (!(await confirmDialog({ title: "Delete this request permanently?", message: "The contact request and the requester's details are removed. This can't be undone.", confirmLabel: 'Delete', tone: 'danger' }))) return;
+          adminApi.deleteContactRequest(req.id).then(() => onDelete(req.id)).catch((e: unknown) => showError(e));
         }} className="text-xs text-red-400 hover:text-red-300">
           Delete request
         </button>
@@ -1081,27 +1082,27 @@ export default function RefereesPage() {
         ? await adminApi.updateReferee(editing.id, fd)
         : await adminApi.createReferee(fd);
       setShowForm(false); loadReferees();
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { showError(e); }
     finally { setSaving(false); }
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this referee?')) return;
+    if (!(await confirmDialog({ title: "Delete this referee?", message: "Their review and details are removed from your portfolio. This can't be undone.", confirmLabel: 'Delete', tone: 'danger' }))) return;
     try { await adminApi.deleteReferee(id); loadReferees(); }
-    catch (e: any) { alert(e.message); }
+    catch (e: any) { showError(e); }
   }
 
   async function toggleVisibility(r: Referee) {
     try {
       await adminApi.toggleRefereeVisibility(r.id, !r.visible);
       loadReferees();
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { showError(e); }
   }
 
   async function revokeInvitation(id: string) {
-    if (!confirm('Revoke this invitation link?')) return;
+    if (!(await confirmDialog({ title: "Revoke this invitation link?", message: "The referee will no longer be able to use it to submit a review.", confirmLabel: 'Revoke', tone: 'danger' }))) return;
     try { await adminApi.revokeInvitation(id); loadInvitations(); }
-    catch (e: any) { alert(e.message); }
+    catch (e: any) { showError(e); }
   }
 
   if (loading) return <p className="text-gray-500 text-sm">Loading…</p>;

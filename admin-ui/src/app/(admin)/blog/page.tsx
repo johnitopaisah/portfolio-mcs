@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { adminApi } from '@/lib/api';
+import { confirmDialog } from '@/lib/dialog';
 
 interface BlogPost {
   id: string;
@@ -175,7 +176,7 @@ export default function BlogPage() {
   }
 
   async function handleDeleteShare(post: BlogPost) {
-    if (!confirm(`Delete the LinkedIn post for "${post.title}"? This cannot be undone.`)) return;
+    if (!(await confirmDialog({ title: 'Delete the LinkedIn post?', message: `The post for "${post.title}" will be deleted from LinkedIn. This can't be undone.`, confirmLabel: 'Delete post', tone: 'danger' }))) return;
     setDeletingId(post.id);
     try {
       await adminApi.deleteLinkedInShare(post.id);

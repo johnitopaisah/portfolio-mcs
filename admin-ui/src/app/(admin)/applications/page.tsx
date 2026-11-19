@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { adminApi } from '@/lib/api';
 import ImportJobDrawer from '@/components/ImportJobDrawer';
 import QuickLogDrawer from '@/components/QuickLogDrawer';
+import { confirmDialog, showError } from '@/lib/dialog';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 interface Application {
@@ -241,13 +242,13 @@ function ApplicationsPageInner() {
   useEffect(() => { fetchApplications(); }, [fetchApplications]);
 
   async function handleArchive(id: number, company: string) {
-    if (!window.confirm(`Archive application for ${company}?`)) return;
+    if (!(await confirmDialog({ title: `Archive ${company}?`, message: 'It leaves your active pipeline and its open reminders close. You can still find it under Archived.', confirmLabel: 'Archive' }))) return;
     setArchiving(id);
     try {
       await adminApi.archiveApplication(id);
       setApplications(prev => prev.filter(a => a.id !== id));
     } catch (err: unknown) {
-      alert((err as Error).message || 'Failed to archive');
+      showError(err, 'Failed to archive');
     } finally {
       setArchiving(null);
     }
@@ -268,13 +269,13 @@ function ApplicationsPageInner() {
     const msg = action === 'complete_reminders'
       ? `Mark all open reminders on ${ids.length} application${ids.length === 1 ? '' : 's'} as done?`
       : `Set ${ids.length} application${ids.length === 1 ? '' : 's'} to "${label}"? Their open reminders will close.`;
-    if (!window.confirm(msg)) return;
+    if (!(await confirmDialog({ title: action === 'complete_reminders' ? 'Mark reminders done?' : `Set status to "${label}"?`, message: msg, confirmLabel: action === 'complete_reminders' ? 'Mark done' : 'Apply' }))) return;
     setBulkBusy(true);
     try {
       await adminApi.bulkApplications(ids, action, action === 'set_status' ? bulkStatus : undefined);
       await fetchApplications();
     } catch (err: unknown) {
-      alert((err as Error).message || 'Bulk action failed');
+      showError(err, 'Bulk action failed');
     } finally {
       setBulkBusy(false);
     }

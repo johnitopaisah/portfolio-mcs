@@ -12,6 +12,7 @@
 
 const pool       = require('../../db/client');
 const nodemailer = require('nodemailer');
+const { digestPlan, claimDigest } = require('../digestSchedule');
 const config     = require('./config');
 const jobMetrics = require('../../metrics/jobMetrics');
 
@@ -71,7 +72,7 @@ function scheduleDaily(fn, hour, minute, timeZone) {
 
 function startDailyJobDigest() {
   // 08:15 Europe/Paris — 15 min after visitor digest, gives time to read both
-  scheduleDaily(sendDailyJobDigest, 8, 15, 'Europe/Paris');
+  scheduleDaily(() => sendDailyJobDigest({ scheduled: true }), 8, 15, 'Europe/Paris');
 }
 
 // ── Notification dedup ────────────────────────────────────────
@@ -183,7 +184,7 @@ function buildJobRow(job) {
   </tr>`;
 }
 
-function buildHtml(jobs, dateStr, stats) {
+function buildHtml(jobs, dateStr, stats, period = 'daily') {
   const jobRows    = jobs.map(buildJobRow).join('');
   const keepCount  = jobs.filter(j => j.ai_decision === 'KEEP').length;
   const reviewCount = jobs.filter(j => j.ai_decision === 'REVIEW').length;
@@ -191,7 +192,7 @@ function buildHtml(jobs, dateStr, stats) {
   return `
 <div style="font-family:Arial,sans-serif;max-width:640px;margin:0 auto;background:#09090b;border-radius:12px;overflow:hidden">
   <div style="background:linear-gradient(135deg,#7c3aed,#4f46e5);padding:24px 32px">
-    <h2 style="color:#fff;margin:0;font-size:20px">💼 Daily Job Digest</h2>
+    <h2 style="color:#fff;margin:0;font-size:20px">💼 ${period === 'weekly' ? 'Weekly' : 'Daily'} Job Digest</h2>
     <p style="color:#c4b5fd;margin:6px 0 0;font-size:14px">${dateStr} · claude-haiku-4-5-20251001 scored · johnisah.com jobs</p>
   </div>
 
@@ -222,7 +223,7 @@ function buildHtml(jobs, dateStr, stats) {
     </table>
 
     ${jobs.length === 0
-      ? `<p style="color:#52525b;text-align:center;padding:32px 0">No new relevant jobs in the last 24 hours.</p>`
+      ? `<p style="color:#52525b;text-align:center;padding:32px 0">No new relevant jobs in the last ${period === 'weekly' ? '7 days' : '24 hours'}.</p>`
       : `<p style="color:#71717a;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin:0 0 4px">Top matches — ranked by AI score</p>
          <table style="width:100%;border-collapse:collapse">${jobRows}</table>`
     }
@@ -235,11 +236,26 @@ function buildHtml(jobs, dateStr, stats) {
 }
 
 // ── Send digest ───────────────────────────────────────────────
-async function sendDailyJobDigest() {
+// scheduled: true from the daily timer — honours the digest schedule (daily /
+// weekly / off) and lets only one API pod send. A manual trigger (Jobs page)
+// sends the last 24 hours immediately, as before.
+async function sendDailyJobDigest({ scheduled = false } = {}) {
   if (!process.env.NOTIFY_EMAIL_USER || !process.env.NOTIFY_EMAIL_PASS) {
     console.warn('[JobDigest] Email env vars not set — skipping');
     return { sent: false };
   }
+
+  let period = 'daily', hours = 24;
+  if (scheduled) {
+    const plan = await digestPlan();
+    if (!plan.send) { console.log(`[JobDigest] Not sending — ${plan.reason}`); return { sent: false, reason: plan.reason }; }
+    if (!(await claimDigest('job_digest'))) {
+      console.log('[JobDigest] Another API instance is sending this digest — skipping');
+      return { sent: false, reason: 'claimed_by_another_instance' };
+    }
+    ({ period, hours } = plan);
+  }
+  const when = period === 'weekly' ? 'this week' : 'today';
 
   // Dedup: skip if we already sent this digest today (within 20 hours)
   const todayKey = `job_digest:${new Date().toISOString().slice(0, 10)}`;
@@ -249,12 +265,13 @@ async function sendDailyJobDigest() {
   }
 
   try {
-    const jobs = await getNewJobsSince(24);
+    const jobs = await getNewJobsSince(hours);
 
     // Get total processed count for stats strip
     const statsRes = await pool.query(
       `SELECT COUNT(*) AS total_processed FROM jobs
-       WHERE created_at > NOW() - INTERVAL '24 hours'`
+       WHERE created_at > NOW() - make_interval(hours => $1)`,
+      [hours]
     );
     const stats = { total_processed: parseInt(statsRes.rows[0].total_processed, 10) };
 
@@ -264,8 +281,8 @@ async function sendDailyJobDigest() {
     });
 
     const subject = jobs.length > 0
-      ? `[Jobs] ${jobs.length} new matches today — top score ${jobs[0]?.relevance_score}/100`
-      : `[Jobs] No new matches today — ${dateStr}`;
+      ? `[Jobs] ${jobs.length} new matches ${when} — top score ${jobs[0]?.relevance_score}/100`
+      : `[Jobs] No new matches ${when} — ${dateStr}`;
 
     const emailT0 = Date.now();
     try {
@@ -273,9 +290,9 @@ async function sendDailyJobDigest() {
       from:    `"Portfolio Jobs" <${process.env.NOTIFY_EMAIL_USER}>`,
       to:      process.env.NOTIFY_EMAIL_TO || process.env.NOTIFY_EMAIL_USER,
       subject,
-      html:    buildHtml(jobs, dateStr, stats),
+      html:    buildHtml(jobs, dateStr, stats, period),
       text:    [
-        `Daily Job Digest — ${dateStr}`,
+        `${period === 'weekly' ? 'Weekly' : 'Daily'} Job Digest — ${dateStr}`,
         ``,
         `${jobs.length} new relevant jobs (min score ${MIN_SCORE}):`,
         ``,
@@ -283,7 +300,7 @@ async function sendDailyJobDigest() {
           `[${j.relevance_score}/100] ${j.title} @ ${j.company_name} (${j.location})\n  ${j.apply_url}`
         ),
         ``,
-        `Total processed today: ${stats.total_processed}`,
+        `Total processed ${when}: ${stats.total_processed}`,
       ].join('\n'),
       });
       jobMetrics.jobAlertsTotal.inc({ channel: 'email', status: 'success' });

@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { adminApi } from '@/lib/api';
+import { confirmDialog, alertDialog } from '@/lib/dialog';
 
 const CATEGORIES = [
   'follow_up', 'thank_you', 'networking', 'cold_outreach', 'negotiation',
@@ -80,10 +81,10 @@ export default function EmailTemplatesPage() {
     setOpen(true);
   }
 
-  function openEdit(t: Template) {
+  async function openEdit(t: Template) {
     if (t.is_system) {
       // System templates: offer to duplicate
-      if (confirm(`"${t.name}" is a system template. Duplicate it to customize?`)) {
+      if (await confirmDialog({ title: 'Duplicate this system template?', message: `"${t.name}" is a built-in template and can't be edited. Duplicate it to make your own editable copy.`, confirmLabel: 'Duplicate' })) {
         handleDuplicate(t.id);
       }
       return;
@@ -118,8 +119,8 @@ export default function EmailTemplatesPage() {
   }
 
   async function handleDelete(t: Template) {
-    if (t.is_system) { alert('System templates cannot be deleted.'); return; }
-    if (!confirm(`Delete "${t.name}"?`)) return;
+    if (t.is_system) { alertDialog({ title: "System templates can't be deleted", message: 'Duplicate it instead to make your own copy you can edit or delete.' }); return; }
+    if (!(await confirmDialog({ title: `Delete "${t.name}"?`, message: "This template can't be recovered.", confirmLabel: 'Delete', tone: 'danger' }))) return;
     try { await adminApi.deleteEmailTemplate(t.id); await load(); }
     catch { setError('Delete failed'); }
   }

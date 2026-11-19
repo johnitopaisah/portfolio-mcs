@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { adminApi } from '@/lib/api';
+import { confirmDialog, alertDialog, showError } from '@/lib/dialog';
 
 interface Project {
   id: string; title: string; published: boolean; featured: boolean;
@@ -151,7 +152,7 @@ export default function ProjectsPage() {
       await adminApi.uploadProjectImages(projectId, fd);
       setNewDemoFiles([]); setNewDemoCaptions([]);
       await loadDemoImages(projectId);
-    } catch (e: any) { alert('Demo image upload failed: ' + e.message); }
+    } catch (e: any) { alertDialog({ title: 'Demo image upload failed', message: e.message, tone: 'error' }); }
     finally { setUploadingDemo(false); }
   }
 
@@ -159,7 +160,7 @@ export default function ProjectsPage() {
     try {
       await adminApi.updateProjectImage(projectId, imgId, { caption });
       setDemoImages(prev => prev.map(img => img.id === imgId ? { ...img, caption } : img));
-    } catch (e: any) { alert('Failed to save caption: ' + e.message); }
+    } catch (e: any) { alertDialog({ title: "Couldn't save the caption", message: e.message, tone: 'error' }); }
   }
 
   async function saveImageOrder(projectId: string, imgId: string, order_index: number) {
@@ -169,15 +170,15 @@ export default function ProjectsPage() {
         [...prev.map(img => img.id === imgId ? { ...img, order_index } : img)]
           .sort((a, b) => a.order_index - b.order_index)
       );
-    } catch (e: any) { alert('Failed to update order: ' + e.message); }
+    } catch (e: any) { alertDialog({ title: "Couldn't update the order", message: e.message, tone: 'error' }); }
   }
 
   async function deleteDemoImage(projectId: string, imgId: string) {
-    if (!confirm('Delete this demo image?')) return;
+    if (!(await confirmDialog({ title: "Delete this demo image?", message: "This can't be undone.", confirmLabel: 'Delete', tone: 'danger' }))) return;
     try {
       await adminApi.deleteProjectImage(projectId, imgId);
       setDemoImages(prev => prev.filter(img => img.id !== imgId));
-    } catch (e: any) { alert('Failed to delete image: ' + e.message); }
+    } catch (e: any) { alertDialog({ title: "Couldn't delete the image", message: e.message, tone: 'error' }); }
   }
 
   async function handleSave() {
@@ -206,14 +207,14 @@ export default function ProjectsPage() {
       }
       if (savedId && newDemoFiles.length) await uploadDemoImages(savedId);
       setShowForm(false); load();
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { showError(e); }
     finally { setSaving(false); }
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this project?')) return;
+    if (!(await confirmDialog({ title: "Delete this project?", message: "The project and its images are removed from your portfolio. This can't be undone.", confirmLabel: 'Delete', tone: 'danger' }))) return;
     try { await adminApi.deleteProject(id); load(); }
-    catch (e: any) { alert(e.message); }
+    catch (e: any) { showError(e); }
   }
 
   const durationPreview = form.start_date

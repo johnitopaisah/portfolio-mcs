@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { adminApi } from '@/lib/api';
+import { confirmDialog, showError } from '@/lib/dialog';
 
 interface Education {
   id: string;
@@ -78,14 +79,14 @@ export default function EducationPage() {
         ? await adminApi.updateEducation(editing.id, fd)
         : await adminApi.createEducation(fd);
       setShowForm(false); load();
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { showError(e); }
     finally { setSaving(false); }
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this education entry?')) return;
+    if (!(await confirmDialog({ title: "Delete this education entry?", message: "This can't be undone.", confirmLabel: 'Delete', tone: 'danger' }))) return;
     try { await adminApi.deleteEducation(id); load(); }
-    catch (e: any) { alert(e.message); }
+    catch (e: any) { showError(e); }
   }
 
   if (loading) return <p className="text-gray-500 text-sm">Loading…</p>;

@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { adminApi } from '@/lib/api';
+import { confirmDialog, showError } from '@/lib/dialog';
 
 interface Skill { id: string; name: string; category: string; proficiency: number; }
 
@@ -35,12 +36,12 @@ export default function SkillsPage() {
       if (iconFile) fd.append('icon', iconFile);
       editing ? await adminApi.updateSkill(editing.id, fd) : await adminApi.createSkill(fd);
       setShowForm(false); load();
-    } catch (e: any) { alert(e.message); } finally { setSaving(false); }
+    } catch (e: any) { showError(e); } finally { setSaving(false); }
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this skill?')) return;
-    try { await adminApi.deleteSkill(id); load(); } catch (e: any) { alert(e.message); }
+    if (!(await confirmDialog({ title: "Delete this skill?", message: "This can't be undone.", confirmLabel: 'Delete', tone: 'danger' }))) return;
+    try { await adminApi.deleteSkill(id); load(); } catch (e: any) { showError(e); }
   }
 
   const grouped = skills.reduce((acc, s) => { if (!acc[s.category]) acc[s.category] = []; acc[s.category].push(s); return acc; }, {} as Record<string, Skill[]>);

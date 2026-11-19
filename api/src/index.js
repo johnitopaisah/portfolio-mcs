@@ -159,6 +159,9 @@ app.use('/api/admin/jobs',      require('./routes/admin/jobs'));
 app.use('/api/admin/ai',       require('./routes/admin/ai'));
 app.use('/api/admin/targets',  require('./routes/admin/targets'));
 app.use('/api/admin/linkedin', require('./routes/linkedin'));
+// Before ./routes/applications: its /:id handlers must not shadow /context/cv-options.
+app.use('/api/outbox',       require('./routes/outbox'));
+app.use('/api/applications', require('./routes/applicationContext'));
 app.use('/api/applications', require('./routes/applications'));
 app.use('/api/education',             require('./routes/education'));
 app.use('/api/referees',                  require('./routes/referees'));
@@ -197,6 +200,20 @@ app.listen(PORT, () => {
 
   // Blog staleness reminder — checks every 24h, emails if Sync Now hasn't run in 14+ days
   startBlogStalenessWorker();
+
+  // Outbox — sends approved recruiter emails when due (working hours, after
+  // the 5-min undo window) and expires stale drafts. Every pod runs it; an
+  // email is claimed atomically (approved → sending), so it is sent once.
+  if (process.env.NOTIFY_EMAIL_USER) {
+    const outbox = require('./services/outboxService').createOutbox();
+    setInterval(() => {
+      outbox.tick()
+        .then(r => r.results.forEach(x => console.log(`[Outbox] email ${x.id}: ${x.outcome}${x.reason ? ` — ${x.reason}` : ''}`)))
+        .catch(e => console.error('[Outbox] tick failed:', e.message));
+    }, 60 * 1000).unref();
+  } else {
+    console.warn('[Outbox] NOTIFY_EMAIL_USER not set — outbox sending disabled');
+  }
 
   // Automation rules — run every hour
   setInterval(() => {

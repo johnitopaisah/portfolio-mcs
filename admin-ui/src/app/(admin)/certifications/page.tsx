@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { adminApi } from '@/lib/api';
+import { confirmDialog, showError } from '@/lib/dialog';
 
 interface Cert {
   id: string; name: string; issuer: string;
@@ -62,14 +63,14 @@ export default function CertificationsPage() {
         ? await adminApi.updateCertification(editing.id, fd)
         : await adminApi.createCertification(fd);
       setShowForm(false); load();
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { showError(e); }
     finally { setSaving(false); }
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this certification?')) return;
+    if (!(await confirmDialog({ title: "Delete this certification?", message: "This can't be undone.", confirmLabel: 'Delete', tone: 'danger' }))) return;
     try { await adminApi.deleteCertification(id); load(); }
-    catch (e: any) { alert(e.message); }
+    catch (e: any) { showError(e); }
   }
 
   if (loading) return <p className="text-gray-500 text-sm">Loading…</p>;

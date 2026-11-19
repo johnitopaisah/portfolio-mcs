@@ -3,22 +3,16 @@
 const express         = require('express');
 const pool            = require('../db/client');
 const { requireAuth } = require('../middleware/auth');
-const { generateQuestions } = require('../services/interviewPrepService');
+const { generateQuestions, generateChecklist, listQuestions } = require('../services/interviewPrepService');
 
 const router = express.Router();
 
-// GET /api/interview-prep/:appId/questions
+// GET /api/interview-prep/:appId/questions → { questions: [...] }
+// Same shape as POST /generate. (It used to return a bare array while the UI
+// read .questions — saved questions loaded fine but were never displayed.)
 router.get('/:appId/questions', requireAuth, async (req, res, next) => {
   try {
-    const { rows } = await pool.query(
-      `SELECT iq.*, ss.title AS star_story_title
-       FROM interview_questions iq
-       LEFT JOIN star_stories ss ON ss.id = iq.star_story_id
-       WHERE iq.application_id=$1
-       ORDER BY iq.question_type, iq.id`,
-      [req.params.appId]
-    );
-    res.json(rows);
+    res.json({ questions: await listQuestions(req.params.appId) });
   } catch (err) { next(err); }
 });
 
@@ -27,6 +21,13 @@ router.post('/:appId/generate', requireAuth, async (req, res, next) => {
   try {
     const result = await generateQuestions(req.params.appId);
     res.json(result);
+  } catch (err) { next(err); }
+});
+
+// POST /api/interview-prep/:appId/checklist → { checklist } — AI items added to yours
+router.post('/:appId/checklist', requireAuth, async (req, res, next) => {
+  try {
+    res.json(await generateChecklist(req.params.appId));
   } catch (err) { next(err); }
 });
 

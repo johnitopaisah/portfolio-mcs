@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { adminApi } from '@/lib/api';
+import { confirmDialog, showError } from '@/lib/dialog';
 
 interface Msg { id: string; name: string; email: string; subject: string; message: string; read: boolean; created_at: string; }
 
@@ -23,8 +24,8 @@ export default function MessagesPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this message?')) return;
-    try { await adminApi.deleteMessage(id); setSelected(null); load(); } catch (e: any) { alert(e.message); }
+    if (!(await confirmDialog({ title: "Delete this message?", message: "This can't be undone.", confirmLabel: 'Delete', tone: 'danger' }))) return;
+    try { await adminApi.deleteMessage(id); setSelected(null); load(); } catch (e: any) { showError(e); }
   }
 
   const fmt = (d: string) => new Date(d).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });

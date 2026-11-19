@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { adminApi } from '@/lib/api';
+import { confirmDialog, showError } from '@/lib/dialog';
 
 interface SocialLink {
   id: string;
@@ -68,7 +69,7 @@ export default function SocialLinksPage() {
       setLinks(prev => [...prev, next]);
       setForm(EMPTY_FORM);
     } catch (err: any) {
-      alert(err.message);
+      showError(err);
     } finally {
       setAdding(false);
     }
@@ -81,7 +82,7 @@ export default function SocialLinksPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this link?')) return;
+    if (!(await confirmDialog({ title: "Delete this link?", message: "It will disappear from your portfolio.", confirmLabel: 'Delete', tone: 'danger' }))) return;
     await adminApi.deleteSocialLink(id).catch(() => {});
     setLinks(prev => prev.filter(l => l.id !== id));
   }

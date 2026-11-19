@@ -6,6 +6,7 @@ import {
   IconFolder, IconZap, IconBriefcase, IconAward,
   IconMessage, IconUser, IconCpu, IconLayers, IconArrow,
 } from '@/components/Icons';
+import { confirmDialog } from '@/lib/dialog';
 
 type AvailStatus = 'active' | 'passive' | 'not_open';
 type HealthComponent = { key: string; label: string; pts: number; max: number; ok: boolean; detail?: string };
@@ -125,7 +126,7 @@ export default function DashboardPage() {
     setClearMenuOpen(false);
     if (clearing || !count) return;
     const scope = days === 0 ? 'overdue' : `overdue for more than ${days} days`;
-    if (!window.confirm(`Mark ${count} reminder${count === 1 ? '' : 's'} ${scope} as done?`)) return;
+    if (!(await confirmDialog({ title: `Clear ${count} reminder${count === 1 ? '' : 's'}?`, message: `${count === 1 ? 'This reminder is' : 'These reminders are'} ${scope} and will be marked as done. Reminders that aren't due yet are kept.`, confirmLabel: 'Clear reminders' }))) return;
     setClearing(true);
     try {
       await adminApi.clearOverdueReminders(days);

@@ -1,16 +1,39 @@
 'use strict';
+/**
+ * AI interview preparation (Interview tab):
+ *   generateQuestions(appId)  → interview questions + a prep checklist
+ *   generateChecklist(appId)  → prep checklist only
+ *
+ * Context sent to the model: your profile, the scraped job (if any) and the
+ * application's own context — the CV you sent and the pasted job
+ * description (applicationContextService). Email-detected applications have
+ * no scraped job, so that context is what makes their prep specific.
+ *
+ * AI checklist items are ADDED to the existing checklist (case-insensitive
+ * duplicates skipped); your own items are never removed or changed.
+ */
 
 const Anthropic = require('@anthropic-ai/sdk');
 const pool      = require('../db/client');
+const { getApplicationContext } = require('./applicationContextService');
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const MODEL = 'claude-haiku-4-5-20251001';
+let client = null;
+const anthropic = () => (client ||= new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }));
+
+const checklistProperty = {
+  type: 'array',
+  description: '6–10 concrete preparation tasks for this specific interview, each a short imperative '
+    + '(e.g. "Review how their product uses Kubernetes autoscaling"). No generic advice.',
+  items: { type: 'string' },
+};
 
 const interviewPrepTool = {
   name: 'submit_interview_prep',
   description: 'Submit structured interview preparation for a job application',
   input_schema: {
     type: 'object',
-    required: ['technical_questions', 'behavioral_questions', 'company_questions'],
+    required: ['technical_questions', 'behavioral_questions', 'company_questions', 'prep_checklist'],
     properties: {
       technical_questions: {
         type: 'array',
@@ -44,10 +67,7 @@ const interviewPrepTool = {
         items: {
           type: 'object',
           required: ['question', 'hint'],
-          properties: {
-            question: { type: 'string' },
-            hint:     { type: 'string' },
-          },
+          properties: { question: { type: 'string' }, hint: { type: 'string' } },
         },
       },
       company_questions: {
@@ -65,12 +85,19 @@ const interviewPrepTool = {
         description: 'Key achievements / talking points from the CV to highlight',
         items: { type: 'string' },
       },
+      prep_checklist: checklistProperty,
     },
   },
 };
 
-async function generateQuestions(applicationId) {
-  // Load application + job + base CV context
+const checklistTool = {
+  name: 'submit_prep_checklist',
+  description: 'Submit an interview preparation checklist',
+  input_schema: { type: 'object', required: ['prep_checklist'], properties: { prep_checklist: checklistProperty } },
+};
+
+// ── context ──────────────────────────────────────────────────────
+async function loadPromptContext(applicationId) {
   const { rows: appRows } = await pool.query(`
     SELECT a.id, a.company_name, a.job_title, a.matched_skills, a.missing_skills,
            a.strongest_angle, a.interview_prep,
@@ -81,11 +108,9 @@ async function generateQuestions(applicationId) {
     LEFT JOIN jobs j ON j.id = a.job_id
     WHERE a.id = $1
   `, [applicationId]);
-
   if (!appRows.length) throw Object.assign(new Error('Application not found'), { status: 404 });
   const app = appRows[0];
 
-  // Load profile CV summary
   const { rows: profileRows } = await pool.query(`
     SELECT name AS full_name, cv_display_name, cv_headline,
            (SELECT string_agg(name || ' (' || category || ')', ', ') FROM skills) AS skills_summary,
@@ -98,12 +123,13 @@ async function generateQuestions(applicationId) {
     FROM profile LIMIT 1
   `);
   const profile = profileRows[0] || {};
+  const ctx = await getApplicationContext(applicationId);
+  return { app, profile, ctx };
+}
 
-  const systemPrompt = `You are a senior technical recruiter and interview coach.
-Generate targeted interview preparation for a candidate based on the job description and their profile.
-Be specific, practical, and tailored to the exact role and company.`;
-
-  const userMessage = `
+function promptFor({ app, profile, ctx }, task) {
+  const jd = ctx.job_description || app.description || '';
+  return `
 CANDIDATE PROFILE:
 Name: ${profile.cv_display_name || profile.full_name || 'the candidate'}
 Headline: ${profile.cv_headline || ''}
@@ -112,7 +138,7 @@ Recent experience: ${profile.recent_exp || ''}
 Matched skills: ${(app.matched_skills || []).join(', ')}
 Missing skills: ${(app.missing_skills || []).join(', ')}
 Strongest angle: ${app.strongest_angle || ''}
-
+${ctx.cv_text ? `\nCV SENT FOR THIS APPLICATION:\n${ctx.cv_text.slice(0, 6000)}\n` : ''}
 TARGET ROLE:
 Company: ${app.company_name}
 Title: ${app.job_title}
@@ -122,38 +148,64 @@ Required skills: ${(app.required_skills || []).join(', ')}
 Nice to have: ${(app.nice_to_have || []).join(', ')}
 Soft skills: ${(app.soft_skills || []).join(', ')}
 Role summary: ${app.role_summary || ''}
-Job description excerpt: ${(app.description || '').slice(0, 1500)}
+Job description: ${jd.slice(0, 6000) || '(not available — infer from the company and title)'}
 
-Generate comprehensive interview preparation. Be specific to THIS role and candidate.
-For technical questions, focus on the required skills listed above.
-For behavioral questions, map to the candidate's actual experience areas.
-For company questions, make them insightful and specific to this company/role.
+${task}
 `;
+}
 
-  const response = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+const SYSTEM = `You are a senior technical recruiter and interview coach.
+Generate targeted interview preparation for a candidate based on the job description and their profile.
+Be specific, practical, and tailored to the exact role and company.`;
+
+// ── checklist merge ──────────────────────────────────────────────
+function mergeChecklist(existing, aiItems) {
+  const list = Array.isArray(existing) ? existing.filter(i => i && typeof i.text === 'string') : [];
+  const seen = new Set(list.map(i => i.text.trim().toLowerCase()));
+  for (const raw of Array.isArray(aiItems) ? aiItems : []) {
+    const text = String(raw || '').trim().slice(0, 200);
+    if (!text || seen.has(text.toLowerCase())) continue;
+    seen.add(text.toLowerCase());
+    list.push({ text, done: false, source: 'ai' });
+  }
+  return list;
+}
+
+async function saveChecklist(db, applicationId, aiItems) {
+  const { rows } = await db.query('SELECT interview_prep FROM applications WHERE id = $1 FOR UPDATE', [applicationId]);
+  const prep = rows[0]?.interview_prep || {};
+  const checklist = mergeChecklist(prep.checklist, aiItems);
+  await db.query('UPDATE applications SET interview_prep = $1, updated_at = NOW() WHERE id = $2',
+    [JSON.stringify({ ...prep, checklist }), applicationId]);
+  return checklist;
+}
+
+// ── questions (+ checklist) ──────────────────────────────────────
+async function generateQuestions(applicationId) {
+  const context = await loadPromptContext(applicationId);
+
+  const response = await anthropic().messages.create({
+    model: MODEL,
     max_tokens: 4096,
     tools: [interviewPrepTool],
     tool_choice: { type: 'tool', name: 'submit_interview_prep' },
-    system: systemPrompt,
-    messages: [{ role: 'user', content: userMessage }],
+    system: SYSTEM,
+    messages: [{ role: 'user', content: promptFor(context, `Generate comprehensive interview preparation. Be specific to THIS role and candidate.
+For technical questions, focus on the required skills and the job description.
+For behavioral questions, map to the candidate's actual experience (use the CV if provided).
+For company questions, make them insightful and specific to this company/role.
+The prep checklist is a to-do list for the days before the interview.`) }],
   });
 
   const toolUse = response.content.find(b => b.type === 'tool_use');
   if (!toolUse) throw new Error('AI did not return structured prep data');
-
   const prep = toolUse.input;
 
-  // Persist to interview_questions table
-  const client = await pool.connect();
+  const db = await pool.connect();
+  let checklist;
   try {
-    await client.query('BEGIN');
-
-    // Clear old AI-generated questions for this application
-    await client.query(
-      "DELETE FROM interview_questions WHERE application_id=$1",
-      [applicationId]
-    );
+    await db.query('BEGIN');
+    await db.query('DELETE FROM interview_questions WHERE application_id = $1', [applicationId]);
 
     // interview_questions.difficulty only accepts easy|medium|hard — normalise
     // whatever the model returns ("Hard", "intermediate"…) instead of failing
@@ -164,55 +216,79 @@ For company questions, make them insightful and specific to this company/role.
     };
     const insertQ = async (question, type, difficulty, hint) => {
       if (!question || !String(question).trim()) return;
-      await client.query(
-        `INSERT INTO interview_questions
-           (application_id, question, question_type, difficulty, ai_hint)
+      await db.query(
+        `INSERT INTO interview_questions (application_id, question, question_type, difficulty, ai_hint)
          VALUES ($1,$2,$3,$4,$5)`,
         [applicationId, String(question).trim(), type, normaliseDifficulty(difficulty), hint || null]
       );
     };
+    for (const q of prep.technical_questions   || []) await insertQ(q.question, 'technical', q.difficulty, q.hint);
+    for (const q of prep.behavioral_questions  || []) await insertQ(q.question + (q.star_theme ? ` [${q.star_theme}]` : ''), 'behavioral', 'medium', q.hint);
+    for (const q of prep.situational_questions || []) await insertQ(q.question, 'situational', 'medium', q.hint);
+    for (const q of prep.company_questions     || []) await insertQ(q, 'company', 'easy', 'Ask this to the interviewer');
 
-    for (const q of prep.technical_questions || []) {
-      await insertQ(q.question, 'technical', q.difficulty, q.hint);
-    }
-    for (const q of prep.behavioral_questions || []) {
-      await insertQ(q.question + (q.star_theme ? ` [${q.star_theme}]` : ''), 'behavioral', 'medium', q.hint);
-    }
-    for (const q of prep.situational_questions || []) {
-      await insertQ(q.question, 'situational', 'medium', q.hint);
-    }
-    for (const q of prep.company_questions || []) {
-      await insertQ(q, 'company', 'easy', 'Ask this to the interviewer');
-    }
-
-    // Merge into interview_prep JSONB on applications
-    const existingPrep = app.interview_prep || {};
-    const mergedPrep = {
-      ...existingPrep,
+    checklist = await saveChecklist(db, applicationId, prep.prep_checklist);
+    const { rows } = await db.query('SELECT interview_prep FROM applications WHERE id = $1', [applicationId]);
+    await db.query('UPDATE applications SET interview_prep = $1 WHERE id = $2', [JSON.stringify({
+      ...(rows[0].interview_prep || {}),
       key_talking_points: prep.key_talking_points || [],
       red_flags_to_probe: prep.red_flags_to_probe || [],
       company_questions:  prep.company_questions  || [],
-    };
-    await client.query(
-      'UPDATE applications SET interview_prep=$1 WHERE id=$2',
-      [JSON.stringify(mergedPrep), applicationId]
-    );
-
-    await client.query('COMMIT');
+    }), applicationId]);
+    await db.query('COMMIT');
   } catch (err) {
-    await client.query('ROLLBACK');
+    await db.query('ROLLBACK').catch(() => {});
     throw err;
   } finally {
-    client.release();
+    db.release();
   }
 
-  // Return questions grouped
-  const { rows: questions } = await pool.query(
-    'SELECT * FROM interview_questions WHERE application_id=$1 ORDER BY question_type, id',
-    [applicationId]
-  );
-
-  return { questions, meta: prep };
+  return { questions: await listQuestions(applicationId), checklist, meta: prep };
 }
 
-module.exports = { generateQuestions };
+// ── checklist only ───────────────────────────────────────────────
+async function generateChecklist(applicationId) {
+  const context = await loadPromptContext(applicationId);
+  const response = await anthropic().messages.create({
+    model: MODEL,
+    max_tokens: 1024,
+    tools: [checklistTool],
+    tool_choice: { type: 'tool', name: 'submit_prep_checklist' },
+    system: SYSTEM,
+    messages: [{ role: 'user', content: promptFor(context,
+      'Write a preparation checklist (6–10 concrete tasks) for the days before this interview. '
+      + 'Avoid items already on the existing checklist: '
+      + JSON.stringify((context.app.interview_prep?.checklist || []).map(i => i.text))) }],
+  });
+  const toolUse = response.content.find(b => b.type === 'tool_use');
+  if (!toolUse) throw new Error('AI did not return a checklist');
+
+  const db = await pool.connect();
+  try {
+    await db.query('BEGIN');
+    const checklist = await saveChecklist(db, applicationId, toolUse.input.prep_checklist);
+    await db.query('COMMIT');
+    return { checklist };
+  } catch (err) {
+    await db.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    db.release();
+  }
+}
+
+// Same shape for "load saved" and "after generating" — { questions: [...] }.
+// `hint` mirrors the stored ai_hint so the UI shows the AI's answer tips.
+async function listQuestions(applicationId) {
+  const { rows } = await pool.query(
+    `SELECT iq.*, iq.ai_hint AS hint, ss.title AS star_story_title
+     FROM interview_questions iq
+     LEFT JOIN star_stories ss ON ss.id = iq.star_story_id
+     WHERE iq.application_id = $1
+     ORDER BY iq.question_type, iq.id`,
+    [applicationId]
+  );
+  return rows;
+}
+
+module.exports = { generateQuestions, generateChecklist, listQuestions, mergeChecklist };

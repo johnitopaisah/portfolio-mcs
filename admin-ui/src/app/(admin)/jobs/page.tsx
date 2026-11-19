@@ -8,6 +8,7 @@ import {
   Job, SOURCE_LABELS, scoreStyle, scoreBar, timeAgo, formatSalary,
   JobCard, JobDetail, EmptyDetail,
 } from '@/components/JobCard';
+import { showError } from '@/lib/dialog';
 
 // ── Types ────────────────────────────────────────────────────
 type Tab = 'new' | 'saved' | 'applied';
@@ -352,7 +353,7 @@ function JobsPageInner() {
       const data = await adminApi.createApplication(jobId);
       router.push(`/applications/${data.id}`);
     } catch (err: any) {
-      alert(err.message);
+      showError(err);
     } finally {
       setCreatingAppForJobId(null);
     }

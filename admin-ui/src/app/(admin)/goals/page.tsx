@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { adminApi } from '@/lib/api';
+import { showError } from '@/lib/dialog';
 
 type HealthComponent = {
   key: string; label: string; pts: number; max: number; ok: boolean; detail?: string;
@@ -113,6 +114,22 @@ export default function GoalsPage() {
   const [stats, setStats]       = useState<DashStats | null>(null);
   const [rules, setRules]       = useState<AutomationRule[]>([]);
   const [settings, setSettings] = useState<Record<string, unknown>>({});
+  const [prefSaved, setPrefSaved] = useState(false);
+
+  // Optimistic: the select changes at once; reverted if the save fails.
+  async function savePref(key: 'preferred_reminder_channel' | 'digest_schedule', value: string) {
+    const previous = settings[key];
+    setSettings(s => ({ ...s, [key]: value }));
+    setPrefSaved(false);
+    try {
+      const updated = await adminApi.updateUserSettings({ [key]: value }) as Record<string, unknown> | null;
+      if (updated && typeof updated === 'object') setSettings(s => ({ ...s, ...updated }));
+      setPrefSaved(true);
+    } catch (err) {
+      setSettings(s => ({ ...s, [key]: previous }));
+      showError(err, "Couldn't save your notification preference.");
+    }
+  }
   const [loading, setLoading]   = useState(true);
   const [goalInput, setGoalInput] = useState('');
   const [savingGoal, setSavingGoal] = useState(false);
@@ -418,19 +435,26 @@ export default function GoalsPage() {
               <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.45)' }}>Preferred reminder channel</label>
               <select
                 value={(settings.preferred_reminder_channel as string) || 'email'}
-                onChange={e => adminApi.updateUserSettings({ preferred_reminder_channel: e.target.value }).catch(() => {})}
+                onChange={e => savePref('preferred_reminder_channel', e.target.value)}
+                aria-describedby="pref-channel-help"
                 className="w-full px-3 py-2 rounded-xl text-sm"
                 style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(168,85,247,0.15)', color: '#FFFFFF', outline: 'none' }}
               >
                 <option value="email">Email</option>
                 <option value="in_app">In-app only</option>
               </select>
+              <p id="pref-channel-help" className="text-xs mt-1.5" style={{ color: 'rgba(255,255,255,0.38)' }}>
+                {(settings.preferred_reminder_channel || 'email') === 'email'
+                  ? 'Follow-ups waiting for approval are emailed to you with Send / Edit links.'
+                  : 'Follow-ups wait in the Outbox — no approval emails.'}
+              </p>
             </div>
             <div>
               <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.45)' }}>Digest schedule</label>
               <select
                 value={(settings.digest_schedule as string) || 'daily'}
-                onChange={e => adminApi.updateUserSettings({ digest_schedule: e.target.value }).catch(() => {})}
+                onChange={e => savePref('digest_schedule', e.target.value)}
+                aria-describedby="pref-digest-help"
                 className="w-full px-3 py-2 rounded-xl text-sm"
                 style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(168,85,247,0.15)', color: '#FFFFFF', outline: 'none' }}
               >
@@ -438,8 +462,12 @@ export default function GoalsPage() {
                 <option value="weekly">Weekly</option>
                 <option value="off">Off</option>
               </select>
+              <p id="pref-digest-help" className="text-xs mt-1.5" style={{ color: 'rgba(255,255,255,0.38)' }}>
+                Job-match and visitor digests. Daily at 08:00 · weekly on Mondays 08:00 (Paris).
+              </p>
             </div>
           </div>
+          {prefSaved && <p className="text-xs mt-2" role="status" style={{ color: '#4ade80' }}>Saved ✓</p>}
         </div>
       </div>
     </div>

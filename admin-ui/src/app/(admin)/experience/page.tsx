@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { adminApi } from '@/lib/api';
+import { confirmDialog, showError } from '@/lib/dialog';
 
 interface Exp {
   id: string; company: string; role: string;
@@ -117,14 +118,14 @@ export default function ExperiencePage() {
         ? await adminApi.updateExperience(editing.id, fd)
         : await adminApi.createExperience(fd);
       setShowForm(false); load();
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { showError(e); }
     finally { setSaving(false); }
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this experience?')) return;
+    if (!(await confirmDialog({ title: "Delete this experience?", message: "This can't be undone.", confirmLabel: 'Delete', tone: 'danger' }))) return;
     try { await adminApi.deleteExperience(id); load(); }
-    catch (e: any) { alert(e.message); }
+    catch (e: any) { showError(e); }
   }
 
   const durationPreview = form.start_date

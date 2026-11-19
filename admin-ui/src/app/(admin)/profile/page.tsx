@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { adminApi } from '@/lib/api';
+import { showError } from '@/lib/dialog';
 
 interface Certification {
   id: string;
@@ -109,7 +110,7 @@ export default function ProfilePage() {
       setHasResumeFr(saved?.has_resume_fr ?? hasResumeFr);
       setSuccess(true);
     } catch (err: any) {
-      alert(err.message);
+      showError(err);
     } finally {
       setSaving(false);
     }

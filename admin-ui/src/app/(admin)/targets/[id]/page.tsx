@@ -4,6 +4,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { adminApi } from '@/lib/api';
 import { Job, JobCard, JobDetail, EmptyDetail } from '@/components/JobCard';
+import { showError } from '@/lib/dialog';
 
 interface JobTarget {
   id: string;
@@ -162,7 +163,7 @@ function TargetMatchesPageInner() {
       const data = await adminApi.createApplication(jobId);
       router.push(`/applications/${data.id}`);
     } catch (err: any) {
-      alert(err.message);
+      showError(err);
     } finally {
       setCreatingAppForJobId(null);
     }

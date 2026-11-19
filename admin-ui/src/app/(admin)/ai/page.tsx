@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { adminApi } from '@/lib/api';
+import { showError } from '@/lib/dialog';
 
 // ── Types ────────────────────────────────────────────────────
 interface AiStatus {
@@ -228,7 +229,7 @@ export default function AiManagementPage() {
     try {
       const r = await adminApi.testAiScore(testJob) as TestResult;
       setTestRes(r);
-    } catch (e) { alert((e as Error).message); }
+    } catch (e) { showError(e); }
     finally { setTestLoad(false); }
   }
 

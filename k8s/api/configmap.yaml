@@ -9,6 +9,9 @@ data:
   ALLOWED_ORIGINS: "https://johnisah.com,https://admin.johnisah.com"
   SITE_URL: "https://johnisah.com"
   ADMIN_URL: "https://admin.johnisah.com"
+  # Base of the one-time "Review & send" links in Outbox approval emails
+  # (served by the API; not behind Cloudflare Access like the admin site).
+  API_PUBLIC_URL: "https://api.johnisah.com"
   # Shared cache + rate-limit counters (k8s/platform). Password comes from
   # REDIS_PASSWORD in portfolio-secrets. If Redis is down the API falls back
   # to per-pod memory, so this is not a hard dependency.
