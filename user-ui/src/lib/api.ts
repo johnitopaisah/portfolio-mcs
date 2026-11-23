@@ -62,7 +62,6 @@ export const api = {
   // Binary asset URLs — relative paths, proxied through middleware (same-origin).
   // Never cross-origin from the browser's perspective.
   avatarUrl:       '/api/profile/avatar',
-  resumeUrl:       '/api/profile/resume',
   projectImageUrl: (id: string) => `/api/projects/${id}/image`,
   skillIconUrl:    (id: string) => `/api/skills/${id}/icon`,
   expLogoUrl:      (id: string) => `/api/experiences/${id}/logo`,

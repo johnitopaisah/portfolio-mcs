@@ -170,6 +170,7 @@ app.use('/api/referee-contact-requests',  require('./routes/refereeContactReques
 
 // ── Feature expansion routes ─────────────────────────────────
 app.use('/api/user-settings',    require('./routes/userSettings'));
+app.use('/api/cv-requests',      require('./routes/cvRequests'));
 app.use('/api/cv-identity',      require('./routes/cvIdentity'));
 app.use('/api/portfolio-items',  require('./routes/portfolioItems'));
 app.use('/api/company-research', require('./routes/companyResearch'));
@@ -218,6 +219,10 @@ app.listen(PORT, () => {
   // Automation rules — run every hour
   setInterval(() => {
     runAllRules().catch(e => console.error('[Automation] Hourly run failed:', e));
+    // CV requests privacy: optional details cleared after 90 days, email after 12 months
+    require('./services/cvRequestService').createCvRequests().retention()
+      .then(r => { if (r.cleared || r.anonymised) console.log('[CvRequest] retention', r); })
+      .catch(e => console.error('[CvRequest] retention failed:', e.message));
   }, 60 * 60 * 1000);
   // Run once on startup (deferred 10s to let DB settle)
   setTimeout(() => {

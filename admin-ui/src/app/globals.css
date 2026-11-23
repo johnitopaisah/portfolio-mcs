@@ -1016,3 +1016,18 @@
 [data-theme="light"] [class*="bg-violet-600/"], [data-theme="light"] [class*="bg-violet-700/"] { background-color: #6d28d9 !important; }
 [data-theme="light"] [class*="bg-purple-600/"], [data-theme="light"] [class*="bg-purple-700/"] { background-color: #7e22ce !important; }
 [data-theme="light"] [class*="bg-fuchsia-600/"], [data-theme="light"] [class*="bg-fuchsia-700/"] { background-color: #a21caf !important; }
+
+/* Chart colours (CV Requests dashboard) — validated categorical slots 1–2
+   (dataviz validator: CVD ΔE ≥ 24, normal ΔE ≥ 31) per theme surface. */
+:root {
+  --viz-1: #3987e5;   /* English / single series */
+  --viz-2: #d95926;   /* French */
+  --viz-grid: rgba(255,255,255,0.08);
+  --viz-track: rgba(255,255,255,0.06);
+}
+[data-theme="light"] {
+  --viz-1: #2a78d6;
+  --viz-2: #eb6834;
+  --viz-grid: rgba(26,16,51,0.08);
+  --viz-track: rgba(91,33,182,0.07);
+}

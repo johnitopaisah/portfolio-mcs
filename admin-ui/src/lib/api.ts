@@ -596,6 +596,25 @@ export const adminApi = {
     return upload(`/api/applications/${appId}/context/cv-upload`, fd);
   },
 
+  // ── CV requests (CV emailed to visitors; dashboard) ──────────
+  getCvRequests: (range = '90d') => request(`/api/cv-requests?range=${encodeURIComponent(range)}`),
+  getCvRequestStats: (range = '90d') => request(`/api/cv-requests/stats?range=${encodeURIComponent(range)}`),
+  updateCvRequest: (id: number, data: { contacted?: boolean; notes?: string }) =>
+    request(`/api/cv-requests/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteCvRequest: (id: number) => request(`/api/cv-requests/${id}`, { method: 'DELETE' }),
+  /** Your own download (login only — visitors get the CV by email). */
+  downloadMyCv: async (lang: 'en' | 'fr') => {
+    const token = getToken();
+    const res = await fetchWithStatus(`${getApiBase()}/api/profile/resume?lang=${lang}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (res.status === 401) { logout(); throw new Error('Unauthorised'); }
+    if (!res.ok) throw new Error(`Couldn't download the CV (HTTP ${res.status})`);
+    const url = URL.createObjectURL(await res.blob());
+    const a = document.createElement('a'); a.href = url; a.download = `cv-${lang}.pdf`; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  },
+
   // ── Outbox (recruiter emails sent only after approval) ───────
   getOutbox: (status?: string) => request(status ? `/api/outbox?status=${encodeURIComponent(status)}` : '/api/outbox'),
   getOutboxEmail: (id: number) => request(`/api/outbox/${id}`),

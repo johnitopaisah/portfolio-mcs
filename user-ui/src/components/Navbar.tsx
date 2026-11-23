@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useTheme } from './ThemeProvider';
+import { openCvRequest } from './CvRequestDialog';
 
 const links = [
   { href: '/#about',          label: 'About'          },
@@ -86,9 +87,7 @@ function PingDot({ status }: { status: AvailStatus }) {
 
 export default function Navbar({ availabilityStatus }: { availabilityStatus?: AvailStatus }) {
   const [open, setOpen]           = useState(false);
-  const [resumeOpen, setResumeOpen] = useState(false);
   const [moreOpen, setMoreOpen]   = useState(false);
-  const resumeRef                 = useRef<HTMLDivElement>(null);
   const moreRef                   = useRef<HTMLLIElement>(null);
   const { theme, toggle }         = useTheme();
 
@@ -97,9 +96,6 @@ export default function Navbar({ availabilityStatus }: { availabilityStatus?: Av
 
   useEffect(() => {
     function handleOutside(e: MouseEvent) {
-      if (resumeRef.current && !resumeRef.current.contains(e.target as Node)) {
-        setResumeOpen(false);
-      }
       if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
         setMoreOpen(false);
       }
@@ -232,43 +228,11 @@ export default function Navbar({ availabilityStatus }: { availabilityStatus?: Av
             {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
           </button>
 
-          {/* Resume dropdown */}
-          <div className="relative" ref={resumeRef}>
-            <button
-              onClick={() => setResumeOpen(o => !o)}
-              className="btn-primary text-sm py-2 px-4"
-              aria-haspopup="true"
-              aria-expanded={resumeOpen}>
-              Resume ↓
-            </button>
-            {resumeOpen && (
-              <div
-                className="absolute right-0 z-50 mt-1 overflow-hidden rounded-xl shadow-xl"
-                style={{ border: '1px solid var(--border-card)', background: 'var(--bg-card)', minWidth: '160px', backdropFilter: 'blur(12px)' }}>
-                <a
-                  href="/api/profile/resume?lang=en"
-                  className="flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors"
-                  style={{ color: 'var(--text-1)' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(124,58,237,0.06)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                  onClick={() => setResumeOpen(false)}>
-                  <span className="text-xs font-bold tracking-wider text-indigo-500">EN</span>
-                  CV (English)
-                </a>
-                <div style={{ height: '1px', background: 'var(--border)' }} />
-                <a
-                  href="/api/profile/resume?lang=fr"
-                  className="flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors"
-                  style={{ color: 'var(--text-1)' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(124,58,237,0.06)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                  onClick={() => setResumeOpen(false)}>
-                  <span className="text-xs font-bold tracking-wider text-indigo-500">FR</span>
-                  CV (Français)
-                </a>
-              </div>
-            )}
-          </div>
+          {/* Resume: the CV is emailed so John knows who received it */}
+          <button type="button" onClick={() => openCvRequest({ source: 'navbar' })}
+            className="btn-primary text-sm py-2 px-4" aria-haspopup="dialog">
+            Resume ↓
+          </button>
         </div>
 
         {/* Mobile: toggle + hamburger */}
@@ -281,6 +245,7 @@ export default function Navbar({ availabilityStatus }: { availabilityStatus?: Av
           <button
             className="w-9 h-9 flex flex-col items-center justify-center gap-1.5 rounded-lg transition-colors"
             style={{ color: 'var(--text-2)' }}
+            aria-label={open ? 'Close menu' : 'Open menu'} aria-expanded={open}
             onClick={() => setOpen(!open)}>
             <div className="w-5 h-0.5 bg-current" />
             <div className="w-5 h-0.5 bg-current" />
@@ -303,12 +268,14 @@ export default function Navbar({ availabilityStatus }: { availabilityStatus?: Av
             </Link>
           ))}
           <div className="pt-2 flex items-center gap-2 flex-wrap">
-            <a href="/api/profile/resume?lang=en" className="btn-primary inline-flex text-sm items-center gap-1.5">
+            <button type="button" onClick={() => { setOpen(false); openCvRequest({ language: 'en', source: 'mobile-menu' }); }}
+              className="btn-primary inline-flex text-sm items-center gap-1.5" aria-haspopup="dialog">
               <span className="text-xs font-bold tracking-wider opacity-75">EN</span> Resume ↓
-            </a>
-            <a href="/api/profile/resume?lang=fr" className="btn-outline inline-flex text-sm items-center gap-1.5">
+            </button>
+            <button type="button" onClick={() => { setOpen(false); openCvRequest({ language: 'fr', source: 'mobile-menu' }); }}
+              className="btn-outline inline-flex text-sm items-center gap-1.5" aria-haspopup="dialog">
               <span className="text-xs font-bold tracking-wider opacity-75">FR</span> Resume ↓
-            </a>
+            </button>
             <a
               href="https://admin.johnisah.com"
               target="_blank"

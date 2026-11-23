@@ -45,6 +45,21 @@ export default async function PrivacyPage() {
               </p>
             </section>
 
+            <section id="cv-requests">
+              <h2 className="text-lg font-semibold mb-2" style={{ color: 'var(--text-1)' }}>CV requests</h2>
+              <p>
+                The CV is sent by email. When you request it, the site stores your email address, the
+                language you chose, the time, your approximate location (country, region, city), browser,
+                operating system, device type and how you reached the site — plus your name, company and
+                role if you chose to give them. John is notified so he knows who received his CV and may
+                contact you about opportunities. Your IP address is not stored; an anonymous code derived
+                from it is used only to prevent abuse. Name, company and role are deleted after 90 days.
+                After 12 months the email and city are deleted too, leaving only anonymous totals (country,
+                language, date). To have your details deleted sooner, reply to the email you received or
+                use the contact form.
+              </p>
+            </section>
+
             <section>
               <h2 className="text-lg font-semibold mb-2" style={{ color: 'var(--text-1)' }}>Other services</h2>
               <p>

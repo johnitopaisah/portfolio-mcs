@@ -285,10 +285,12 @@ async function getDashboardStats({ timeZone } = {}) {
   const s   = settings.rows[0] || {};
   const goal = s.weekly_application_goal || 5;
 
-  const [{ rows: [wk] }, streak, availability] = await Promise.all([
+  const [{ rows: [wk] }, streak, availability, cvWeek] = await Promise.all([
     pool.query(`SELECT COUNT(*)::int AS cnt FROM applications WHERE created_at >= ${WEEK_START_SQL}`),
     computeStreak({ goal }),
     getAvailability(),
+    pool.query(`SELECT COUNT(*)::int AS n FROM cv_requests WHERE status = 'sent' AND created_at > NOW() - INTERVAL '7 days'`)
+      .then(r => r.rows[0].n).catch(() => 0),
   ]);
   const weekApps = wk.cnt;
 
@@ -307,6 +309,7 @@ async function getDashboardStats({ timeZone } = {}) {
       streak_includes_current_week: streak.includes_current_week,
     },
     availability,
+    cv_requests_7d: cvWeek,
     health_score:    healthScore,
     due_reminders:   dueReminders.rows,
     reminder_counts: reminderCounts.rows[0],

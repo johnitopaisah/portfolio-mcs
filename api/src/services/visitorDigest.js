@@ -119,12 +119,17 @@ async function getStats(hours = 24) {
     // All-time total
     pool.query(`SELECT COUNT(*) AS n FROM visitor_logs WHERE NOT is_bot`),
   ]);
+  // CVs emailed to visitors in the period (table from migration 042)
+  const cvRes = await pool.query(
+    `SELECT COUNT(*) AS n FROM cv_requests WHERE status = 'sent' AND created_at >= $1`, [since]
+  ).catch(() => ({ rows: [{ n: 0 }] }));
 
   return {
     total:    parseInt(totalRes.rows[0]?.n   || 0),
     unique:   parseInt(uniqueRes.rows[0]?.n  || 0),
     bots:     parseInt(botRes.rows[0]?.n     || 0),
     allTime:  parseInt(allTimeRes.rows[0]?.n || 0),
+    cvRequests: parseInt(cvRes.rows[0]?.n || 0),
     countries: countryRes.rows.map(r => ({ label: r.label, n: parseInt(r.n) })),
     referrers: refererRes.rows.map(r => ({ label: r.label, n: parseInt(r.n) })),
     devices:   deviceRes.rows.map(r => ({ label: r.label, n: parseInt(r.n) })),
@@ -203,6 +208,11 @@ function buildHtml(stats, dateStr, period = 'daily') {
         <td style="text-align:center;padding:16px;background:#09090b;border-radius:8px;border:1px solid #27272a">
           <div style="color:#22c55e;font-size:28px;font-weight:700">${stats.allTime.toLocaleString()}</div>
           <div style="color:#71717a;font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-top:4px">All-time total</div>
+        </td>
+        <td style="width:8px"></td>
+        <td style="text-align:center;padding:16px;background:#09090b;border-radius:8px;border:1px solid #27272a">
+          <div style="color:#f59e0b;font-size:28px;font-weight:700">${stats.cvRequests ?? 0}</div>
+          <div style="color:#71717a;font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-top:4px">CVs sent</div>
         </td>
       </tr>
     </table>
