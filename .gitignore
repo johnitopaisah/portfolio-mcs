@@ -11,10 +11,6 @@ dist/
 db/portfolio_backup_*.sql
 db/db_*.sql
 
-# Infisical CLI project link
-.infisical.yaml
-.infisical.json
-
 bootstrapping/infisical*
 bootstrapping/nginx*
 
@@ -65,3 +61,4 @@ terraform/crash.log
 *.md
 log.txt
 !README.md
+.infisical.yaml
