@@ -55,7 +55,7 @@ spec:
 
           containers:
           - name: canary
-            image: ghcr.io/johnitopaisah/portfolio-mcs/scraper:v0.1.17-rc5
+            image: ghcr.io/johnitopaisah/portfolio-mcs/scraper:v0.1.17-rc6
             imagePullPolicy: Always
             command: ["node", "scripts/run-canary.js"]
             securityContext:
