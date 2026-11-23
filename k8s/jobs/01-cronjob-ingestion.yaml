@@ -81,7 +81,7 @@ spec:
 
           containers:
           - name: worker
-            image: ghcr.io/johnitopaisah/portfolio-mcs/api:v0.1.17-rc6
+            image: ghcr.io/johnitopaisah/portfolio-mcs/api:v0.1.17-rc7
             imagePullPolicy: Always
             command: ["node", "src/workers/jobWorker.js"]
             securityContext:
