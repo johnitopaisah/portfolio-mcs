@@ -60,7 +60,7 @@ const DB_URL = process.env.TEST_DATABASE_URL;
     const cv = require('../src/services/cvRequestService').createCvRequests({
       ...(now ? { now: () => now } : {}),
       getCvPdf: async lang => { st.pdfLang.push(lang); return { buffer: Buffer.from(`%PDF-${lang}`), mime: 'application/pdf' }; },
-      geoip: async () => ({ country: 'Luxembourg', region: 'Luxembourg', city: 'Luxembourg' }),
+      geo: async () => ({ country: 'Luxembourg', region: 'Luxembourg', city: 'Luxembourg' }),
       sendMail: async m => { if (failSend) throw new Error('SMTP down'); st.sent.push(m); return { messageId: '<m1@x>' }; },
       notifyOwner: async m => { st.notified.push(m); },
     });

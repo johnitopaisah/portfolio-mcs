@@ -223,6 +223,10 @@ app.listen(PORT, () => {
     require('./services/cvRequestService').createCvRequests().retention()
       .then(r => { if (r.cleared || r.anonymised) console.log('[CvRequest] retention', r); })
       .catch(e => console.error('[CvRequest] retention failed:', e.message));
+    // Time limits published on /privacy (visits, messages, login log, referees, recruiters)
+    require('./services/privacyRetention').runPrivacyRetention()
+      .then(r => { if (Object.values(r).some(Boolean)) console.log('[Privacy] retention', r); })
+      .catch(e => console.error('[Privacy] retention failed:', e.message));
   }, 60 * 60 * 1000);
   // Run once on startup (deferred 10s to let DB settle)
   setTimeout(() => {

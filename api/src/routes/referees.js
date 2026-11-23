@@ -38,9 +38,10 @@ router.get('/', async (req, res, next) => {
     const rows = await cache.getOrSet(CACHE_KEY, async () => {
       const { rows } = await pool.query(
         `SELECT id, name, title, organization, relationship, review,
-                linkedin_url, available_on_request,
-                CASE WHEN available_on_request THEN NULL ELSE email END AS email,
-                CASE WHEN available_on_request THEN NULL ELSE phone END AS phone,
+                linkedin_url, TRUE AS available_on_request,
+                -- Referees' email/phone are never published (privacy, Nov 2026):
+                -- visitors use the contact-request flow, with the referee's consent.
+                NULL::text AS email, NULL::text AS phone,
                 photo_mime, org_logo_mime, order_index,
                 (photo    IS NOT NULL) AS has_photo,
                 (org_logo IS NOT NULL) AS has_org_logo,
@@ -246,7 +247,7 @@ router.post('/', requireAuth, uploadFields, async (req, res, next) => {
         name, title, organization, relationship,
         review || null, linkedin_url || null,
         email || null, phone || null,
-        available_on_request === 'true' || available_on_request === true,
+        true,   // contact details are never public — always "available on request"
         visible !== 'false' && visible !== false,
         photo?.buffer || null, photo?.mimetype || null,
         org_logo?.buffer || null, org_logo?.mimetype || null,
@@ -343,8 +344,7 @@ router.put('/:id', requireAuth, uploadFields, async (req, res, next) => {
         name || null, title || null, organization || null, relationship || null,
         review || null, linkedin_url || null,
         email || null, phone || null,
-        available_on_request !== undefined
-          ? (available_on_request === 'true' || available_on_request === true) : null,
+        true,   // contact details are never public
         visible !== undefined
           ? (visible !== 'false' && visible !== false) : null,
         photo?.buffer || null, photo?.mimetype || null,

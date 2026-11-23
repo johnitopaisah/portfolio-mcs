@@ -1,4 +1,7 @@
 import type { Metadata } from 'next';
+// Inter is bundled with the site (OFL licence) and served from johnisah.com —
+// visitors' browsers never contact Google (privacy), and the build doesn't either.
+import '@fontsource-variable/inter';
 import './globals.css';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { RumReporter } from '@/components/RumReporter';
@@ -62,14 +65,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <head>
         {/* Theme script must be first — runs before CSS is applied */}
         <script dangerouslySetInnerHTML={{ __html: themeScript(defaultTheme) }} />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
-          rel="stylesheet"
-        />
       </head>
-      <body style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
+      <body style={{ fontFamily: "'Inter Variable', 'Inter', system-ui, sans-serif" }}>
         <RumReporter />
         <MaintenanceOverlay />
         <ThemeProvider>

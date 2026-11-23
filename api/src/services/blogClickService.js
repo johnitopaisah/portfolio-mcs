@@ -3,14 +3,15 @@
 //  Blog click tracking — records reader clicks through to Medium
 //  and answers the admin Blog Insights page.
 //
-//  No IP address is stored. It is used for the geo lookup and for
-//  visitor_hash, a keyed hash that changes every UTC day: enough to
+//  No IP address is stored. It is only used for visitor_hash, a keyed
+//  hash that changes every UTC day (services/visitorHash.js): enough to
 //  count unique visitors within a day, not to follow anyone across days.
+//  Location comes from Cloudflare's headers (services/geoip.js).
 // ============================================================
 
-const crypto = require('crypto');
 const pool   = require('../db/client');
-const { geoip } = require('./geoip');
+const { geoFromHeaders } = require('./geoip');
+const { dailyVisitorHash } = require('./visitorHash');
 const {
   clientIp, parseBrowser, parseOs, parseDevice, parseLanguage,
 } = require('./parseVisitor');
@@ -23,29 +24,22 @@ function normalizeSourcePage(from) {
   return SOURCE_PAGES.has(from) ? from : 'other';
 }
 
-function visitorHash(ip, userAgent, date = new Date()) {
-  const day = date.toISOString().slice(0, 10);
-  const key = crypto.createHash('sha256')
-    .update(`blog-click:${process.env.JWT_SECRET || ''}:${day}`)
-    .digest();
-  return crypto.createHmac('sha256', key).update(`${ip}|${userAgent}`).digest('hex');
-}
-
-function sessionIdFromCookie(cookieHeader) {
-  const match = /(?:^|;\s*)portfolio-sid=([^;]+)/.exec(cookieHeader || '');
-  return match ? match[1] : null;
-}
+// Same daily code as the homepage visit (services/visitorHash.js), so a
+// click can be linked to the visit it came from without a cookie.
+const visitorHash = (ip, userAgent, date) => dailyVisitorHash(ip, userAgent, date);
 
 // The click itself always comes from our own site, so the external source
 // can only come from the visit that started this session. The visitor log
 // only covers homepage landings, hence 'Unknown' for anyone arriving straight
-// on /blog or after the 30-minute session cookie has lapsed.
-async function trafficSource(sessionId) {
-  if (!sessionId) return 'Unknown';
+// on /blog or on a later day.
+// Matched on today's anonymous visitor code (no cookie).
+async function trafficSource(hash) {
+  if (!hash) return 'Unknown';
   const { rows } = await pool.query(
     `SELECT referer_label FROM visitor_logs
-     WHERE session_id = $1 ORDER BY visited_at ASC LIMIT 1`,
-    [sessionId]
+     WHERE visitor_hash = $1 AND visited_at > NOW() - INTERVAL '1 day'
+     ORDER BY visited_at ASC LIMIT 1`,
+    [hash]
   );
   return rows[0]?.referer_label || 'Unknown';
 }
@@ -53,7 +47,8 @@ async function trafficSource(sessionId) {
 async function recordClick(req, postId) {
   const ua  = req.headers['user-agent'] || '';
   const ip  = clientIp(req);
-  const geo = await geoip(ip);
+  const geo = geoFromHeaders(req.headers);
+  const hash = visitorHash(ip, ua);
 
   await pool.query(
     `INSERT INTO blog_clicks
@@ -62,8 +57,8 @@ async function recordClick(req, postId) {
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
     [
       postId,
-      visitorHash(ip, ua),
-      (req.headers['cf-ipcountry'] || '').toUpperCase() || null,
+      hash,
+      geo.country_code || null,
       geo.country || null,
       geo.region  || null,
       geo.city    || null,
@@ -72,7 +67,7 @@ async function recordClick(req, postId) {
       parseBrowser(ua),
       parseLanguage(req.headers['accept-language'] || '') || null,
       normalizeSourcePage(req.query.from),
-      await trafficSource(sessionIdFromCookie(req.headers.cookie)),
+      await trafficSource(hash),
     ]
   );
 }
@@ -225,5 +220,5 @@ async function getInsights({ range = '30', postId = null } = {}) {
 
 module.exports = {
   recordClick, getInsights, rollupOldClicks,
-  normalizeSourcePage, visitorHash, sessionIdFromCookie, RETENTION_DAYS,
+  normalizeSourcePage, visitorHash, RETENTION_DAYS,
 };

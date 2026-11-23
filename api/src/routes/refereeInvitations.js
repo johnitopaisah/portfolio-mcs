@@ -461,7 +461,8 @@ router.post('/:token/submit', uploadFields, async (req, res, next) => {
 
     const photo    = req.files?.photo?.[0];
     const org_logo = req.files?.org_logo?.[0];
-    const availReq = available_on_request === 'true' || available_on_request === true;
+    // Contact details are never published (privacy, Nov 2026) — always "available on request".
+    const availReq = true; void available_on_request;
     const vis      = visible !== 'false' && visible !== false;
     let starConfig = null;
     if (starConfigRaw) {

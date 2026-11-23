@@ -1,59 +1,48 @@
 'use strict';
 // ============================================================
-//  IP Geolocation — ip-api.com (free, no key, 45 req/min)
-//  Results are cached in-memory for 24h to stay well under limits.
-//  Private/loopback IPs are detected locally — no HTTP call made.
+//  Approximate visitor location — from Cloudflare's request headers.
+//
+//  Cloudflare already knows where each request comes from and adds:
+//    cf-ipcountry  (always)                  e.g. "FR"
+//    cf-region, cf-ipcity                    when the zone has the
+//      "Add visitor location headers" Managed Transform enabled
+//      (Cloudflare → Rules → Transform Rules → Managed Transforms).
+//
+//  No IP address leaves this server and no third-party lookup is made.
+//  (Until Nov 2026 every visitor IP was sent to ip-api.com over plain HTTP.)
 // ============================================================
 
-// Simple in-memory LRU-like cache: { ip -> { data, expiresAt } }
-const cache = new Map();
-const CACHE_TTL_MS  = 24 * 60 * 60 * 1000; // 24 hours
-const MAX_CACHE_SIZE = 500;
+const regionNames = (() => {
+  try { return new Intl.DisplayNames(['en'], { type: 'region' }); } catch { return null; }
+})();
 
-const PRIVATE_IP_RE = /^(127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|::1$|fc|fd)/i;
-
-function isPrivateIp(ip) {
-  if (!ip || ip === '-') return true;
-  return PRIVATE_IP_RE.test(ip);
+function header(headers, name) {
+  const v = headers?.[name];
+  const s = (Array.isArray(v) ? v[0] : v || '').toString().trim();
+  if (!s || s === 'XX' || s === 'T1') return '';          // XX = unknown, T1 = Tor
+  let out = s;
+  try { out = decodeURIComponent(s); } catch { /* not percent-encoded */ }
+  // Raw UTF-8 header bytes read as Latin-1 ("Ã\x8Ele-de-France") → re-decode.
+  if (/[ÃÂ][\x80-\xBF]/.test(out)) {
+    const fixed = Buffer.from(out, 'latin1').toString('utf8');
+    if (!fixed.includes('�')) out = fixed;
+  }
+  return out;
 }
 
-async function geoip(ip) {
-  if (!ip || isPrivateIp(ip)) {
-    return { country: 'Local', city: 'Local', region: '', lat: null, lon: null };
+/** @returns {{ country: string, country_code: string, region: string, city: string }} */
+function geoFromHeaders(headers = {}) {
+  const code = header(headers, 'cf-ipcountry').toUpperCase().slice(0, 2);
+  let country = '';
+  if (/^[A-Z]{2}$/.test(code)) {
+    try { country = regionNames?.of(code) || ''; } catch { country = ''; }
   }
-
-  // Cache hit
-  const cached = cache.get(ip);
-  if (cached && cached.expiresAt > Date.now()) return cached.data;
-
-  try {
-    const res = await fetch(
-      `http://ip-api.com/json/${ip}?fields=status,country,countryCode,regionName,city,lat,lon`,
-      { signal: AbortSignal.timeout(3000) }  // 3s hard timeout
-    );
-    if (!res.ok) throw new Error(`ip-api HTTP ${res.status}`);
-
-    const json = await res.json();
-    if (json.status !== 'success') throw new Error(`ip-api fail: ${json.message}`);
-
-    const data = {
-      country:  json.country     || '',
-      city:     json.city        || '',
-      region:   json.regionName  || '',
-      lat:      json.lat         || null,
-      lon:      json.lon         || null,
-    };
-
-    // Evict oldest entry if cache is full
-    if (cache.size >= MAX_CACHE_SIZE) {
-      cache.delete(cache.keys().next().value);
-    }
-    cache.set(ip, { data, expiresAt: Date.now() + CACHE_TTL_MS });
-    return data;
-  } catch (err) {
-    console.warn(`[geoip] lookup failed for ${ip}:`, err.message);
-    return { country: '', city: '', region: '', lat: null, lon: null };
-  }
+  return {
+    country,
+    country_code: /^[A-Z]{2}$/.test(code) ? code : '',
+    region: header(headers, 'cf-region').slice(0, 80),
+    city:   header(headers, 'cf-ipcity').slice(0, 80),
+  };
 }
 
-module.exports = { geoip };
+module.exports = { geoFromHeaders };

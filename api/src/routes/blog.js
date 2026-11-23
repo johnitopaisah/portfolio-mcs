@@ -42,7 +42,9 @@ router.get('/', async (req, res, next) => {
          WHERE visible_on_site = true
          ORDER BY published_at DESC NULLS LAST`
       );
-      return rows;
+      // Images are served from this site (privacy): the visitor's browser never
+      // contacts Medium's CDN. See GET /:id/cover.
+      return rows.map(r => ({ ...r, cover_image_url: r.cover_image_url ? `/api/blog/${r.id}/cover` : null }));
     });
     res.set('Cache-Control', 'public, max-age=60');
     res.json(rows);
@@ -138,6 +140,44 @@ router.get('/insights', requireAuth, async (req, res, next) => {
  *       404:
  *         description: Not found
  */
+// ── GET /:id/cover — the post's cover image, from this site ──────────
+// Fetched from Medium once (server side, HTTPS, *.medium.com only, ≤ 3 MB),
+// stored in blog_posts.cover_image, then served from here with long caching.
+const COVER_MAX_BYTES = 3 * 1024 * 1024;
+const isMediumImageUrl = u => {
+  try { const x = new URL(u); return x.protocol === 'https:' && (x.hostname === 'medium.com' || x.hostname.endsWith('.medium.com')); }
+  catch { return false; }
+};
+async function fetchCover(url) {
+  if (!isMediumImageUrl(url)) return null;
+  const r = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(8000) });
+  if (!r.ok || !isMediumImageUrl(r.url)) return null;
+  const mime = (r.headers.get('content-type') || '').split(';')[0].trim();
+  if (!/^image\/(png|jpe?g|gif|webp|avif)$/.test(mime)) return null;
+  const buf = Buffer.from(await r.arrayBuffer());
+  return buf.length && buf.length <= COVER_MAX_BYTES ? { buf, mime } : null;
+}
+
+router.get('/:id/cover', async (req, res, next) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return res.status(404).end();
+    const { rows } = await pool.query(
+      'SELECT cover_image, cover_image_mime, cover_image_url FROM blog_posts WHERE id = $1 AND visible_on_site = true', [req.params.id]);
+    if (!rows.length || !rows[0].cover_image_url) return res.status(404).end();
+    let { cover_image: buf, cover_image_mime: mime } = rows[0];
+    if (!buf) {
+      const got = await fetchCover(rows[0].cover_image_url).catch(() => null);
+      if (!got) return res.status(404).end();
+      ({ buf, mime } = got);
+      await pool.query('UPDATE blog_posts SET cover_image = $1, cover_image_mime = $2 WHERE id = $3', [buf, mime, req.params.id]);
+    }
+    res.set('Content-Type', mime);
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.set('X-Content-Type-Options', 'nosniff');
+    res.send(buf);
+  } catch (err) { next(err); }
+});
+
 router.get('/:id/go', clickLimiter, async (req, res, next) => {
   try {
     if (!UUID_RE.test(req.params.id)) return res.status(404).json({ error: 'Post not found' });
@@ -214,6 +254,8 @@ router.put('/:id', requireAuth, async (req, res, next) => {
     const { rows } = await pool.query(
       `UPDATE blog_posts SET
          excerpt         = COALESCE($1, excerpt),
+         cover_image      = CASE WHEN $2::text IS NOT NULL AND $2::text IS DISTINCT FROM cover_image_url THEN NULL ELSE cover_image END,
+         cover_image_mime = CASE WHEN $2::text IS NOT NULL AND $2::text IS DISTINCT FROM cover_image_url THEN NULL ELSE cover_image_mime END,
          cover_image_url = COALESCE($2, cover_image_url),
          tags            = COALESCE($3, tags),
          visible_on_site = COALESCE($4, visible_on_site)

@@ -335,6 +335,13 @@ function ContactRequestForm({ refereeId, refereeName }: { refereeId: string; ref
           />
         </div>
 
+        <p className="text-xs leading-relaxed" style={{ color: 'var(--text-3)' }}>
+          John reviews each request. If approved, your name, company, purpose and message are shared with the
+          referee, who decides whether to share their contact details with you. Requests are deleted 12 months
+          after they close.{' '}
+          <a href="/privacy#referees" target="_blank" className="underline underline-offset-2">Privacy</a>
+        </p>
+
         {state === 'error' && (
           <p className="text-xs px-3 py-2 rounded-lg" style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171' }}>
             {errorMsg}

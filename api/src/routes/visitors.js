@@ -8,7 +8,8 @@ const router    = require('express').Router();
 const { createRateLimiter } = require('../services/rateLimit');
 const pool      = require('../db/client');
 const { requireAuth } = require('../middleware/auth');
-const { geoip }       = require('../services/geoip');
+const { geoFromHeaders } = require('../services/geoip');
+const { dailyVisitorHash, refererOrigin } = require('../services/visitorHash');
 const {
   isBot, parseBrowser, parseOs, parseDevice, labelReferer, parseLanguage, clientIp,
 } = require('../services/parseVisitor');
@@ -49,7 +50,6 @@ router.post('/', visitorLimiter, async (req, res) => {
     const ip = clientIp(req);
 
     const cfCountryCode = (req.headers['cf-ipcountry'] || '').toUpperCase();
-    const sessionId     = req.headers['x-portfolio-sid'] || null;
     const refererRaw    = req.headers['referer']         || req.headers['x-referer']         || '';
     const acceptLang    = req.headers['accept-language'] || req.headers['x-accept-language'] || '';
 
@@ -67,8 +67,8 @@ router.post('/', visitorLimiter, async (req, res) => {
       visitorsByBrowser.inc({ browser });
     }
 
-    // Geo lookup async (cached 24h — response already sent to user-ui)
-    const geo     = await geoip(ip);
+    // Location from Cloudflare's headers — no IP is sent anywhere or stored.
+    const geo     = geoFromHeaders(req.headers);
     const country = geo.country || '';
 
     if (!bot && country) {
@@ -81,24 +81,21 @@ router.post('/', visitorLimiter, async (req, res) => {
     if (!bot) {
       await pool.query(
         `INSERT INTO visitor_logs
-          (ip_address, country_code, country, city, region, latitude, longitude,
-           browser, os, device_type, referer_raw, referer_label, language, session_id)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+          (visitor_hash, country_code, country, city, region,
+           browser, os, device_type, referer_raw, referer_label, language)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
         [
-          ip            || null,
-          cfCountryCode || null,
+          dailyVisitorHash(ip, ua),
+          cfCountryCode || geo.country_code || null,
           country       || null,
           geo.city      || null,
           geo.region    || null,
-          geo.lat       || null,
-          geo.lon       || null,
           browser       || null,
           os            || null,
           device,
-          refererRaw    || null,
+          refererOrigin(refererRaw),
           refLabel,
           language      || null,
-          sessionId,
         ]
       );
     }
@@ -117,14 +114,15 @@ router.get('/stats', requireAuth, async (req, res, next) => {
     const [totalRes, uniqueRes, countryRes, refererRes, deviceRes,
            browserRes, osRes, timelineRes, allTimeRes] = await Promise.all([
       pool.query(`SELECT COUNT(*) AS n FROM visitor_logs WHERE visited_at >= $1 AND NOT is_bot`, [since]),
-      pool.query(`SELECT COUNT(DISTINCT COALESCE(session_id, ip_address)) AS n FROM visitor_logs WHERE visited_at >= $1 AND NOT is_bot`, [since]),
+      pool.query(`SELECT COUNT(DISTINCT COALESCE(visitor_hash, session_id::text, id::text)) AS n FROM visitor_logs WHERE visited_at >= $1 AND NOT is_bot`, [since]),
       pool.query(`SELECT COALESCE(country, country_code, 'Unknown') AS label, COUNT(*) AS n FROM visitor_logs WHERE visited_at >= $1 AND NOT is_bot GROUP BY label ORDER BY n DESC LIMIT 10`, [since]),
       pool.query(`SELECT COALESCE(referer_label, 'Direct') AS label, COUNT(*) AS n FROM visitor_logs WHERE visited_at >= $1 AND NOT is_bot GROUP BY label ORDER BY n DESC LIMIT 8`, [since]),
       pool.query(`SELECT COALESCE(device_type,'desktop') AS label, COUNT(*) AS n FROM visitor_logs WHERE visited_at >= $1 AND NOT is_bot GROUP BY label ORDER BY n DESC`, [since]),
       pool.query(`SELECT COALESCE(browser,'Unknown') AS label, COUNT(*) AS n FROM visitor_logs WHERE visited_at >= $1 AND NOT is_bot GROUP BY label ORDER BY n DESC LIMIT 6`, [since]),
       pool.query(`SELECT COALESCE(os,'Unknown') AS label, COUNT(*) AS n FROM visitor_logs WHERE visited_at >= $1 AND NOT is_bot GROUP BY label ORDER BY n DESC LIMIT 6`, [since]),
       pool.query(`SELECT date_trunc('day', visited_at) AS day, COUNT(*) AS n FROM visitor_logs WHERE visited_at >= $1 AND NOT is_bot GROUP BY day ORDER BY day`, [since]),
-      pool.query(`SELECT COUNT(*) AS n FROM visitor_logs WHERE NOT is_bot`),
+      // all-time = individual visits + visits already folded into daily totals (> 13 months)
+      pool.query(`SELECT (SELECT COUNT(*) FROM visitor_logs WHERE NOT is_bot) + (SELECT COALESCE(SUM(visits), 0) FROM visitor_daily) AS n`),
     ]);
 
     res.json({

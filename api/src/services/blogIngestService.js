@@ -55,6 +55,9 @@ async function syncBlogFromMedium() {
          title           = EXCLUDED.title,
          excerpt         = EXCLUDED.excerpt,
          cover_image_url = EXCLUDED.cover_image_url,
+         -- stored copy (served from this site) is refreshed when the image changes
+         cover_image      = CASE WHEN blog_posts.cover_image_url IS DISTINCT FROM EXCLUDED.cover_image_url THEN NULL ELSE blog_posts.cover_image END,
+         cover_image_mime = CASE WHEN blog_posts.cover_image_url IS DISTINCT FROM EXCLUDED.cover_image_url THEN NULL ELSE blog_posts.cover_image_mime END,
          tags            = EXCLUDED.tags,
          medium_url      = EXCLUDED.medium_url,
          published_at    = EXCLUDED.published_at,

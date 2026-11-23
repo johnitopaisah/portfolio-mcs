@@ -80,7 +80,7 @@ async function getStats(hours = 24) {
     ),
     // Unique sessions today
     pool.query(
-      `SELECT COUNT(DISTINCT COALESCE(session_id, ip_address)) AS n FROM visitor_logs WHERE visited_at >= $1 AND NOT is_bot`,
+      `SELECT COUNT(DISTINCT COALESCE(visitor_hash, session_id::text, id::text)) AS n FROM visitor_logs WHERE visited_at >= $1 AND NOT is_bot`,
       [since]
     ),
     // Top countries
@@ -117,7 +117,7 @@ async function getStats(hours = 24) {
       [since]
     ),
     // All-time total
-    pool.query(`SELECT COUNT(*) AS n FROM visitor_logs WHERE NOT is_bot`),
+    pool.query(`SELECT (SELECT COUNT(*) FROM visitor_logs WHERE NOT is_bot) + (SELECT COALESCE(SUM(visits), 0) FROM visitor_daily) AS n`),
   ]);
   // CVs emailed to visitors in the period (table from migration 042)
   const cvRes = await pool.query(

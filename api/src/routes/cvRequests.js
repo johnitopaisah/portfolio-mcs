@@ -26,6 +26,7 @@ router.post('/', async (req, res) => {
       userAgent: req.get('user-agent'),
       referrer: req.get('x-referer') || req.get('referer'),
       countryCode: req.get('cf-ipcountry'),
+      headers: req.headers,
     });
     res.status(out.status === 'sent' ? 201 : 200).json(out);
   } catch (err) {

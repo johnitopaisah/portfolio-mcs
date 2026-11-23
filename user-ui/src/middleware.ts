@@ -8,8 +8,8 @@ import type { NextRequest } from 'next/server';
  * 1. REQUEST LOGGING — stdout morgan-style log for every request
  * 2. API PROXY      — forwards /api/* to INTERNAL_API_URL
  * 3. VISITOR PING   — fire-and-forget POST to /api/visitors on homepage hits
- *    Uses a session cookie (portfolio-sid) so each browser session is
- *    tracked once, not once per page navigation.
+ *    No cookie: the API counts unique visitors with an anonymous code
+ *    that changes daily (privacy, Nov 2026 — replaced portfolio-sid).
  */
 
 const SKIP_LOG = /^\/((_next|__nextjs|favicon\.ico|robots\.txt|sitemap\.xml|healthz))/;
@@ -30,37 +30,27 @@ function isLikelyNonHuman(request: NextRequest): boolean {
   return !ua || NON_HUMAN_UA_RE.test(ua);
 }
 
-// 30-minute session window (milliseconds)
-const SESSION_TTL_SECONDS = 30 * 60;
-
-// ── Session ID ────────────────────────────────────────────────
-function generateSessionId(): string {
-  // crypto.randomUUID() is available in Next.js edge/Node runtime
-  return crypto.randomUUID();
-}
-
 // ── Visitor ping ──────────────────────────────────────────────
 // Called fire-and-forget — never awaited so it never delays the response.
-function pingVisitor(request: NextRequest, sessionId: string): void {
+function pingVisitor(request: NextRequest): void {
   const apiBase = process.env.INTERNAL_API_URL;
   if (!apiBase) return;
 
   // Forward the headers the API needs for analytics
   const headers: Record<string, string> = {
     'Content-Type':       'application/json',
-    'x-portfolio-sid':    sessionId,
     'x-referer':          request.headers.get('referer')         || '',
     'x-accept-language':  request.headers.get('accept-language') || '',
     'user-agent':         request.headers.get('user-agent')      || '',
   };
 
-  // Pass Cloudflare headers through so the API gets country + real IP
-  const cfIp      = request.headers.get('cf-connecting-ip');
-  const cfCountry = request.headers.get('cf-ipcountry');
-  const xForward  = request.headers.get('x-forwarded-for');
-  if (cfIp)      headers['cf-connecting-ip'] = cfIp;
-  if (cfCountry) headers['cf-ipcountry']     = cfCountry;
-  if (xForward)  headers['x-forwarded-for']  = xForward;
+  // Pass Cloudflare headers through: location (country, region, city — the
+  // API never looks an IP up anywhere) and the real IP, which the API only
+  // uses to compute the anonymous daily visitor code (never stored).
+  for (const h of ['cf-connecting-ip', 'cf-ipcountry', 'cf-region', 'cf-ipcity', 'x-forwarded-for']) {
+    const v = request.headers.get(h);
+    if (v) headers[h] = v;
+  }
 
   // Fire and forget — intentionally no await
   fetch(`${apiBase}/api/visitors`, { method: 'POST', headers })
@@ -152,26 +142,11 @@ export async function middleware(request: NextRequest) {
   // Only track GET / (the portfolio landing page).
   // All section navigation is client-side and doesn't re-hit the middleware.
   if (request.method === 'GET' && pathname === '/' && !isBot) {
-    let sessionId = request.cookies.get('portfolio-sid')?.value || '';
-    const isNewSession = !sessionId;
-
-    if (isNewSession) {
-      sessionId = generateSessionId();
-    }
-
-    // Always ping — the API deduplicates by session_id in stats queries.
-    // This means multiple tab opens in the same session are recorded
-    // but counted as one unique session in analytics.
-    pingVisitor(request, sessionId);
-
-    // Set/refresh session cookie on response
-    response.cookies.set('portfolio-sid', sessionId, {
-      maxAge:   SESSION_TTL_SECONDS,
-      httpOnly: true,
-      sameSite: 'lax',
-      secure:   process.env.NODE_ENV === 'production',
-      path:     '/',
-    });
+    // Each homepage load is recorded; the API counts unique visitors per
+    // day with an anonymous code — no cookie is set.
+    pingVisitor(request);
+    // Remove the old analytics cookie from returning browsers.
+    if (request.cookies.has('portfolio-sid')) response.cookies.delete('portfolio-sid');
   }
 
   return response;

@@ -278,6 +278,10 @@ export default function ContactSection({ socialLinks }: Props) {
                   <>Send message →</>
                 )}
               </button>
+              <p className="text-xs text-center leading-relaxed" style={{ color: 'var(--text-3)' }}>
+                Your message is used only to reply to you and is deleted after 12 months.{' '}
+                <a href="/privacy#contact" className="underline underline-offset-2">Privacy</a>
+              </p>
             </form>
           </div>
         )}

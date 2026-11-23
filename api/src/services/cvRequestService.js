@@ -10,7 +10,7 @@
  *   - 3 requests per hour from one visitor (salted IP hash; the IP itself is never stored)
  *   - the same email + language is sent once per 24 h ("already sent")
  *   - at most CV_DAILY_CAP (30) emails per day overall
- * Dependencies are injectable for tests (createCvRequests({ sendMail, notifyOwner, geoip, getCvPdf, now })).
+ * Dependencies are injectable for tests (createCvRequests({ sendMail, notifyOwner, geo, getCvPdf, now })).
  */
 const crypto = require('crypto');
 const pool   = require('../db/client');
@@ -102,7 +102,8 @@ function createCvRequests({
   now = () => new Date(),
   sendMail = defaultSendMail,
   notifyOwner = defaultNotifyOwner,
-  geoip = (ip) => require('./geoip').geoip(ip),
+  // location from Cloudflare's headers — no IP lookup
+  geo = (ctx) => require('./geoip').geoFromHeaders(ctx.headers || {}),
   getCvPdf = (lang) => require('./cvFile').getCvPdf(lang),
 } = {}) {
 
@@ -149,15 +150,16 @@ function createCvRequests({
     if (ipHash && lim.per_ip >= PER_IP_HOUR) throw fail(429, 'Too many requests — please try again in an hour.');
     if (lim.today >= DAILY_CAP) throw fail(429, 'The CV can’t be sent right now — please try again tomorrow or use the contact form.');
 
-    const geo = await geoip(ctx.ip).catch(() => ({}));
+    let g = {};
+    try { g = (await geo(ctx)) || {}; } catch { g = {}; }
     const pv = require('./parseVisitor');
     const ua = ctx.userAgent || '';
     const rec = {
       email, email_domain: domain, name: clip(body.name, 120), company: clip(body.company, 160), requester_role: role,
       language, source, consent_at: t, ip_hash: ipHash,
-      country: geo.country && geo.country !== 'Local' ? geo.country : null,
-      country_code: (ctx.countryCode || '').toUpperCase().slice(0, 2) || null,
-      region: geo.region || null, city: geo.city && geo.city !== 'Local' ? geo.city : null,
+      country: g.country || null,
+      country_code: (ctx.countryCode || g.country_code || '').toUpperCase().slice(0, 2) || null,
+      region: g.region || null, city: g.city || null,
       device: pv.parseDevice(ua) || null, browser: pv.parseBrowser(ua) || null, os: pv.parseOs(ua) || null,
       referrer: ctx.referrer ? pv.labelReferer(ctx.referrer) : null,
     };

@@ -418,14 +418,10 @@ export default function RefereeFormClient({ token, type, expiresAt, existing }: 
             </FormField>
           </div>
 
-          <div className="flex items-start gap-3 pt-1">
-            <input type="checkbox" id="avail" checked={form.available_on_request === 'true'}
-              onChange={e => set('available_on_request', String(e.target.checked))}
-              className="mt-0.5 w-4 h-4 flex-shrink-0 accent-violet-500" />
-            <label htmlFor="avail" className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.6)' }}>
-              Keep my contact details private — show &ldquo;Available on request&rdquo; instead of my email and phone
-            </label>
-          </div>
+          <p className="text-sm leading-relaxed pt-1" style={{ color: 'rgba(255,255,255,0.65)' }}>
+            🔒 Your email and phone are <strong>never shown on the site</strong>. If someone asks to contact you,
+            John checks the request and asks your permission first — your details are shared only if you agree.
+          </p>
 
           {/* Photo upload */}
           <div className="pt-3 space-y-4" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
@@ -641,8 +637,10 @@ export default function RefereeFormClient({ token, type, expiresAt, existing }: 
           {isModify ? 'Update my reference →' : 'Submit my reference →'}
         </button>
 
-        <p className="text-center text-xs" style={{ color: 'rgba(255,255,255,0.2)' }}>
-          By submitting, you agree for your reference to appear publicly on johnisah.com
+        <p className="text-center text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.6)' }}>
+          By submitting, you agree that your name, title, organisation, relationship, review, photo and LinkedIn link
+          appear publicly on johnisah.com. You can ask for your reference to be changed or removed at any time.{' '}
+          <a href="/privacy#referees" target="_blank" className="underline underline-offset-2">Privacy</a>
         </p>
       </div>
     </PageShell>

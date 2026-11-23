@@ -3,7 +3,9 @@
  */
 
 const assert = require('assert');
-const { normalizeSourcePage, visitorHash, sessionIdFromCookie } = require('../src/services/blogClickService');
+const { normalizeSourcePage, visitorHash } = require('../src/services/blogClickService');
+const { refererOrigin } = require('../src/services/visitorHash');
+const { geoFromHeaders } = require('../src/services/geoip');
 const { parseOs, parseDevice, parseLanguage } = require('../src/services/parseVisitor');
 
 describe('Blog click tracking', () => {
@@ -62,15 +64,18 @@ describe('Blog click tracking', () => {
     });
   });
 
-  describe('sessionIdFromCookie', () => {
-    it('finds the session cookie among others', () => {
-      assert.strictEqual(sessionIdFromCookie('a=1; portfolio-sid=abc-123; b=2'), 'abc-123');
-      assert.strictEqual(sessionIdFromCookie('portfolio-sid=abc-123'), 'abc-123');
+  describe('privacy helpers', () => {
+    it('keeps only the site a visitor came from, never the full URL', () => {
+      assert.strictEqual(refererOrigin('https://www.google.com/search?q=john+isah+email'), 'https://www.google.com');
+      assert.strictEqual(refererOrigin('android-app://com.linkedin.android/'), null);
+      assert.strictEqual(refererOrigin(''), null);
     });
 
-    it('returns null when absent', () => {
-      assert.strictEqual(sessionIdFromCookie('not-portfolio-sid=1'), null);
-      assert.strictEqual(sessionIdFromCookie(undefined), null);
+    it('reads location from Cloudflare headers only (no IP lookup)', () => {
+      assert.deepStrictEqual(geoFromHeaders({ 'cf-ipcountry': 'FR', 'cf-region': '%C3%8Ele-de-France', 'cf-ipcity': 'Paris' }),
+        { country: 'France', country_code: 'FR', region: 'Île-de-France', city: 'Paris' });
+      assert.deepStrictEqual(geoFromHeaders({ 'cf-ipcountry': 'XX' }), { country: '', country_code: '', region: '', city: '' });
+      assert.deepStrictEqual(geoFromHeaders({}), { country: '', country_code: '', region: '', city: '' });
     });
   });
 });
