@@ -38,12 +38,12 @@ async function main() {
   }
 
   if (warnings.length >= WARNING_QUORUM) {
-    console.error(`\n[Canary] ${warnings.length}/${results.length} platforms reported low job counts at once — unlikely to be coincidental, treating as a failure.`);
+    console.error(`\n[Canary] ${warnings.length}/${results.length} platforms warned at once (low job counts / unreachable APIs) — unlikely to be coincidental, treating as a failure.`);
     process.exit(1);
   }
 
   if (warnings.length > 0) {
-    console.warn(`\n[Canary] ${warnings.length}/${results.length} platform(s) reported a low job count — likely that company's hiring activity, not a parser bug. Not failing the run.`);
+    console.warn(`\n[Canary] ${warnings.length}/${results.length} platform(s) warned (low job count or API temporarily unavailable — see ⚠️ above), not a parser bug. Not failing the run.`);
   } else {
     console.log(`\n[Canary] All ${results.length} platform(s) passed.`);
   }
