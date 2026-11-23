@@ -28,20 +28,51 @@ const DETAIL_FETCH_CAP = 100;
 const LIST_PAGE_SIZE = 20; // Workday's CXS API 400s above this (verified live — 50 and 100 both fail)
 const LIST_SAFETY_CAP = 2000; // hard ceiling regardless of a board's reported total
 
-async function fetchJobList(tenant, wd, site) {
+// Workday rate-limits bursts (seen live 2026-11-23: Visa's board answered
+// 429 to the weekly canary's ~100-request crawl, twice). Temporary upstream
+// errors are retried with backoff, honouring Retry-After; anything else —
+// and a 429 that persists — is thrown as before.
+const RETRY_STATUSES = new Set([429, 502, 503, 504]);
+const RETRY_CODES = new Set(['ECONNRESET', 'ETIMEDOUT', 'ECONNABORTED', 'EAI_AGAIN']);
+const MAX_RETRIES = 3;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function isTransient(err) {
+  return RETRY_STATUSES.has(err?.response?.status) || RETRY_CODES.has(err?.code);
+}
+
+function retryDelayMs(err, attempt) {
+  const ra = Number.parseInt(err?.response?.headers?.['retry-after'], 10);
+  if (Number.isFinite(ra) && ra >= 0) return Math.min(ra, 30) * 1000;
+  return 2000 * 2 ** attempt + Math.floor(Math.random() * 500);    // 2s, 4s, 8s (+ jitter)
+}
+
+async function withRetry(fn, { retries = MAX_RETRIES, wait = sleep } = {}) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt >= retries || !isTransient(err)) throw err;
+      await wait(retryDelayMs(err, attempt));
+    }
+  }
+}
+
+async function fetchJobList(tenant, wd, site, { maxPostings = LIST_SAFETY_CAP } = {}) {
   const listUrl = `https://${tenant}.${wd}.myworkdayjobs.com/wday/cxs/${tenant}/${site}/jobs`;
   const postings = [];
   let offset = 0;
   let total = Infinity;
+  const cap = Math.min(maxPostings, LIST_SAFETY_CAP);
 
-  while (offset < total && offset < LIST_SAFETY_CAP) {
+  while (offset < total && offset < cap) {
     let data;
     try {
-      ({ data } = await axios.post(
+      ({ data } = await withRetry(() => axios.post(
         listUrl,
         { appliedFacets: {}, limit: LIST_PAGE_SIZE, offset, searchText: '' },
         { timeout: 10000 }
-      ));
+      )));
     } catch (err) {
       // 422 (and sometimes 404) is Workday's "tenant/site doesn't exist" signal
       if (err.response?.status === 422 || err.response?.status === 404) {
@@ -68,18 +99,20 @@ async function fetchJobList(tenant, wd, site) {
 async function fetchJobDetail(tenant, wd, site, externalPath) {
   const url = `https://${tenant}.${wd}.myworkdayjobs.com/wday/cxs/${tenant}/${site}${externalPath}`;
   try {
-    const { data } = await axios.get(url, { timeout: 10000 });
+    const { data } = await withRetry(() => axios.get(url, { timeout: 10000 }), { retries: 1 });
     return data?.jobPostingInfo || null;
   } catch {
     return null; // detail fetch failing shouldn't sink the whole board's poll
   }
 }
 
-async function fetchBoardJobs(compositeSlug) {
+// opts (optional): { maxPostings, detailCap } — the canary only needs a
+// sample (a few requests), not the full crawl discovery does.
+async function fetchBoardJobs(compositeSlug, { maxPostings = LIST_SAFETY_CAP, detailCap = DETAIL_FETCH_CAP } = {}) {
   const [tenant, wd, site] = compositeSlug.split('|');
   if (!tenant || !wd || !site) return null;
 
-  const postings = await fetchJobList(tenant, wd, site);
+  const postings = await fetchJobList(tenant, wd, site, { maxPostings });
   if (postings === null) return null; // board doesn't exist
   if (postings.length === 0) return [];
 
@@ -96,7 +129,7 @@ async function fetchBoardJobs(compositeSlug) {
 
     // Only fetch full detail (description + real posted date) for the
     // first DETAIL_FETCH_CAP postings this poll — see comment above.
-    const detail = i < DETAIL_FETCH_CAP ? await fetchJobDetail(tenant, wd, site, externalPath) : null;
+    const detail = i < detailCap ? await fetchJobDetail(tenant, wd, site, externalPath) : null;
 
     jobs.push({
       external_id:     `workday_${tenant}_${site}_${jobId}`,
@@ -127,4 +160,4 @@ async function fetchBoardJobs(compositeSlug) {
   return jobs;
 }
 
-module.exports = { extractBoardSlug, fetchBoardJobs };
+module.exports = { extractBoardSlug, fetchBoardJobs, withRetry, isTransient };

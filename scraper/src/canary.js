@@ -35,7 +35,9 @@ const CANARIES = [
   { platform: 'greenhouse', slug: 'gitlab', minJobs: 20 },
   { platform: 'lever', slug: 'theodo', minJobs: 20 },
   { platform: 'ashby', slug: 'notion', minJobs: 20 },
-  { platform: 'workday', slug: 'visa|wd5|Visa', minJobs: 20 },
+  // sample: the first 40 postings + 1 detail page (3 requests) — the full
+  // crawl (~100+ requests) got the canary rate-limited (429) on 2026-11-23.
+  { platform: 'workday', slug: 'visa|wd5|Visa', minJobs: 20, fetchOpts: { maxPostings: 40, detailCap: 1 } },
   { platform: 'smartrecruiters', slug: 'WesternDigital', minJobs: 20, fallbackSlugs: ['Sandisk'] },
 ];
 
@@ -70,16 +72,26 @@ function validateJobShape(job) {
 // signature of an identifier moving. A wrong-type/bad-shape result fails
 // fast as critical without trying fallbacks, since that means the PARSER
 // broke for a board we know exists, which a different slug can't fix.
-async function checkOne({ platform, slug, fallbackSlugs = [], minJobs }) {
+// Rate-limited (429), upstream 5xx, or a network timeout: the board's API
+// didn't answer, so we can't tell whether the parser works — inconclusive,
+// not a regression (the run-level WARNING_QUORUM still fails the job if
+// several platforms are unreachable at once).
+const TRANSIENT_STATUS = new Set([429, 500, 502, 503, 504]);
+const TRANSIENT_CODE = new Set(['ECONNRESET', 'ETIMEDOUT', 'ECONNABORTED', 'EAI_AGAIN', 'ENOTFOUND']);
+const isTransientError = err => TRANSIENT_STATUS.has(err?.response?.status) || TRANSIENT_CODE.has(err?.code);
+
+async function checkOne({ platform, slug, fallbackSlugs = [], minJobs, fetchOpts }) {
   const parser = PARSERS[platform];
   const candidates = [slug, ...fallbackSlugs];
   const unresolved = [];
+  let transient = 0;
 
   for (const candidate of candidates) {
     let jobs;
     try {
-      jobs = await parser.fetchBoardJobs(candidate);
+      jobs = await parser.fetchBoardJobs(candidate, fetchOpts);
     } catch (err) {
+      if (isTransientError(err)) transient++;
       unresolved.push(`${candidate} (threw: ${err.message})`);
       continue;
     }
@@ -112,6 +124,15 @@ async function checkOne({ platform, slug, fallbackSlugs = [], minJobs }) {
     return { platform, slug: candidate, ok: true, reason: `${jobs.length} jobs, shape OK` };
   }
 
+  if (transient === candidates.length) {
+    return {
+      platform,
+      slug,
+      ok: false,
+      severity: 'warning',
+      reason: `inconclusive — the board's API was unavailable or rate-limited, not a parser failure (tried: ${unresolved.join('; ')})`,
+    };
+  }
   return {
     platform,
     slug,
@@ -129,4 +150,4 @@ async function runCanaryChecks() {
   return results;
 }
 
-module.exports = { runCanaryChecks, CANARIES };
+module.exports = { runCanaryChecks, checkOne, CANARIES };
