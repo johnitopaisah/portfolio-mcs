@@ -13,6 +13,7 @@ type HealthComponent = { key: string; label: string; pts: number; max: number; o
 type DashStats = {
   goal: { target: number; this_week: number; today: number; pct: number; streak_weeks: number; streak_includes_current_week?: boolean };
   availability?: { status: AvailStatus; paused: boolean; since: string | null };
+  cv_requests_7d?: number;
   daily_counts: Array<{ day: string; cnt: number }>;
   health_score: { total: number; label: string; color: string; components?: HealthComponent[]; paused?: boolean };
   due_reminders: Array<{ id: number; title: string; remind_at: string; company_name: string; application_id: number }>;
@@ -176,6 +177,12 @@ export default function DashboardPage() {
           <p className="text-sm mt-0.5" style={{ color: 'var(--t-255-255-255-0_45)' }}>
             {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
           </p>
+          {dashStats?.cv_requests_7d !== undefined && (
+            <Link href="/cv-requests" className="inline-flex items-center gap-1.5 mt-2 text-xs px-2.5 py-1 rounded-full hover:brightness-125"
+              style={{ background: 'var(--c-168-85-247-0_15)', color: 'var(--t-ddd6fe)' }}>
+              📄 {dashStats.cv_requests_7d} CV request{dashStats.cv_requests_7d === 1 ? '' : 's'} this week →
+            </Link>
+          )}
         </div>
         {/* Availability */}
         <div className="flex gap-1.5 shrink-0 flex-wrap">

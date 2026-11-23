@@ -3,6 +3,7 @@ import './globals.css';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { RumReporter } from '@/components/RumReporter';
 import MaintenanceOverlay from '@/components/MaintenanceOverlay';
+import CvRequestDialog from '@/components/CvRequestDialog';
 
 export const metadata: Metadata = {
   title: { default: 'John Itopa ISAH — DevOps & Cloud Engineer', template: '%s | John Itopa ISAH' },
@@ -73,6 +74,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <MaintenanceOverlay />
         <ThemeProvider>
           {children}
+          {/* "Get my CV" — emailed, not downloaded (opened by the Resume / CV buttons) */}
+          <CvRequestDialog />
         </ThemeProvider>
       </body>
     </html>

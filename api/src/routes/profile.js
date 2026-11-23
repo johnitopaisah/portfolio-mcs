@@ -81,7 +81,9 @@ router.get('/avatar', async (req, res, next) => {
  * @swagger
  * /api/profile/resume:
  *   get:
- *     summary: Download resume / CV
+ *     summary: Download resume / CV (admin only — visitors use POST /api/cv-requests)
+ *     security:
+ *       - bearerAuth: []
  *     description: >
  *       Without `?lang`: returns the static uploaded resume PDF.
  *       With `?lang=en` or `?lang=fr`: generates a PDF on-the-fly from the
@@ -106,55 +108,23 @@ router.get('/avatar', async (req, res, next) => {
  *       404:
  *         description: No resume / base CV found
  */
-router.get('/resume', async (req, res, next) => {
+// Login only: visitors now request the CV by email (POST /api/cv-requests),
+// so we know who received it. This stays for your own downloads (admin).
+router.get('/resume', requireAuth, async (req, res, next) => {
   try {
     const { lang } = req.query;
-
     if (lang === 'en' || lang === 'fr') {
-      const col = lang === 'en' ? 'resume_en' : 'resume_fr';
-
-      // 1. Serve uploaded language-specific PDF if present
-      const { rows: profileRows } = await pool.query(
-        `SELECT ${col}, ${col}_mime FROM profile LIMIT 1`
-      );
-      const uploaded = profileRows[0]?.[col];
-      if (uploaded) {
-        res.set('Content-Type', profileRows[0][`${col}_mime`] || 'application/pdf');
-        res.set('Content-Disposition', `attachment; filename="cv-${lang}.pdf"`);
-        return res.send(uploaded);
-      }
-
-      // 2. Fall back: generate on-the-fly from active base CV (no AI call)
-      const baseCvService = require('../services/cvGeneration/baseCvService');
-      const pdfService    = require('../services/cvGeneration/pdfService');
-
-      const activeBaseCv = await baseCvService.getActiveBaseCv();
-      const baseCvJson   = activeBaseCv.content_json;
-
-      const aiOutput = {
-        cv_summary:          baseCvJson.summary          || '',
-        skills_to_emphasize: baseCvJson.skills           || [],
-        tailored_experience: baseCvJson.experience       || [],
-        final_cv_json:       baseCvJson,
-      };
-
-      const { pdfBuffer } = await pdfService.generate({
-        applicationId: null,
-        version:       activeBaseCv.version,
-        aiOutput,
-        language:      lang,
-      });
-
-      res.set('Content-Type', 'application/pdf');
-      res.set('Content-Disposition', `attachment; filename="cv-${lang}.pdf"`);
-      return res.send(pdfBuffer);
+      const pdf = await require('../services/cvFile').getCvPdf(lang);
+      res.set('Content-Type', pdf.mime);
+      res.set('Content-Disposition', `attachment; filename="${pdf.filename}"`);
+      res.set('Cache-Control', 'no-store');
+      return res.send(pdf.buffer);
     }
-
-    // Default: serve the static uploaded PDF
     const { rows } = await pool.query('SELECT resume, resume_mime FROM profile LIMIT 1');
     if (!rows.length || !rows[0].resume) return res.status(404).end();
     res.set('Content-Type', rows[0].resume_mime || 'application/pdf');
     res.set('Content-Disposition', 'attachment; filename="resume.pdf"');
+    res.set('Cache-Control', 'no-store');
     res.send(rows[0].resume);
   } catch (err) { next(err); }
 });
