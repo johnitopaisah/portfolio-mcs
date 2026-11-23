@@ -15,7 +15,7 @@ const { startDailyDigest }           = require('./services/visitorDigest');
 const { startDailyJobDigest }        = require('./services/jobIngestion/notificationService');
 const { startConsentReminderWorker } = require('./workers/consentReminderWorker');
 const { startBlogStalenessWorker }   = require('./workers/blogStalenessWorker');
-const { runAllRules, captureWeeklySnapshot } = require('./services/automationService');
+const { runAllRules } = require('./services/automationService');
 
 const { errorHandler } = require('./middleware/errorHandler');
 
@@ -224,18 +224,5 @@ app.listen(PORT, () => {
     runAllRules().catch(e => console.error('[Automation] Startup run failed:', e));
   }, 10_000);
 
-  // Weekly snapshot — every Sunday at 23:55
-  function scheduleWeeklySnapshot() {
-    const now  = new Date();
-    const next = new Date();
-    next.setDate(now.getDate() + ((7 - now.getDay()) % 7 || 7));
-    next.setHours(23, 55, 0, 0);
-    const delay = next - now;
-    setTimeout(async () => {
-      try { await captureWeeklySnapshot(); } catch (e) { console.error('[Snapshot]', e); }
-      scheduleWeeklySnapshot(); // schedule next
-    }, delay);
-    console.log(`[Snapshot] Next weekly snapshot in ${Math.round(delay / 3600000)}h`);
-  }
-  scheduleWeeklySnapshot();
+  // Weekly snapshot: recorded by runAllRules() every hour (last completed Paris week).
 });

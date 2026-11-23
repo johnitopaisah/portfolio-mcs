@@ -28,10 +28,12 @@ router.patch('/', requireAuth, async (req, res, next) => {
     'available_from', 'notice_period_days',
     // Notification preferences (Goals page) — see digestSchedule.js / outboxService.js
     'preferred_reminder_channel', 'digest_schedule',
+    'admin_theme',   // admin dashboard theme (sun/moon button)
   ];
   const ALLOWED_VALUES = {
     preferred_reminder_channel: ['email', 'in_app'],
     digest_schedule:            ['daily', 'weekly', 'off'],
+    admin_theme:                ['dark', 'light'],
   };
   for (const [key, values] of Object.entries(ALLOWED_VALUES)) {
     if (req.body[key] !== undefined && !values.includes(req.body[key])) {

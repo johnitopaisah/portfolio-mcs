@@ -71,12 +71,25 @@ const parisDate = d => { const p = parisParts(d); return `${p.y}-${String(p.m).p
 
 // ── recipients ───────────────────────────────────────────────────
 const EMAIL_RE = /^[^\s@<>()",;:]+@[^\s@<>()",;:]+\.[a-z]{2,}$/i;
-const NO_REPLY_RE = /(^|[._+-])(no-?reply|do-?not-?reply|donotreply|noreply|notifications?|mailer-daemon|bounce|jobs-noreply|careers-noreply)([._+-]|@)/i;
+const NO_REPLY_RE = /(^|[._+-])(no-?reply|do-?not-?reply|donotreply|noreply|notifications?|mailer-daemon|mailer|bounce|jobs-noreply|careers-noreply|system|alerts?|automated|auto-?reply|postmaster)([._+-]|@)/i;
 const NO_REPLY_DOMAINS = /(^|\.)((linkedin|indeed|welcometothejungle|welcomekit|hellowork|glassdoor|jobteaser|teamtailor-mail|jobleads)\.(com|co|fr|io))$/i;
+
+// Your own mailboxes (a forwarded recruiter email shows YOU as the sender).
+function ownAddresses(env = process.env) {
+  return new Set([env.NOTIFY_EMAIL_USER, env.NOTIFY_EMAIL_TO, env.IMAP_USER, env.GMAIL_TARGET_ADDRESS,
+    env.ADMIN_PROFILE_EMAIL, ...(env.OWN_EMAIL_ADDRESSES || '').split(',')]
+    .map(a => String(a || '').trim().toLowerCase()).filter(a => a.includes('@')));
+}
+function isOwnAddress(email, env = process.env) {
+  const e = String(email || '').trim().toLowerCase();
+  if (ownAddresses(env).has(e)) return true;
+  const own = (env.IMAP_USER || env.NOTIFY_EMAIL_USER || '').split('@')[1]?.toLowerCase();
+  return !!own && domainOf(e) === own;                   // anything @johnisah.com is you
+}
 
 function isSendableAddress(email) {
   const e = String(email || '').trim();
-  if (!EMAIL_RE.test(e) || NO_REPLY_RE.test(e)) return false;
+  if (!EMAIL_RE.test(e) || NO_REPLY_RE.test(e) || isOwnAddress(e)) return false;
   const domain = domainOf(e);
   if (!domain || NO_REPLY_DOMAINS.test(domain) || isAtsDomain(domain)) return false;
   return true;
@@ -229,7 +242,9 @@ function createOutbox({
   sendMail = null,          // async ({ from, to, subject, text, html, headers, messageId, raw }) → { messageId }
   appendToSent = null,      // async (rawBuffer) → void   (copy into the mailbox's Sent folder)
   notifyUser = null,        // async ({ subject, html, text }) → void   (approval request to you)
+  isPaused = null,          // async () → boolean   (availability "Not open" holds everything)
 } = {}) {
+  isPaused     ||= () => require('./availability').isSearchPaused(db);
   sendMail     ||= defaultSendMail;
   appendToSent ||= defaultAppendToSent;
   notifyUser   ||= defaultNotifyUser;
@@ -541,6 +556,9 @@ function createOutbox({
   async function tick() {
     const results = [];
     const t = now();
+    // Job search paused (Not open): hold everything — nothing expires and
+    // approved emails wait; they go out (in working hours) after you resume.
+    if (await isPaused()) return { paused: true, expired: 0, stuck: 0, results };
     // pending approvals left for 7 days expire
     const { rows: expired } = await db.query(
       `UPDATE outbound_emails SET status = 'expired', updated_at = NOW()
@@ -552,6 +570,18 @@ function createOutbox({
       `UPDATE outbound_emails SET status = 'failed', last_error = 'Interrupted while sending — check your Sent folder before retrying', updated_at = NOW()
        WHERE status = 'sending' AND updated_at < $1 RETURNING id`, [new Date(t.getTime() - STUCK_SENDING_MS)]);
     for (const r of stuck) await logEvent(db, r.id, 'failed', 'system', { reason: 'interrupted while sending' });
+
+    // Open emails whose recipient is no longer acceptable (the filter learned
+    // a new ATS / automated sender, or it is your own address): cancel them.
+    const { rows: open } = await db.query(
+      `SELECT id, to_email FROM outbound_emails WHERE status IN ('draft','pending_approval','approved') AND to_email IS NOT NULL`);
+    for (const r of open.filter(o => !isSendableAddress(o.to_email))) {
+      const reason = isOwnAddress(r.to_email) ? 'Recipient is your own address' : 'Recipient is an automated or job-platform address';
+      const { rowCount } = await db.query(
+        `UPDATE outbound_emails SET status = 'cancelled', cancel_reason = $1, updated_at = NOW()
+         WHERE id = $2 AND status IN ('draft','pending_approval','approved')`, [reason, r.id]);
+      if (rowCount) await logEvent(db, r.id, 'cancelled', 'system', { reason, to: r.to_email });
+    }
 
     const { rows: due } = await db.query(
       `SELECT id FROM outbound_emails WHERE status = 'approved' AND send_after <= $1 ORDER BY send_after LIMIT 5`, [t]);
@@ -658,6 +688,6 @@ function approvalEmail(items) {
 }
 
 module.exports = {
-  greetingName,
+  greetingName, isOwnAddress,
   createOutbox, nextSendTime, inWorkingHours, isSendableAddress, resolveRecipient, approvalEmail, esc,
 };

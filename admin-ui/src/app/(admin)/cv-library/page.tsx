@@ -123,9 +123,9 @@ export default function CvLibraryPage() {
               onClick={() => setFilterType(opt.value)}
               className="px-3 py-1.5 text-xs font-medium rounded-md transition-colors"
               style={filterType === opt.value ? {
-                background: 'linear-gradient(135deg, rgba(124,58,237,0.75), rgba(79,70,229,0.75))',
+                background: 'linear-gradient(135deg, var(--c-124-58-237-0_75), var(--c-79-70-229-0_75))',
                 color: '#fff',
-              } : { color: '#475569' }}
+              } : { color: 'var(--t-475569)' }}
             >
               {opt.label}
             </button>

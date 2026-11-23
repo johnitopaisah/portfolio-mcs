@@ -33,6 +33,12 @@ const ATS_SENDER_DOMAINS = new Set([
   'greenhouse.io', 'lever.co', 'ashbyhq.com', 'myworkdayjobs.com',
   'smartrecruiters.com', 'workable.com', 'icims.com', 'taleo.net',
   'bamboohr.com', 'breezy.hr', 'jobvite.com', 'successfactors.com',
+  // Seen in production (Nov 2026): SAP SuccessFactors EU, Workday tenants.
+  'successfactors.eu', 'sapsf.com', 'sapsf.eu', 'myworkday.com',
+  'recruitee.com', 'teamtailor.com', 'personio.de', 'personio.com', 'jazzhr.com',
+  'applytojob.com', 'softgarden.io', 'softgarden.de', 'flatchr.io', 'jobylon.com',
+  'pinpointhq.com', 'avature.net', 'phenompeople.com', 'eightfold.ai',
+  'talent-soft.com', 'talentsoft.com', 'zohorecruit.com', 'zohorecruit.eu',
 ]);
 
 function domainOf(email) {

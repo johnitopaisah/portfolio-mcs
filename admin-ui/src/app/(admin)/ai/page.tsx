@@ -241,7 +241,7 @@ export default function AiManagementPage() {
     d === 'KEEP' ? '#22c55e' : d === 'REVIEW' ? '#eab308' : '#ef4444';
 
   const scoreColour = (s: number) =>
-    s >= 75 ? '#22c55e' : s >= 50 ? '#eab308' : '#ef4444';
+    s >= 75 ? 'var(--t-22c55e)' : s >= 50 ? 'var(--t-eab308)' : 'var(--t-ef4444)';
 
   // ── Render ───────────────────────────────────────────────────
   return (
@@ -316,12 +316,12 @@ export default function AiManagementPage() {
               {status.last_24h && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                   {[
-                    { label: 'Total (24h)', value: status.last_24h.total_jobs ?? '—', colour: '#a78bfa', href: '/jobs?sort=date' },
-                    { label: 'Kept',        value: status.last_24h.kept       ?? '—', colour: '#22c55e', href: '/jobs?ai_decision=KEEP' },
-                    { label: 'Review',      value: status.last_24h.review     ?? '—', colour: '#eab308', href: '/jobs?ai_decision=REVIEW' },
-                    { label: 'Dropped',     value: status.last_24h.dropped    ?? '—', colour: '#ef4444', href: '/jobs?ai_decision=DROP' },
-                    { label: 'Avg score',   value: status.last_24h.avg_score  ?? '—', colour: '#06b6d4', href: null },
-                    { label: 'Top score',   value: status.last_24h.max_score  ?? '—', colour: '#f59e0b', href: null },
+                    { label: 'Total (24h)', value: status.last_24h.total_jobs ?? '—', colour: 'var(--t-a78bfa)', href: '/jobs?sort=date' },
+                    { label: 'Kept',        value: status.last_24h.kept       ?? '—', colour: 'var(--t-22c55e)', href: '/jobs?ai_decision=KEEP' },
+                    { label: 'Review',      value: status.last_24h.review     ?? '—', colour: 'var(--t-eab308)', href: '/jobs?ai_decision=REVIEW' },
+                    { label: 'Dropped',     value: status.last_24h.dropped    ?? '—', colour: 'var(--t-ef4444)', href: '/jobs?ai_decision=DROP' },
+                    { label: 'Avg score',   value: status.last_24h.avg_score  ?? '—', colour: 'var(--t-06b6d4)', href: null },
+                    { label: 'Top score',   value: status.last_24h.max_score  ?? '—', colour: 'var(--t-f59e0b)', href: null },
                   ].map(s => {
                     const inner = (
                       <div className={`${card} text-center transition-all duration-150 ${s.href ? 'hover:border-white/10 cursor-pointer' : ''}`}>
@@ -504,7 +504,7 @@ export default function AiManagementPage() {
                           className="h-full rounded transition-all duration-500"
                           style={{
                             width: `${b.pct}%`,
-                            background: parseInt(b.bucket) >= 70 ? '#22c55e' : parseInt(b.bucket) >= 40 ? '#eab308' : '#ef4444',
+                            background: parseInt(b.bucket) >= 70 ? 'var(--c-22c55e)' : parseInt(b.bucket) >= 40 ? 'var(--c-eab308)' : 'var(--c-ef4444)',
                           }}
                         />
                       </div>

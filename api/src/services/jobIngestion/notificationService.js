@@ -246,6 +246,10 @@ async function sendDailyJobDigest({ scheduled = false } = {}) {
   }
 
   let period = 'daily', hours = 24;
+  if (scheduled && await require('../availability').isSearchPaused()) {
+    console.log('[JobDigest] Not sending — job search paused (availability: Not open)');
+    return { sent: false, reason: 'paused' };
+  }
   if (scheduled) {
     const plan = await digestPlan();
     if (!plan.send) { console.log(`[JobDigest] Not sending — ${plan.reason}`); return { sent: false, reason: plan.reason }; }

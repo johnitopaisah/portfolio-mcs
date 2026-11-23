@@ -28,10 +28,10 @@ function daysAgo(iso: string) {
 }
 
 function syncStatusColor(days: number | null) {
-  if (days === null) return { color: '#94a3b8', bg: 'rgba(100,116,139,0.12)' };
-  if (days < 7)      return { color: '#4ade80', bg: 'rgba(34,197,94,0.12)' };
-  if (days < 14)     return { color: '#fbbf24', bg: 'rgba(245,158,11,0.12)' };
-  return               { color: '#f87171',  bg: 'rgba(239,68,68,0.12)' };
+  if (days === null) return { color: 'var(--t-94a3b8)', bg: 'var(--c-100-116-139-0_12)' };
+  if (days < 7)      return { color: 'var(--t-4ade80)', bg: 'var(--c-34-197-94-0_12)' };
+  if (days < 14)     return { color: 'var(--t-fbbf24)', bg: 'var(--c-245-158-11-0_12)' };
+  return               { color: 'var(--t-f87171)',  bg: 'var(--c-239-68-68-0_12)' };
 }
 
 function buildCaption(post: BlogPost): string {
@@ -237,7 +237,7 @@ export default function BlogPage() {
       {/* ── Toast ─────────────────────────────────────────────────────────── */}
       {liToast && (
         <div className="fixed top-5 right-5 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-xl"
-          style={{ background: 'rgba(30,16,60,0.98)', border: '1px solid rgba(168,85,247,0.4)', color: '#DDD6FE' }}>
+          style={{ background: 'var(--c-30-16-60-0_98)', border: '1px solid var(--c-168-85-247-0_4)', color: 'var(--t-ddd6fe)' }}>
           {liToast}
         </div>
       )}
@@ -246,7 +246,7 @@ export default function BlogPage() {
       <div className="card max-w-2xl p-4 mb-4 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-            style={{ background: liStatus.connected ? 'rgba(10,102,194,0.2)' : 'rgba(100,116,139,0.12)' }}>
+            style={{ background: liStatus.connected ? 'var(--c-10-102-194-0_2)' : 'var(--c-100-116-139-0_12)' }}>
             <LinkedInIcon size={16} />
           </div>
           {liLoading ? (
@@ -254,7 +254,7 @@ export default function BlogPage() {
           ) : liStatus.connected ? (
             <div>
               <p className="text-sm font-medium" style={{ color: 'var(--text-1)' }}>
-                Connected as <span style={{ color: '#60a5fa' }}>{(liStatus as any).name}</span>
+                Connected as <span style={{ color: 'var(--t-60a5fa)' }}>{(liStatus as any).name}</span>
               </p>
               <p className="text-xs" style={{ color: 'var(--text-3)' }}>
                 Token valid · auto-refreshes before expiry
@@ -272,13 +272,13 @@ export default function BlogPage() {
           liStatus.connected ? (
             <button onClick={handleDisconnect}
               className="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
-              style={{ border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}>
+              style={{ border: '1px solid var(--c-239-68-68-0_3)', color: 'var(--t-f87171)' }}>
               Disconnect
             </button>
           ) : (
             <button onClick={handleConnect} disabled={liConnecting}
               className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
-              style={{ background: 'rgba(10,102,194,0.85)', color: '#fff' }}>
+              style={{ background: 'var(--c-10-102-194-0_85)', color: '#fff' }}>
               <LinkedInIcon size={12} />
               {liConnecting ? 'Redirecting…' : 'Connect LinkedIn'}
             </button>
@@ -352,7 +352,7 @@ export default function BlogPage() {
                       {post.click_count ?? 0} click{post.click_count === 1 ? '' : 's'}
                     </Link>
                     {shared && (
-                      <p className="text-xs mt-0.5 flex items-center gap-1" style={{ color: '#60a5fa' }}>
+                      <p className="text-xs mt-0.5 flex items-center gap-1" style={{ color: 'var(--t-60a5fa)' }}>
                         <LinkedInIcon size={10} />
                         Shared {new Date(post.linkedin_shared_at!).toLocaleDateString()}
                       </p>
@@ -362,8 +362,8 @@ export default function BlogPage() {
                     <button onClick={() => toggleVisible(post)}
                       className="px-3 py-1 rounded-lg text-xs font-medium transition-colors"
                       style={post.visible_on_site
-                        ? { background: 'rgba(34,197,94,0.12)',   color: '#4ade80', border: '1px solid rgba(34,197,94,0.25)' }
-                        : { background: 'rgba(100,116,139,0.12)', color: '#94a3b8', border: '1px solid rgba(100,116,139,0.25)' }
+                        ? { background: 'var(--c-34-197-94-0_12)',   color: 'var(--t-4ade80)', border: '1px solid var(--c-34-197-94-0_25)' }
+                        : { background: 'var(--c-100-116-139-0_12)', color: 'var(--t-94a3b8)', border: '1px solid var(--c-100-116-139-0_25)' }
                       }>
                       {post.visible_on_site ? 'Visible' : 'Hidden'}
                     </button>
@@ -381,7 +381,7 @@ export default function BlogPage() {
                       <button
                         onClick={() => openShare(post)}
                         className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-colors"
-                        style={{ background: 'rgba(10,102,194,0.85)', color: '#fff' }}>
+                        style={{ background: 'var(--c-10-102-194-0_85)', color: '#fff' }}>
                         <LinkedInIcon size={11} />
                         Share
                       </button>
@@ -392,13 +392,13 @@ export default function BlogPage() {
                           onClick={() => handleDeleteShare(post)}
                           disabled={deletingId === post.id}
                           className="px-3 py-1 rounded-lg text-xs font-medium transition-colors"
-                          style={{ border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}>
+                          style={{ border: '1px solid var(--c-239-68-68-0_3)', color: 'var(--t-f87171)' }}>
                           {deletingId === post.id ? 'Deleting…' : 'Delete post'}
                         </button>
                         <button
                           onClick={() => openShare(post)}
                           className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-colors"
-                          style={{ background: 'rgba(10,102,194,0.15)', color: '#60a5fa', border: '1px solid rgba(10,102,194,0.3)' }}>
+                          style={{ background: 'var(--c-10-102-194-0_15)', color: 'var(--t-60a5fa)', border: '1px solid var(--c-10-102-194-0_3)' }}>
                           <LinkedInIcon size={11} />
                           Reshare
                         </button>
@@ -415,17 +415,17 @@ export default function BlogPage() {
       {/* ── Share modal ────────────────────────────────────────────────────── */}
       {sharePost && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)' }}
+          style={{ background: 'var(--c-0-0-0-0_7)', backdropFilter: 'blur(6px)' }}
           onClick={e => { if (e.target === e.currentTarget) setSharePost(null); }}>
           <div className="w-full max-w-lg rounded-2xl flex flex-col"
-            style={{ background: 'rgba(14,7,36,0.98)', border: '1px solid rgba(255,255,255,0.1)', maxHeight: '90vh' }}>
+            style={{ background: 'var(--c-14-7-36-0_98)', border: '1px solid var(--c-255-255-255-0_1)', maxHeight: '90vh' }}>
 
             {/* Modal header */}
             <div className="flex items-center justify-between px-5 pt-5 pb-4"
-              style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+              style={{ borderBottom: '1px solid var(--c-255-255-255-0_07)' }}>
               <div className="flex items-center gap-2.5">
                 <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-                  style={{ background: 'rgba(10,102,194,0.25)' }}>
+                  style={{ background: 'var(--c-10-102-194-0_25)' }}>
                   <LinkedInIcon size={14} />
                 </div>
                 <div>
@@ -437,7 +437,7 @@ export default function BlogPage() {
               </div>
               <button onClick={() => setSharePost(null)}
                 className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors"
-                style={{ color: 'rgba(255,255,255,0.4)' }}>
+                style={{ color: 'var(--t-255-255-255-0_4)' }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <path d="M18 6 6 18M6 6l12 12"/>
                 </svg>
@@ -448,7 +448,7 @@ export default function BlogPage() {
             {sharePost.cover_image_url ? (
               <div className="px-5 pt-4">
                 <div className="relative rounded-xl overflow-hidden mb-1"
-                  style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
+                  style={{ border: '1px solid var(--c-255-255-255-0_08)' }}>
                   <img
                     src={sharePost.cover_image_url}
                     alt={sharePost.title}
@@ -456,7 +456,7 @@ export default function BlogPage() {
                     style={{ maxHeight: '180px' }}
                   />
                 </div>
-                <p className="text-xs mb-3 flex items-center gap-1.5" style={{ color: '#4ade80' }}>
+                <p className="text-xs mb-3 flex items-center gap-1.5" style={{ color: 'var(--t-4ade80)' }}>
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
                   Image will be uploaded directly to LinkedIn
                 </p>
@@ -464,10 +464,10 @@ export default function BlogPage() {
             ) : (
               <div className="px-5 pt-4">
                 <div className="flex items-center gap-2.5 p-3 rounded-xl mb-3"
-                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                  style={{ background: 'var(--c-255-255-255-0_04)', border: '1px solid var(--c-255-255-255-0_06)' }}>
                   <p className="text-xs font-medium truncate" style={{ color: 'var(--text-2)' }}>{sharePost.title}</p>
                 </div>
-                <p className="text-xs mb-3" style={{ color: '#fbbf24' }}>
+                <p className="text-xs mb-3" style={{ color: 'var(--t-fbbf24)' }}>
                   No cover image — will post as article link card
                 </p>
               </div>
@@ -476,7 +476,7 @@ export default function BlogPage() {
             {/* Caption editor */}
             <div className="px-5 pb-2 flex-1 overflow-auto">
               <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-3)' }}>
-                Caption <span style={{ color: 'rgba(255,255,255,0.2)' }}>· edit before publishing</span>
+                Caption <span style={{ color: 'var(--t-255-255-255-0_2)' }}>· edit before publishing</span>
               </label>
               <textarea
                 className="input text-sm w-full"
@@ -485,21 +485,21 @@ export default function BlogPage() {
                 onChange={e => setCaption(e.target.value)}
                 style={{ resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6 }}
               />
-              <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.2)' }}>
+              <p className="text-xs mt-1" style={{ color: 'var(--t-255-255-255-0_2)' }}>
                 {caption.length} chars
               </p>
             </div>
 
             {/* Error */}
             {shareError && (
-              <p className="mx-5 px-3 py-2 rounded-lg text-xs" style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171' }}>
+              <p className="mx-5 px-3 py-2 rounded-lg text-xs" style={{ background: 'var(--c-239-68-68-0_1)', color: 'var(--t-f87171)' }}>
                 {shareError}
               </p>
             )}
 
             {/* Actions */}
             <div className="flex gap-2 px-5 py-4"
-              style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+              style={{ borderTop: '1px solid var(--c-255-255-255-0_07)' }}>
               <button onClick={() => setSharePost(null)}
                 className="flex-1 py-2 rounded-xl text-sm font-medium transition-colors"
                 style={{ border: '1px solid var(--border)', color: 'var(--text-3)' }}>
@@ -507,7 +507,7 @@ export default function BlogPage() {
               </button>
               <button onClick={handleShare} disabled={sharing || !caption.trim()}
                 className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-semibold transition-all"
-                style={{ background: sharing ? 'rgba(10,102,194,0.5)' : 'rgba(10,102,194,0.9)', color: '#fff' }}>
+                style={{ background: sharing ? 'var(--c-10-102-194-0_5)' : 'var(--c-10-102-194-0_9)', color: '#fff' }}>
                 <LinkedInIcon size={13} />
                 {sharing ? 'Publishing…' : 'Publish to LinkedIn'}
               </button>

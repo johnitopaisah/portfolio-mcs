@@ -35,9 +35,21 @@ describe('Outbox send window (Mon–Fri 09:00–18:00 Europe/Paris)', () => {
 describe('Outbox recipient filter', () => {
   const ok = ['recruitment@murena.com', 'talent.acquisition@siemens.com', 'Jane.Doe@acme.fr'];
   const no = ['no-reply@ashbyhq.com', 'jobs-noreply@linkedin.com', 'noreply@company.com', 'notifications@hellowork.com',
-    'x@candidates.welcomekit.co', 'someone@greenhouse.io', 'do-not-reply@acme.com', 'bad@', '', null];
+    'x@candidates.welcomekit.co', 'someone@greenhouse.io', 'do-not-reply@acme.com', 'bad@', '', null,
+    // seen in production drafts (Nov 2026)
+    'system@successfactors.eu', 'ing@myworkday.com', 'alerts@acme.com'];
   for (const a of ok) it(`sends to ${a}`, () => assert(outboxSvc.isSendableAddress(a)));
   for (const a of no) it(`refuses ${a}`, () => assert(!outboxSvc.isSendableAddress(a)));
+  it('refuses your own addresses (a forwarded email shows you as the sender)', () => {
+    const keep = { ...process.env };
+    Object.assign(process.env, { NOTIFY_EMAIL_USER: 'connect@johnisah.test', NOTIFY_EMAIL_TO: 'me.personal@gmail.test' });
+    try {
+      assert(!outboxSvc.isSendableAddress('Me.Personal@gmail.test'));
+      assert(!outboxSvc.isSendableAddress('anything@johnisah.test'));
+      assert(outboxSvc.isSendableAddress('recruiter@acme.com'));
+      assert(outboxSvc.isSendableAddress('systems.team@acme.com'), 'only whole words like system@ are automated');
+    } finally { process.env = keep; }
+  });
 });
 
 describe('Greeting name', () => {
@@ -187,6 +199,16 @@ const DB_URL = process.env.TEST_DATABASE_URL;
     assert(!/Hi Acme/.test(d.body));
   });
 
+  it('open drafts to a now-blocked recipient (ATS / your own address) are cancelled by the ticker', async () => {
+    const { outbox } = harness();
+    const app = await mkApp(); await inbound(app, 'jane@acme.com');
+    const d = await outbox.createFollowUpDraft(app);
+    await q(`UPDATE outbound_emails SET to_email = 'ing@myworkday.com' WHERE id = $1`, [d.id]);   // drafted before the filter knew it
+    await outbox.tick();
+    const [row] = await q('SELECT status, cancel_reason FROM outbound_emails WHERE id = $1', [d.id]);
+    assert.deepStrictEqual(row, { status: 'cancelled', cancel_reason: 'Recipient is an automated or job-platform address' });
+  });
+
   it('contacts with an email win over inbound senders', async () => {
     const { outbox } = harness();
     const app = await mkApp();
@@ -299,7 +321,9 @@ const DB_URL = process.env.TEST_DATABASE_URL;
   });
 
   it('public review page: escapes content, approves once, rejects reuse / unknown links, no login needed', async () => {
-    const { outbox, state } = harness();
+    // The route uses the real clock, so the link must be issued with it too
+    // (a fixed date here makes the 72-hour link "expire" as the calendar moves).
+    const { outbox, state } = harness({ at: new Date() });
     const app = await mkApp(); await inbound(app, 'jane@acme.com');
     const d = await outbox.createManualDraft(app, { subject: '<script>alert(1)</script>', body: 'Hello <b>there</b>, this is a long enough body.', polish: false });
     await outbox.requestApproval([d.id]);

@@ -47,7 +47,7 @@ const RANGES = [
 ];
 
 const BAR_COLOR = '#A855F7';
-const PANEL = { background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' };
+const PANEL = { background: 'var(--c-255-255-255-0_07)', border: '1px solid var(--c-255-255-255-0_1)' };
 
 const PAGE_LABELS: Record<string, string> = { home: 'Homepage', blog: 'Blog page', other: 'Other' };
 
@@ -67,9 +67,9 @@ function percent(part: number, whole: number) {
 function StatTile({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="rounded-2xl p-5" style={PANEL}>
-      <p className="text-xs font-semibold" style={{ color: '#DDD6FE' }}>{label}</p>
-      <p className="text-3xl font-bold mt-2 truncate" style={{ color: '#FFFFFF' }}>{value}</p>
-      {hint && <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.45)' }}>{hint}</p>}
+      <p className="text-xs font-semibold" style={{ color: 'var(--t-ddd6fe)' }}>{label}</p>
+      <p className="text-3xl font-bold mt-2 truncate" style={{ color: 'var(--t-ffffff)' }}>{value}</p>
+      {hint && <p className="text-xs mt-1" style={{ color: 'var(--t-255-255-255-0_45)' }}>{hint}</p>}
     </div>
   );
 }
@@ -77,14 +77,14 @@ function StatTile({ label, value, hint }: { label: string; value: string; hint?:
 function Panel({ title, children, className = '' }: { title: string; children: React.ReactNode; className?: string }) {
   return (
     <div className={`rounded-2xl p-5 min-w-0 ${className}`} style={PANEL}>
-      <p className="text-sm font-semibold mb-4" style={{ color: '#DDD6FE' }}>{title}</p>
+      <p className="text-sm font-semibold mb-4" style={{ color: 'var(--t-ddd6fe)' }}>{title}</p>
       {children}
     </div>
   );
 }
 
 function Empty() {
-  return <p className="text-xs" style={{ color: 'rgba(255,255,255,0.32)' }}>No data yet</p>;
+  return <p className="text-xs" style={{ color: 'var(--t-255-255-255-0_32)' }}>No data yet</p>;
 }
 
 function RankedBars({ rows, format = capitalize }: { rows: Row[]; format?: (label: string) => string }) {
@@ -96,10 +96,10 @@ function RankedBars({ rows, format = capitalize }: { rows: Row[]; format?: (labe
       {rows.map(r => (
         <div key={r.label} title={`${format(r.label)}: ${r.clicks} click${r.clicks === 1 ? '' : 's'} (${percent(r.clicks, total)}%)`}>
           <div className="flex items-baseline justify-between gap-3 text-xs">
-            <span className="truncate" style={{ color: 'rgba(255,255,255,0.75)' }}>{format(r.label)}</span>
-            <span className="shrink-0 tabular-nums" style={{ color: 'rgba(255,255,255,0.92)' }}>{r.clicks}</span>
+            <span className="truncate" style={{ color: 'var(--t-255-255-255-0_75)' }}>{format(r.label)}</span>
+            <span className="shrink-0 tabular-nums" style={{ color: 'var(--t-255-255-255-0_92)' }}>{r.clicks}</span>
           </div>
-          <div className="h-1.5 mt-1 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.22)' }}>
+          <div className="h-1.5 mt-1 rounded-full overflow-hidden" style={{ background: 'var(--c-0-0-0-0_22)' }}>
             <div className="h-full rounded-r" style={{ width: `${Math.max((r.clicks / max) * 100, 2)}%`, background: BAR_COLOR }} />
           </div>
         </div>
@@ -116,12 +116,12 @@ function Timeline({ points }: { points: DayPoint[] }) {
   return (
     <div>
       <div className="relative">
-        <div className="flex items-end h-36 border-b" style={{ borderColor: 'rgba(255,255,255,0.15)', gap: points.length > 60 ? 0 : 2 }}
+        <div className="flex items-end h-36 border-b" style={{ borderColor: 'var(--c-255-255-255-0_15)', gap: points.length > 60 ? 0 : 2 }}
           onMouseLeave={() => setHover(null)}>
           {points.map((p, i) => (
             // The full-height column is the hover target, wider than the mark inside it.
             <div key={p.day} className="flex-1 h-full flex items-end min-w-0" onMouseEnter={() => setHover(i)}
-              style={{ background: hover === i ? 'rgba(255,255,255,0.06)' : 'transparent' }}>
+              style={{ background: hover === i ? 'var(--c-255-255-255-0_06)' : 'transparent' }}>
               {p.clicks > 0 && (
                 <div className="w-full rounded-t" style={{ height: `${Math.max((p.clicks / max) * 100, 3)}%`, background: BAR_COLOR }} />
               )}
@@ -131,17 +131,17 @@ function Timeline({ points }: { points: DayPoint[] }) {
         {active && hover !== null && (
           <div className="absolute top-0 z-10 px-2.5 py-1.5 rounded-lg text-xs pointer-events-none whitespace-nowrap"
             style={{
-              background: 'rgba(20,10,45,0.97)', border: '1px solid rgba(255,255,255,0.15)', color: '#FFFFFF',
+              background: 'var(--c-20-10-45-0_97)', border: '1px solid var(--c-255-255-255-0_15)', color: 'var(--t-ffffff)',
               ...(hover > points.length / 2
                 ? { right: `${((points.length - hover) / points.length) * 100}%` }
                 : { left: `${((hover + 1) / points.length) * 100}%` }),
             }}>
             <p className="font-semibold">{formatDay(active.day)}</p>
-            <p style={{ color: 'rgba(255,255,255,0.75)' }}>{active.clicks} clicks · {active.uniques} unique</p>
+            <p style={{ color: 'var(--t-255-255-255-0_75)' }}>{active.clicks} clicks · {active.uniques} unique</p>
           </div>
         )}
       </div>
-      <div className="flex justify-between text-xs mt-2" style={{ color: 'rgba(255,255,255,0.45)' }}>
+      <div className="flex justify-between text-xs mt-2" style={{ color: 'var(--t-255-255-255-0_45)' }}>
         <span>{points.length ? formatDay(points[0].day) : ''}</span>
         <span>Today (UTC)</span>
       </div>
@@ -208,38 +208,38 @@ function BlogInsightsInner() {
     <div className="p-6 space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link href="/blog" className="text-xs hover:underline" style={{ color: '#A855F7' }}>← Blog</Link>
-          <h1 className="text-2xl font-bold mt-1" style={{ color: '#FFFFFF' }}>Blog Insights</h1>
-          <p className="text-sm mt-0.5" style={{ color: 'rgba(255,255,255,0.45)' }}>
+          <Link href="/blog" className="text-xs hover:underline" style={{ color: 'var(--t-a855f7)' }}>← Blog</Link>
+          <h1 className="text-2xl font-bold mt-1" style={{ color: 'var(--t-ffffff)' }}>Blog Insights</h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--t-255-255-255-0_45)' }}>
             Readers who clicked through to Medium from your site.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex rounded-lg p-0.5" style={{ background: 'rgba(0,0,0,0.22)' }}>
+          <div className="flex rounded-lg p-0.5" style={{ background: 'var(--c-0-0-0-0_22)' }}>
             {RANGES.map(r => (
               <button key={r.value} onClick={() => setFilter({ range: r.value })} aria-pressed={range === r.value}
                 className="px-3 py-1.5 text-xs rounded-md font-medium transition-colors"
                 style={range === r.value
-                  ? { background: '#7C3AED', color: '#FFFFFF' }
-                  : { color: 'rgba(255,255,255,0.65)' }}>
+                  ? { background: 'var(--c-7c3aed)', color: '#fff' }
+                  : { color: 'var(--t-255-255-255-0_65)' }}>
                 {r.label}
               </button>
             ))}
           </div>
           <select value={postFilter} onChange={e => setFilter({ post: e.target.value })} aria-label="Filter by post"
             className="text-xs rounded-lg px-3 py-2 max-w-[16rem] focus:outline-none"
-            style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.75)' }}>
-            <option value="" style={{ color: '#111' }}>All posts</option>
-            {posts.map(p => <option key={p.id} value={p.id} style={{ color: '#111' }}>{p.title}</option>)}
+            style={{ background: 'var(--c-0-0-0-0_22)', border: '1px solid var(--c-255-255-255-0_1)', color: 'var(--t-255-255-255-0_75)' }}>
+            <option value="" style={{ color: 'var(--t-111111)' }}>All posts</option>
+            {posts.map(p => <option key={p.id} value={p.id} style={{ color: 'var(--t-111111)' }}>{p.title}</option>)}
           </select>
         </div>
       </div>
 
       {error && (
-        <div className="px-4 py-3 rounded-lg text-sm" style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171' }}>{error}</div>
+        <div className="px-4 py-3 rounded-lg text-sm" style={{ background: 'var(--c-239-68-68-0_1)', color: 'var(--t-f87171)' }}>{error}</div>
       )}
 
-      {!data && loading && <p className="text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>Loading…</p>}
+      {!data && loading && <p className="text-sm" style={{ color: 'var(--t-255-255-255-0_45)' }}>Loading…</p>}
 
       {data && (
         <div className="space-y-6" style={{ opacity: loading ? 0.6 : 1 }}>
@@ -264,10 +264,10 @@ function BlogInsightsInner() {
                     <button key={p.id} onClick={() => setFilter({ post: p.id })} className="block w-full text-left rounded hover:bg-white/5"
                       title={`${p.title}: ${p.clicks} clicks, ${p.uniques} unique. Click to filter.`}>
                       <div className="flex items-baseline justify-between gap-3 text-xs">
-                        <span className="truncate" style={{ color: 'rgba(255,255,255,0.75)' }}>{p.title}</span>
-                        <span className="shrink-0 tabular-nums" style={{ color: 'rgba(255,255,255,0.92)' }}>{p.clicks}</span>
+                        <span className="truncate" style={{ color: 'var(--t-255-255-255-0_75)' }}>{p.title}</span>
+                        <span className="shrink-0 tabular-nums" style={{ color: 'var(--t-255-255-255-0_92)' }}>{p.clicks}</span>
                       </div>
-                      <div className="h-1.5 mt-1 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.22)' }}>
+                      <div className="h-1.5 mt-1 rounded-full overflow-hidden" style={{ background: 'var(--c-0-0-0-0_22)' }}>
                         <div className="h-full rounded-r" style={{ width: `${Math.max((p.clicks / data.top_posts[0].clicks) * 100, 2)}%`, background: BAR_COLOR }} />
                       </div>
                     </button>
@@ -289,7 +289,7 @@ function BlogInsightsInner() {
               <div className="overflow-x-auto">
                 <table className="w-full text-xs text-left">
                   <thead>
-                    <tr style={{ color: 'rgba(255,255,255,0.45)' }}>
+                    <tr style={{ color: 'var(--t-255-255-255-0_45)' }}>
                       {['Time', 'Post', 'Location', 'Device', 'OS / Browser', 'Language', 'Source'].map(h => (
                         <th key={h} className="pb-2 pr-4 font-medium whitespace-nowrap">{h}</th>
                       ))}
@@ -297,7 +297,7 @@ function BlogInsightsInner() {
                   </thead>
                   <tbody>
                     {data.recent.map(c => (
-                      <tr key={c.id} className="border-t" style={{ borderColor: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.75)' }}>
+                      <tr key={c.id} className="border-t" style={{ borderColor: 'var(--c-255-255-255-0_08)', color: 'var(--t-255-255-255-0_75)' }}>
                         <td className="py-2 pr-4 whitespace-nowrap">
                           {new Date(c.clicked_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                         </td>
@@ -315,7 +315,7 @@ function BlogInsightsInner() {
             ) : <Empty />}
           </Panel>
 
-          <p className="text-xs" style={{ color: 'rgba(255,255,255,0.45)' }}>
+          <p className="text-xs" style={{ color: 'var(--t-255-255-255-0_45)' }}>
             A click means a reader went to Medium, not that they read the post. Location is approximate.
             A &quot;Unknown&quot; source means the visit didn&apos;t start on your homepage.
             {data.range === 'all' && ` Breakdowns and recent clicks cover the last ${data.retention_days} days; older clicks are kept as daily totals.`}

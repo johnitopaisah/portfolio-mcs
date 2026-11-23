@@ -358,11 +358,11 @@ export default function DocumentEditor({
           {/* Page-boundary line — fixed position, marks where page 1 ends */}
           <div style={{
             position: 'absolute', top: `${PAGE_HEIGHT_PX}px`, left: 0, right: 0,
-            borderTop: '2px dashed rgba(239,68,68,0.75)', height: 0,
+            borderTop: '2px dashed var(--c-239-68-68-0_75)', height: 0,
           }}>
             <span style={{
               position: 'absolute', right: 0, top: '2px', fontSize: '10px',
-              background: 'rgba(239,68,68,0.85)', color: 'white', padding: '2px 6px', borderRadius: '0 0 3px 3px',
+              background: 'var(--c-239-68-68-0_85)', color: 'white', padding: '2px 6px', borderRadius: '0 0 3px 3px',
             }}>
               Page 1 ends here
             </span>
@@ -375,7 +375,7 @@ export default function DocumentEditor({
           {overflowing && (
             <div style={{
               position: 'absolute', top: `${PAGE_HEIGHT_PX}px`, left: 0, right: 0,
-              height: `${overflowPx}px`, background: 'rgba(239,68,68,0.08)',
+              height: `${overflowPx}px`, background: 'var(--c-239-68-68-0_08)',
             }} />
           )}
         </>,

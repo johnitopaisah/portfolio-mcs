@@ -63,11 +63,11 @@ function SliderControl({ label, value, min, max, format, onChange }: {
     <div>
       <div className="flex items-center justify-between mb-2">
         <p className="text-white text-sm font-medium">{label}</p>
-        <p className="text-xs" style={{ color: '#a78bfa' }}>{format(value)}</p>
+        <p className="text-xs" style={{ color: 'var(--t-a78bfa)' }}>{format(value)}</p>
       </div>
       <input type="range" min={min} max={max} value={value}
         onChange={e => onChange(Number(e.target.value))}
-        className="w-full cursor-pointer" style={{ accentColor: '#a78bfa' }} />
+        className="w-full cursor-pointer" style={{ accentColor: 'var(--c-a78bfa)' }} />
       <div className="flex justify-between mt-1">
         <span className="text-gray-600 text-xs">{min}</span>
         <span className="text-gray-600 text-xs">{max}</span>
@@ -118,14 +118,14 @@ function StarSettingsModal({ referee, onClose, onPublished }: {
 
       {/* LEFT — full-height photo + live stars (mirrors public modal exactly) */}
       <div className="w-[42%] flex-shrink-0 h-full relative overflow-hidden"
-        style={{ background: 'rgba(10,10,20,0.98)' }}
+        style={{ background: 'var(--c-10-10-20-0_98)' }}
         onClick={e => e.stopPropagation()}>
         {referee.has_photo
           ? <img src={adminApi.refereePhoto(referee.id)} alt={referee.name}
               className="w-full h-full object-cover object-top" />
           : <div className="w-full h-full flex items-center justify-center">
               <div className="rounded-full flex items-center justify-center text-6xl font-bold"
-                style={{ width: '160px', height: '160px', background: 'rgba(124,58,237,0.15)', border: '3px solid rgba(124,58,237,0.4)', color: '#a78bfa' }}>
+                style={{ width: '160px', height: '160px', background: 'var(--c-124-58-237-0_15)', border: '3px solid var(--c-124-58-237-0_4)', color: 'var(--t-a78bfa)' }}>
                 {referee.name.charAt(0)}
               </div>
             </div>
@@ -163,7 +163,7 @@ function StarSettingsModal({ referee, onClose, onPublished }: {
         )}
         <div className="absolute bottom-4 left-4 pointer-events-none" style={{ zIndex: 3 }}>
           <span className="text-xs px-2.5 py-1 rounded-full"
-            style={{ background: 'rgba(0,0,0,0.55)', color: 'rgba(255,255,255,0.4)', backdropFilter: 'blur(4px)' }}>
+            style={{ background: 'var(--c-0-0-0-0_55)', color: 'var(--t-255-255-255-0_4)', backdropFilter: 'blur(4px)' }}>
             Preview only · not live until published
           </span>
         </div>
@@ -171,38 +171,38 @@ function StarSettingsModal({ referee, onClose, onPublished }: {
 
       {/* RIGHT — controls panel */}
       <div className="flex-1 h-full flex flex-col"
-        style={{ background: '#0f172a', borderLeft: '1px solid rgba(255,255,255,0.07)' }}
+        style={{ background: 'var(--c-0f172a)', borderLeft: '1px solid var(--c-255-255-255-0_07)' }}
         onClick={e => e.stopPropagation()}>
 
         {/* Header */}
         <div className="flex-shrink-0 flex items-center justify-between px-6 py-5"
-          style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+          style={{ borderBottom: '1px solid var(--c-255-255-255-0_07)' }}>
           <div>
             <h2 className="text-white font-semibold">✦ Star Animation</h2>
-            <p className="text-xs mt-0.5" style={{ color: '#6b7280' }}>{referee.name}</p>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--t-6b7280)' }}>{referee.name}</p>
           </div>
           <button onClick={onClose}
             className="w-9 h-9 rounded-full flex items-center justify-center transition-all"
-            style={{ color: '#9ca3af', border: '1px solid rgba(255,255,255,0.1)' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#fff'; (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.08)'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#9ca3af'; (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
+            style={{ color: 'var(--t-9ca3af)', border: '1px solid var(--c-255-255-255-0_1)' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#fff'; (e.currentTarget as HTMLElement).style.background = 'var(--c-255-255-255-0_08)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--t-9ca3af)'; (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
             ✕
           </button>
         </div>
 
         {/* Toggle */}
         <div className="flex-shrink-0 flex items-center justify-between px-6 py-4"
-          style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+          style={{ borderBottom: '1px solid var(--c-255-255-255-0_05)' }}>
           <div>
             <p className="text-white font-medium text-sm">Animation enabled</p>
-            <p className="text-xs mt-0.5" style={{ color: '#6b7280' }}>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--t-6b7280)' }}>
               {config.enabled ? 'Stars visible in the referee modal' : 'No stars for this referee'}
             </p>
           </div>
           <button
             onClick={() => setConfig(c => ({ ...c, enabled: !c.enabled }))}
             className="relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors duration-200"
-            style={{ background: config.enabled ? '#7c3aed' : '#374151' }}>
+            style={{ background: config.enabled ? 'var(--c-7c3aed)' : 'var(--c-374151)' }}>
             <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${config.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
           </button>
         </div>
@@ -219,15 +219,15 @@ function StarSettingsModal({ referee, onClose, onPublished }: {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-white text-sm font-medium">Star size</p>
-                  <p className="text-xs uppercase" style={{ color: '#a78bfa' }}>{config.size}</p>
+                  <p className="text-xs uppercase" style={{ color: 'var(--t-a78bfa)' }}>{config.size}</p>
                 </div>
                 <div className="flex gap-2">
                   {(['xs', 'sm', 'md', 'lg', 'xl'] as const).map(s => (
                     <button key={s} onClick={() => setConfig(c => ({ ...c, size: s }))}
                       className="flex-1 py-2 rounded-lg text-xs font-semibold uppercase transition-all"
                       style={config.size === s
-                        ? { background: 'rgba(124,58,237,0.25)', border: '1px solid rgba(124,58,237,0.6)', color: '#a78bfa' }
-                        : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#6b7280' }}>
+                        ? { background: 'var(--c-124-58-237-0_25)', border: '1px solid var(--c-124-58-237-0_6)', color: 'var(--t-a78bfa)' }
+                        : { background: 'var(--c-255-255-255-0_04)', border: '1px solid var(--c-255-255-255-0_08)', color: 'var(--t-6b7280)' }}>
                       {s}
                     </button>
                   ))}
@@ -237,15 +237,15 @@ function StarSettingsModal({ referee, onClose, onPublished }: {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-white text-sm font-medium">Animation speed</p>
-                  <p className="text-xs capitalize" style={{ color: '#a78bfa' }}>{config.speed}</p>
+                  <p className="text-xs capitalize" style={{ color: 'var(--t-a78bfa)' }}>{config.speed}</p>
                 </div>
                 <div className="flex gap-2">
                   {(['slow', 'normal', 'fast'] as const).map(s => (
                     <button key={s} onClick={() => setConfig(c => ({ ...c, speed: s }))}
                       className="flex-1 py-2 rounded-lg text-xs font-semibold capitalize transition-all"
                       style={config.speed === s
-                        ? { background: 'rgba(124,58,237,0.25)', border: '1px solid rgba(124,58,237,0.6)', color: '#a78bfa' }
-                        : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#6b7280' }}>
+                        ? { background: 'var(--c-124-58-237-0_25)', border: '1px solid var(--c-124-58-237-0_6)', color: 'var(--t-a78bfa)' }
+                        : { background: 'var(--c-255-255-255-0_04)', border: '1px solid var(--c-255-255-255-0_08)', color: 'var(--t-6b7280)' }}>
                       {s}
                     </button>
                   ))}
@@ -262,7 +262,7 @@ function StarSettingsModal({ referee, onClose, onPublished }: {
 
               <div>
                 <p className="text-white text-sm font-medium mb-1">Star colours</p>
-                <p className="text-xs mb-3" style={{ color: '#6b7280' }}>Toggle each colour on or off</p>
+                <p className="text-xs mb-3" style={{ color: 'var(--t-6b7280)' }}>Toggle each colour on or off</p>
                 <div className="flex flex-wrap gap-2">
                   {ALL_COLORS.map(({ label, hex }) => {
                     const on = config.colors.includes(hex);
@@ -274,9 +274,9 @@ function StarSettingsModal({ referee, onClose, onPublished }: {
                         }))}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all"
                         style={{
-                          background: on ? `${hex}1a` : 'rgba(255,255,255,0.04)',
-                          border: on ? `1px solid ${hex}77` : '1px solid rgba(255,255,255,0.08)',
-                          color: on ? hex : '#6b7280',
+                          background: on ? `${hex}1a` : 'var(--c-255-255-255-0_04)',
+                          border: on ? `1px solid ${hex}77` : '1px solid var(--c-255-255-255-0_08)',
+                          color: on ? hex : 'var(--t-6b7280)',
                         }}>
                         <span className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                           style={{ background: hex, boxShadow: on ? `0 0 6px ${hex}` : 'none' }} />
@@ -286,7 +286,7 @@ function StarSettingsModal({ referee, onClose, onPublished }: {
                   })}
                 </div>
                 {config.colors.length === 0 && (
-                  <p className="text-xs mt-2" style={{ color: '#fbbf24' }}>⚠ Select at least one colour</p>
+                  <p className="text-xs mt-2" style={{ color: 'var(--t-fbbf24)' }}>⚠ Select at least one colour</p>
                 )}
               </div>
 
@@ -295,7 +295,7 @@ function StarSettingsModal({ referee, onClose, onPublished }: {
             <div className="flex items-center justify-center h-full p-12 text-center">
               <div>
                 <p className="text-5xl mb-4" style={{ opacity: 0.15 }}>✦</p>
-                <p className="text-sm" style={{ color: '#4b5563' }}>
+                <p className="text-sm" style={{ color: 'var(--t-4b5563)' }}>
                   Star animation is disabled for this referee.<br />
                   Toggle it on to configure and preview.
                 </p>
@@ -306,13 +306,13 @@ function StarSettingsModal({ referee, onClose, onPublished }: {
 
         {/* Action bar */}
         <div className="flex-shrink-0 flex items-center gap-3 px-6 py-4"
-          style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+          style={{ borderTop: '1px solid var(--c-255-255-255-0_07)' }}>
           {config.enabled && (
             <button onClick={() => setConfig({ ...DEFAULT_STAR_CONFIG })}
               className="text-xs transition-colors"
-              style={{ color: '#6b7280' }}
-              onMouseEnter={e => (e.currentTarget.style.color = '#9ca3af')}
-              onMouseLeave={e => (e.currentTarget.style.color = '#6b7280')}>
+              style={{ color: 'var(--t-6b7280)' }}
+              onMouseEnter={e => (e.currentTarget.style.color = 'var(--t-9ca3af)')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'var(--t-6b7280)')}>
               Reset to defaults
             </button>
           )}
@@ -358,7 +358,7 @@ function CopyButton({ text }: { text: string }) {
     <button
       onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
       className="text-xs px-3 py-1 rounded-lg transition-colors"
-      style={{ background: copied ? 'rgba(34,197,94,0.15)' : 'rgba(124,58,237,0.12)', color: copied ? '#86efac' : '#a78bfa' }}>
+      style={{ background: copied ? 'var(--c-34-197-94-0_15)' : 'var(--c-124-58-237-0_12)', color: copied ? 'var(--t-86efac)' : 'var(--t-a78bfa)' }}>
       {copied ? '✓ Copied' : 'Copy link'}
     </button>
   );
@@ -418,7 +418,7 @@ function InviteModal({ refereeId, refereeName, onClose, onDone }: {
                 {['7', '14', '30'].map(d => (
                   <button key={d} onClick={() => setDays(d)}
                     className="px-4 py-2 rounded-xl text-sm font-medium transition-colors"
-                    style={{ background: days === d ? 'rgba(124,58,237,0.3)' : 'rgba(255,255,255,0.05)', color: days === d ? '#a78bfa' : '#9ca3af', border: days === d ? '1px solid rgba(124,58,237,0.5)' : '1px solid rgba(255,255,255,0.1)' }}>
+                    style={{ background: days === d ? 'var(--c-124-58-237-0_3)' : 'var(--c-255-255-255-0_05)', color: days === d ? 'var(--t-a78bfa)' : 'var(--t-9ca3af)', border: days === d ? '1px solid var(--c-124-58-237-0_5)' : '1px solid var(--c-255-255-255-0_1)' }}>
                     {d} days
                   </button>
                 ))}
@@ -437,7 +437,7 @@ function InviteModal({ refereeId, refereeName, onClose, onDone }: {
           </>
         ) : (
           <>
-            <div className="p-4 rounded-xl space-y-3" style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)' }}>
+            <div className="p-4 rounded-xl space-y-3" style={{ background: 'var(--c-34-197-94-0_08)', border: '1px solid var(--c-34-197-94-0_2)' }}>
               <p className="text-green-400 text-sm font-semibold">✓ Link ready</p>
               {result.email_sent && (
                 <p className="text-green-300 text-xs">
@@ -545,7 +545,7 @@ function ProgressTracker({ req }: { req: ContactRequest }) {
                 >
                   {isBad ? '✕' : done ? '✓' : ''}
                 </div>
-                <span className="text-xs text-center leading-tight" style={{ color: done || active ? '#d4d4d8' : '#52525b', maxWidth: '60px' }}>
+                <span className="text-xs text-center leading-tight" style={{ color: done || active ? 'var(--t-d4d4d8)' : 'var(--t-52525b)', maxWidth: '60px' }}>
                   {label}
                 </span>
               </div>
@@ -563,17 +563,17 @@ function ProgressTracker({ req }: { req: ContactRequest }) {
 // ── Status badge ──────────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, { bg: string; color: string; label: string }> = {
-    submitted:         { bg: 'rgba(251,191,36,0.12)',  color: '#fbbf24', label: 'Pending Approval' },
-    approved:          { bg: 'rgba(124,58,237,0.12)',  color: '#a78bfa', label: 'Approved' },
-    consent_requested: { bg: 'rgba(6,182,212,0.12)',   color: '#67e8f9', label: 'Awaiting Consent' },
-    consent_given:     { bg: 'rgba(34,197,94,0.12)',   color: '#4ade80', label: 'Consent Given' },
-    consent_denied:    { bg: 'rgba(239,68,68,0.12)',   color: '#f87171', label: 'Consent Denied' },
-    fulfilled:         { bg: 'rgba(16,185,129,0.12)',  color: '#34d399', label: 'Fulfilled' },
-    declined:          { bg: 'rgba(107,114,128,0.12)', color: '#9ca3af', label: 'Declined' },
-    rejected:          { bg: 'rgba(107,114,128,0.12)', color: '#9ca3af', label: 'Rejected' },
-    expired:           { bg: 'rgba(107,114,128,0.12)', color: '#6b7280', label: 'Expired' },
+    submitted:         { bg: 'var(--c-251-191-36-0_12)',  color: 'var(--t-fbbf24)', label: 'Pending Approval' },
+    approved:          { bg: 'var(--c-124-58-237-0_12)',  color: 'var(--t-a78bfa)', label: 'Approved' },
+    consent_requested: { bg: 'var(--c-6-182-212-0_12)',   color: 'var(--t-67e8f9)', label: 'Awaiting Consent' },
+    consent_given:     { bg: 'var(--c-34-197-94-0_12)',   color: 'var(--t-4ade80)', label: 'Consent Given' },
+    consent_denied:    { bg: 'var(--c-239-68-68-0_12)',   color: 'var(--t-f87171)', label: 'Consent Denied' },
+    fulfilled:         { bg: 'var(--c-16-185-129-0_12)',  color: 'var(--t-34d399)', label: 'Fulfilled' },
+    declined:          { bg: 'var(--c-107-114-128-0_12)', color: 'var(--t-9ca3af)', label: 'Declined' },
+    rejected:          { bg: 'var(--c-107-114-128-0_12)', color: 'var(--t-9ca3af)', label: 'Rejected' },
+    expired:           { bg: 'var(--c-107-114-128-0_12)', color: 'var(--t-6b7280)', label: 'Expired' },
   };
-  const s = styles[status] ?? { bg: 'rgba(107,114,128,0.12)', color: '#9ca3af', label: status };
+  const s = styles[status] ?? { bg: 'var(--c-107-114-128-0_12)', color: 'var(--t-9ca3af)', label: status };
   return (
     <span className="text-xs px-2 py-0.5 rounded-full font-medium"
       style={{ background: s.bg, color: s.color }}>
@@ -644,7 +644,7 @@ function ContactRequestDetail({
       </div>
 
       {/* Referee being requested */}
-      <div className="p-3 rounded-xl flex items-center gap-3" style={{ background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.2)' }}>
+      <div className="p-3 rounded-xl flex items-center gap-3" style={{ background: 'var(--c-124-58-237-0_08)', border: '1px solid var(--c-124-58-237-0_2)' }}>
         {req.referee_has_photo
           ? <img src={adminApi.refereePhoto(req.referee_id)} alt={req.referee_name}
               className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
@@ -656,7 +656,7 @@ function ContactRequestDetail({
           <p className="text-gray-500 text-xs truncate">{req.referee_organization}</p>
         </div>
         <span className="ml-auto text-xs px-2 py-0.5 rounded-full capitalize flex-shrink-0"
-          style={{ background: 'rgba(167,139,250,0.1)', color: '#a78bfa' }}>
+          style={{ background: 'var(--c-167-139-250-0_1)', color: 'var(--t-a78bfa)' }}>
           {req.requester_purpose}
         </span>
       </div>
@@ -664,8 +664,8 @@ function ContactRequestDetail({
       {/* Their message */}
       {req.requester_message && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: '#6b7280' }}>Their message</p>
-          <p className="text-sm leading-relaxed italic" style={{ color: '#a1a1aa' }}>&ldquo;{req.requester_message}&rdquo;</p>
+          <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: 'var(--t-6b7280)' }}>Their message</p>
+          <p className="text-sm leading-relaxed italic" style={{ color: 'var(--t-a1a1aa)' }}>&ldquo;{req.requester_message}&rdquo;</p>
         </div>
       )}
 
@@ -678,18 +678,18 @@ function ContactRequestDetail({
       )}
 
       {/* Progress tracker */}
-      <div style={{ borderTop: '1px solid #27272a', paddingTop: '16px' }}>
-        <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: '#6b7280' }}>Progress</p>
+      <div style={{ borderTop: '1px solid var(--c-27272a)', paddingTop: '16px' }}>
+        <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: 'var(--t-6b7280)' }}>Progress</p>
         <ProgressTracker req={req} />
       </div>
 
       {/* Activity log */}
-      <div style={{ borderTop: '1px solid #27272a', paddingTop: '16px' }}>
-        <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#6b7280' }}>Activity</p>
+      <div style={{ borderTop: '1px solid var(--c-27272a)', paddingTop: '16px' }}>
+        <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--t-6b7280)' }}>Activity</p>
         <div className="space-y-2">
           {activityLog(req).map((e, i) => (
             <div key={i} className="flex items-start gap-2">
-              <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: '#a78bfa' }} />
+              <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: 'var(--c-a78bfa)' }} />
               <div className="min-w-0">
                 <p className="text-gray-300 text-xs">{e.text}</p>
                 {e.date && <p className="text-gray-600 text-xs">{e.date}</p>}
@@ -701,8 +701,8 @@ function ContactRequestDetail({
 
       {/* ── Actions ── */}
       {!isTerminal && (
-        <div className="space-y-3 pt-2" style={{ borderTop: '1px solid #27272a' }}>
-          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#6b7280' }}>Actions</p>
+        <div className="space-y-3 pt-2" style={{ borderTop: '1px solid var(--c-27272a)' }}>
+          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--t-6b7280)' }}>Actions</p>
 
           {/* Approve */}
           {req.status === 'submitted' && (
@@ -734,7 +734,7 @@ function ContactRequestDetail({
                   </button>
                 </div>
               ) : (
-                <div className="p-4 rounded-xl space-y-3" style={{ background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.2)' }}>
+                <div className="p-4 rounded-xl space-y-3" style={{ background: 'var(--c-124-58-237-0_08)', border: '1px solid var(--c-124-58-237-0_2)' }}>
                   <p className="text-white text-sm font-medium">Request consent from {req.referee_name}</p>
                   <div>
                     <label className="label text-xs">Note to referee (optional)</label>
@@ -765,7 +765,7 @@ function ContactRequestDetail({
           {req.status === 'consent_requested' && (
             <div>
               <div className="flex items-center gap-2 p-3 rounded-xl mb-3"
-                style={{ background: 'rgba(6,182,212,0.08)', border: '1px solid rgba(6,182,212,0.2)' }}>
+                style={{ background: 'var(--c-6-182-212-0_08)', border: '1px solid var(--c-6-182-212-0_2)' }}>
                 <span className="text-cyan-400 text-sm">◐</span>
                 <p className="text-cyan-300 text-sm">
                   Awaiting {req.referee_name}&apos;s response
@@ -783,7 +783,7 @@ function ContactRequestDetail({
           {req.status === 'consent_given' && (
             <>
               <div className="flex items-center gap-2 p-3 rounded-xl mb-3"
-                style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)' }}>
+                style={{ background: 'var(--c-34-197-94-0_08)', border: '1px solid var(--c-34-197-94-0_2)' }}>
                 <span className="text-green-400">✓</span>
                 <p className="text-green-300 text-sm">{req.referee_name} gave consent — ready to share</p>
               </div>
@@ -797,7 +797,7 @@ function ContactRequestDetail({
                   </button>
                 </div>
               ) : (
-                <div className="p-4 rounded-xl space-y-3" style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)' }}>
+                <div className="p-4 rounded-xl space-y-3" style={{ background: 'var(--c-34-197-94-0_08)', border: '1px solid var(--c-34-197-94-0_2)' }}>
                   <p className="text-white text-sm font-medium">Share {req.referee_name}&apos;s contact with {req.requester_name}</p>
                   <div>
                     <label className="label text-xs">Personal note (optional)</label>
@@ -828,7 +828,7 @@ function ContactRequestDetail({
           {req.status === 'consent_denied' && (
             <div className="space-y-3">
               <div className="flex items-start gap-2 p-3 rounded-xl"
-                style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                style={{ background: 'var(--c-239-68-68-0_08)', border: '1px solid var(--c-239-68-68-0_2)' }}>
                 <span className="text-red-400 mt-0.5">✕</span>
                 <div>
                   <p className="text-red-300 text-sm font-medium">{req.referee_name} declined — contact is locked</p>
@@ -847,7 +847,7 @@ function ContactRequestDetail({
                 )}
               </div>
               {expandResend && (
-                <div className="p-4 rounded-xl space-y-3" style={{ background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.2)' }}>
+                <div className="p-4 rounded-xl space-y-3" style={{ background: 'var(--c-251-191-36-0_06)', border: '1px solid var(--c-251-191-36-0_2)' }}>
                   <p className="text-yellow-400 text-sm font-medium">Resend consent to {req.referee_name}</p>
                   <p className="text-yellow-300/60 text-xs">Explain why you&apos;re asking again (required)</p>
                   <textarea className="input min-h-[72px] resize-none text-sm"
@@ -876,7 +876,7 @@ function ContactRequestDetail({
 
       {/* Terminal states */}
       {req.status === 'fulfilled' && (
-        <div className="p-3 rounded-xl" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)' }}>
+        <div className="p-3 rounded-xl" style={{ background: 'var(--c-16-185-129-0_08)', border: '1px solid var(--c-16-185-129-0_2)' }}>
           <p className="text-emerald-400 text-sm font-medium">✓ Contact shared on {fmt(req.fulfilled_at)}</p>
           {req.admin_note && <p className="text-emerald-300/70 text-xs mt-1">Note sent: &ldquo;{req.admin_note}&rdquo;</p>}
         </div>
@@ -949,11 +949,11 @@ function ContactRequestsTab({ refereeFilterId }: { refereeFilterId?: string }) {
           <button key={key} onClick={() => setFilter(key)}
             className="p-3 rounded-xl text-center transition-all"
             style={{
-              background: filter === key ? `${color}18` : 'rgba(255,255,255,0.03)',
-              border: filter === key ? `1px solid ${color}44` : '1px solid rgba(255,255,255,0.06)',
+              background: filter === key ? `${color}18` : 'var(--c-255-255-255-0_03)',
+              border: filter === key ? `1px solid ${color}44` : '1px solid var(--c-255-255-255-0_06)',
             }}>
             <p className="text-xl font-bold" style={{ color }}>{counts[key]}</p>
-            <p className="text-xs mt-0.5" style={{ color: filter === key ? color : '#6b7280' }}>{label}</p>
+            <p className="text-xs mt-0.5" style={{ color: filter === key ? color : 'var(--t-6b7280)' }}>{label}</p>
           </button>
         ))}
       </div>
@@ -1135,7 +1135,7 @@ export default function RefereesPage() {
       {/* Modification requested alert */}
       {modRequested.length > 0 && (
         <div className="mb-5 p-4 rounded-xl flex items-start gap-3"
-          style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)' }}>
+          style={{ background: 'var(--c-245-158-11-0_1)', border: '1px solid var(--c-245-158-11-0_3)' }}>
           <span className="text-yellow-400 text-lg mt-0.5">⚠</span>
           <div>
             <p className="text-yellow-400 font-semibold text-sm">Modification requested</p>
@@ -1148,7 +1148,7 @@ export default function RefereesPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 p-1 rounded-xl w-fit" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+      <div className="flex gap-1 mb-6 p-1 rounded-xl w-fit" style={{ background: 'var(--c-255-255-255-0_04)', border: '1px solid var(--c-255-255-255-0_08)' }}>
         {([
           { key: 'referees',         label: 'Referees' },
           { key: 'invitations',      label: `Invitations (${invitations.length})` },
@@ -1157,8 +1157,8 @@ export default function RefereesPage() {
           <button key={key} onClick={() => { setTab(key); if (key !== 'contact-requests') setContactFilterId(undefined); }}
             className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
             style={tab === key
-              ? { background: 'rgba(124,58,237,0.25)', color: '#a78bfa' }
-              : { color: '#6b7280' }}>
+              ? { background: 'var(--c-124-58-237-0_25)', color: 'var(--t-a78bfa)' }
+              : { color: 'var(--t-6b7280)' }}>
             {label}
           </button>
         ))}
@@ -1171,7 +1171,7 @@ export default function RefereesPage() {
             <div key={r.id} className="card space-y-3 relative">
               {r.modification_requested && (
                 <div className="absolute top-4 right-4 text-xs px-2 py-0.5 rounded-full font-medium"
-                  style={{ background: 'rgba(245,158,11,0.2)', border: '1px solid rgba(245,158,11,0.4)', color: '#fbbf24' }}>
+                  style={{ background: 'var(--c-245-158-11-0_2)', border: '1px solid var(--c-245-158-11-0_4)', color: 'var(--t-fbbf24)' }}>
                   ⚠ Mod requested
                 </div>
               )}
@@ -1197,16 +1197,16 @@ export default function RefereesPage() {
               <button onClick={() => toggleVisibility(r)}
                 className="flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg transition-colors w-fit"
                 style={r.visible
-                  ? { background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)', color: '#86efac' }
-                  : { background: 'rgba(107,114,128,0.15)', border: '1px solid rgba(107,114,128,0.3)', color: '#6b7280' }}>
+                  ? { background: 'var(--c-34-197-94-0_1)', border: '1px solid var(--c-34-197-94-0_25)', color: 'var(--t-86efac)' }
+                  : { background: 'var(--c-107-114-128-0_15)', border: '1px solid var(--c-107-114-128-0_3)', color: 'var(--t-6b7280)' }}>
                 <span>{r.visible ? '● Visible' : '○ Hidden'}</span>
               </button>
-              <div className="flex gap-3 flex-wrap pt-1" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+              <div className="flex gap-3 flex-wrap pt-1" style={{ borderTop: '1px solid var(--c-255-255-255-0_06)' }}>
                 <button onClick={() => openEdit(r)} className="text-xs text-indigo-400 hover:text-indigo-300">Edit</button>
                 <button onClick={() => handleDelete(r.id)} className="text-xs text-red-400 hover:text-red-300">Delete</button>
                 <button onClick={() => setStarsModal(r)}
                   className="text-xs transition-colors"
-                  style={{ color: r.star_config?.enabled === false ? '#6b7280' : '#a78bfa' }}
+                  style={{ color: r.star_config?.enabled === false ? 'var(--t-6b7280)' : 'var(--t-a78bfa)' }}
                   title="Configure star animation">
                   ✦ Stars{r.star_config?.enabled === false ? ' (off)' : ''}
                 </button>
@@ -1219,7 +1219,7 @@ export default function RefereesPage() {
                   <button
                     onClick={() => { setContactFilterId(r.id); setTab('contact-requests'); }}
                     className="text-xs ml-auto"
-                    style={{ color: '#fbbf24' }}>
+                    style={{ color: 'var(--t-fbbf24)' }}>
                     📩 {contactRequestCounts[r.id]} request(s) →
                   </button>
                 )}
@@ -1245,8 +1245,8 @@ export default function RefereesPage() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs px-2 py-0.5 rounded-full font-medium"
                       style={inv.type === 'modify'
-                        ? { background: 'rgba(245,158,11,0.15)', color: '#fbbf24' }
-                        : { background: 'rgba(124,58,237,0.15)', color: '#a78bfa' }}>
+                        ? { background: 'var(--c-245-158-11-0_15)', color: 'var(--t-fbbf24)' }
+                        : { background: 'var(--c-124-58-237-0_15)', color: 'var(--t-a78bfa)' }}>
                       {inv.type === 'modify' ? '✏ Modify' : '+ New'}
                     </span>
                     {inv.referee_name && (

@@ -20,9 +20,9 @@ type DashStats = {
 };
 
 const HEALTH_COLORS: Record<string, { ring: string; text: string }> = {
-  green:  { ring: '#4ade80', text: '#4ade80' },
-  yellow: { ring: '#fbbf24', text: '#fbbf24' },
-  red:    { ring: '#f87171', text: '#f87171' },
+  green:  { ring: '#4ade80', text: 'var(--t-4ade80)' },
+  yellow: { ring: '#fbbf24', text: 'var(--t-fbbf24)' },
+  red:    { ring: '#f87171', text: 'var(--t-f87171)' },
 };
 
 function HealthRing({ score, color, label }: { score: number; color: string; label: string }) {
@@ -47,7 +47,7 @@ function HealthRing({ score, color, label }: { score: number; color: string; lab
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className="text-3xl font-bold" style={{ color: c.text }}>{score}</span>
-          <span className="text-xs" style={{ color: 'rgba(255,255,255,0.45)' }}>/ 100</span>
+          <span className="text-xs" style={{ color: 'var(--t-255-255-255-0_45)' }}>/ 100</span>
         </div>
       </div>
       <span className="text-sm font-semibold" style={{ color: c.text }}>{label}</span>
@@ -59,28 +59,28 @@ function WeeklyGoalBar({ current, target, pct }: { current: number; target: numb
   return (
     <div className="w-full">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-medium" style={{ color: 'rgba(255,255,255,0.65)' }}>Weekly Goal</span>
-        <span className="text-xs" style={{ color: 'rgba(255,255,255,0.45)' }}>{current} / {target} applications</span>
+        <span className="text-xs font-medium" style={{ color: 'var(--t-255-255-255-0_65)' }}>Weekly Goal</span>
+        <span className="text-xs" style={{ color: 'var(--t-255-255-255-0_45)' }}>{current} / {target} applications</span>
       </div>
-      <div className="w-full h-2.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+      <div className="w-full h-2.5 rounded-full overflow-hidden" style={{ background: 'var(--c-255-255-255-0_08)' }}>
         <div
           className="h-full rounded-full transition-all duration-700"
           style={{
             width: `${Math.min(pct, 100)}%`,
-            background: pct >= 100 ? 'linear-gradient(90deg, #4ade80, #22d3ee)' : 'linear-gradient(90deg, #A855F7, #DDD6FE)',
-            boxShadow: pct >= 100 ? '0 0 12px rgba(74,222,128,0.4)' : '0 0 8px rgba(168,85,247,0.4)',
+            background: pct >= 100 ? 'linear-gradient(90deg, var(--c-4ade80), var(--c-22d3ee))' : 'linear-gradient(90deg, var(--c-a855f7), var(--c-ddd6fe))',
+            boxShadow: pct >= 100 ? '0 0 12px var(--c-74-222-128-0_4)' : '0 0 8px var(--c-168-85-247-0_4)',
           }}
         />
       </div>
       {pct >= 100 && (
-        <p className="text-xs mt-1.5" style={{ color: '#4ade80' }}>Goal achieved this week!</p>
+        <p className="text-xs mt-1.5" style={{ color: 'var(--t-4ade80)' }}>Goal achieved this week!</p>
       )}
     </div>
   );
 }
 
 function VelocityChart({ data }: { data: VelocityPoint[] }) {
-  if (!data?.length) return <p className="text-xs text-center py-6" style={{ color: 'rgba(255,255,255,0.32)' }}>No data yet</p>;
+  if (!data?.length) return <p className="text-xs text-center py-6" style={{ color: 'var(--t-255-255-255-0_32)' }}>No data yet</p>;
   const max = Math.max(...data.map(d => d.cnt), 1);
 
   return (
@@ -102,7 +102,7 @@ function VelocityChart({ data }: { data: VelocityPoint[] }) {
                 }}
               />
             </div>
-            <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.32)' }}>{label.split(' ')[0]}</span>
+            <span className="text-[10px]" style={{ color: 'var(--t-255-255-255-0_32)' }}>{label.split(' ')[0]}</span>
           </div>
         );
       })}
@@ -182,15 +182,17 @@ export default function GoalsPage() {
   async function runAutomation() {
     setRunningAuto(true);
     try {
-      const result = await adminApi.runAutomation();
-      showToast(`Automation ran: ${result.reminders_created || 0} reminders created`);
+      const result = await adminApi.runAutomation() as { paused?: boolean; total?: number; reminders_created?: number };
+      showToast(result?.paused
+        ? 'Job search is paused (Not open) — rules did not run'
+        : `Automation ran: ${result?.reminders_created ?? result?.total ?? 0} reminders created`);
     } catch { setError('Automation failed'); }
     finally { setRunningAuto(false); }
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ color: 'rgba(255,255,255,0.32)' }}>
+      <div className="min-h-screen flex items-center justify-center" style={{ color: 'var(--t-255-255-255-0_32)' }}>
         Loading…
       </div>
     );
@@ -201,19 +203,19 @@ export default function GoalsPage() {
       {toast && (
         <div
           className="fixed top-4 right-4 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-xl"
-          style={{ background: 'rgba(168,85,247,0.9)', color: '#fff', backdropFilter: 'blur(12px)' }}
+          style={{ background: 'var(--c-168-85-247-0_9)', color: '#fff', backdropFilter: 'blur(12px)' }}
         >
           {toast}
         </div>
       )}
 
       <div className="mb-8">
-        <h1 className="text-2xl font-bold" style={{ color: '#FFFFFF' }}>My Goals</h1>
-        <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.45)' }}>Track weekly application goals, automation health, and streaks.</p>
+        <h1 className="text-2xl font-bold" style={{ color: 'var(--t-ffffff)' }}>My Goals</h1>
+        <p className="text-sm mt-1" style={{ color: 'var(--t-255-255-255-0_45)' }}>Track weekly application goals, automation health, and streaks.</p>
       </div>
 
       {error && (
-        <div className="mb-4 px-4 py-3 rounded-xl text-sm" style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171' }}>
+        <div className="mb-4 px-4 py-3 rounded-xl text-sm" style={{ background: 'var(--c-239-68-68-0_1)', color: 'var(--t-f87171)' }}>
           {error}
         </div>
       )}
@@ -223,9 +225,9 @@ export default function GoalsPage() {
         {/* Health Score Ring */}
         <div
           className="rounded-2xl p-6 flex flex-col items-center gap-4"
-          style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}
+          style={{ background: 'var(--c-255-255-255-0_07)', border: '1px solid var(--c-255-255-255-0_1)' }}
         >
-          <p className="text-sm font-semibold" style={{ color: '#DDD6FE' }}>Job Search Health</p>
+          <p className="text-sm font-semibold" style={{ color: 'var(--t-ddd6fe)' }}>Job Search Health</p>
           {stats && (
             <HealthRing
               score={stats.health_score.total}
@@ -238,9 +240,9 @@ export default function GoalsPage() {
         {/* Weekly Goal */}
         <div
           className="rounded-2xl p-6 flex flex-col gap-5"
-          style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}
+          style={{ background: 'var(--c-255-255-255-0_07)', border: '1px solid var(--c-255-255-255-0_1)' }}
         >
-          <p className="text-sm font-semibold" style={{ color: '#DDD6FE' }}>Weekly Target</p>
+          <p className="text-sm font-semibold" style={{ color: 'var(--t-ddd6fe)' }}>Weekly Target</p>
           {stats && (
             <WeeklyGoalBar
               current={stats.goal.this_week}
@@ -255,24 +257,24 @@ export default function GoalsPage() {
               value={goalInput}
               onChange={e => setGoalInput(e.target.value)}
               className="w-20 px-3 py-2 rounded-xl text-sm text-center"
-              style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(168,85,247,0.2)', color: '#FFFFFF', outline: 'none' }}
+              style={{ background: 'var(--c-0-0-0-0_22)', border: '1px solid var(--c-168-85-247-0_2)', color: 'var(--t-ffffff)', outline: 'none' }}
             />
-            <span className="text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>apps/week</span>
+            <span className="text-sm" style={{ color: 'var(--t-255-255-255-0_45)' }}>apps/week</span>
             <button
               onClick={saveGoal}
               disabled={savingGoal}
               className="px-3 py-2 rounded-xl text-xs font-medium ml-auto"
-              style={{ background: 'rgba(168,85,247,0.2)', color: '#DDD6FE' }}
+              style={{ background: 'var(--c-168-85-247-0_2)', color: 'var(--t-ddd6fe)' }}
             >
               {savingGoal ? '…' : 'Set'}
             </button>
           </div>
           {stats && (
-            <div className="flex items-center gap-2 rounded-xl px-3 py-2.5" style={{ background: 'rgba(0,0,0,0.22)' }}>
+            <div className="flex items-center gap-2 rounded-xl px-3 py-2.5" style={{ background: 'var(--c-0-0-0-0_22)' }}>
               <span className="text-2xl">🔥</span>
               <div>
-                <p className="text-sm font-bold" style={{ color: '#FFFFFF' }}>{stats.goal.streak_weeks} week{stats.goal.streak_weeks !== 1 ? 's' : ''}</p>
-                <p className="text-xs" style={{ color: 'rgba(255,255,255,0.45)' }}>current streak</p>
+                <p className="text-sm font-bold" style={{ color: 'var(--t-ffffff)' }}>{stats.goal.streak_weeks} week{stats.goal.streak_weeks !== 1 ? 's' : ''}</p>
+                <p className="text-xs" style={{ color: 'var(--t-255-255-255-0_45)' }}>current streak</p>
               </div>
             </div>
           )}
@@ -281,31 +283,31 @@ export default function GoalsPage() {
         {/* Skills gap */}
         <div
           className="rounded-2xl p-6 flex flex-col gap-3"
-          style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}
+          style={{ background: 'var(--c-255-255-255-0_07)', border: '1px solid var(--c-255-255-255-0_1)' }}
         >
-          <p className="text-sm font-semibold" style={{ color: '#DDD6FE' }}>Top Missing Skills</p>
-          <p className="text-xs" style={{ color: 'rgba(255,255,255,0.45)' }}>From recent job imports (last 90 days)</p>
+          <p className="text-sm font-semibold" style={{ color: 'var(--t-ddd6fe)' }}>Top Missing Skills</p>
+          <p className="text-xs" style={{ color: 'var(--t-255-255-255-0_45)' }}>From recent job imports (last 90 days)</p>
           {stats?.skills_gap?.length ? (
             <div className="flex flex-col gap-2 mt-1">
               {stats.skills_gap.map((sg, i) => (
                 <div key={sg.skill} className="flex items-center gap-2">
-                  <span className="text-xs w-4 text-right shrink-0" style={{ color: 'rgba(255,255,255,0.32)' }}>#{i + 1}</span>
-                  <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.22)' }}>
+                  <span className="text-xs w-4 text-right shrink-0" style={{ color: 'var(--t-255-255-255-0_32)' }}>#{i + 1}</span>
+                  <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--c-0-0-0-0_22)' }}>
                     <div
                       className="h-full rounded-full"
                       style={{
                         width: `${Math.round((sg.cnt / (stats.skills_gap[0]?.cnt || 1)) * 100)}%`,
-                        background: 'linear-gradient(90deg, #A855F7, #DDD6FE)',
+                        background: 'linear-gradient(90deg, var(--c-a855f7), var(--c-ddd6fe))',
                       }}
                     />
                   </div>
-                  <span className="text-xs truncate max-w-24" style={{ color: 'rgba(255,255,255,0.75)' }}>{sg.skill}</span>
-                  <span className="text-xs shrink-0" style={{ color: 'rgba(255,255,255,0.45)' }}>×{sg.cnt}</span>
+                  <span className="text-xs truncate max-w-24" style={{ color: 'var(--t-255-255-255-0_75)' }}>{sg.skill}</span>
+                  <span className="text-xs shrink-0" style={{ color: 'var(--t-255-255-255-0_45)' }}>×{sg.cnt}</span>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-xs mt-2" style={{ color: 'rgba(255,255,255,0.32)' }}>No skill data yet</p>
+            <p className="text-xs mt-2" style={{ color: 'var(--t-255-255-255-0_32)' }}>No skill data yet</p>
           )}
         </div>
       </div>
@@ -313,9 +315,9 @@ export default function GoalsPage() {
       {/* Velocity Chart */}
       <div
         className="rounded-2xl p-6 mb-5"
-        style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}
+        style={{ background: 'var(--c-255-255-255-0_07)', border: '1px solid var(--c-255-255-255-0_1)' }}
       >
-        <p className="text-sm font-semibold mb-4" style={{ color: '#DDD6FE' }}>Application Velocity (last 8 weeks)</p>
+        <p className="text-sm font-semibold mb-4" style={{ color: 'var(--t-ddd6fe)' }}>Application Velocity (last 8 weeks)</p>
         {stats && <VelocityChart data={stats.weekly_velocity} />}
       </div>
 
@@ -323,22 +325,22 @@ export default function GoalsPage() {
       {stats?.health_score?.components && (
         <div
           className="rounded-2xl p-6 mb-5"
-          style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}
+          style={{ background: 'var(--c-255-255-255-0_07)', border: '1px solid var(--c-255-255-255-0_1)' }}
         >
-          <p className="text-sm font-semibold mb-4" style={{ color: '#DDD6FE' }}>Health Score Breakdown</p>
+          <p className="text-sm font-semibold mb-4" style={{ color: 'var(--t-ddd6fe)' }}>Health Score Breakdown</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {stats.health_score.components.map(c => (
               <div
                 key={c.key}
                 className="flex items-center gap-3 px-3 py-3 rounded-xl"
                 style={{
-                  background: c.ok ? 'rgba(74,222,128,0.05)' : 'rgba(239,68,68,0.05)',
-                  border: `1px solid ${c.ok ? 'rgba(74,222,128,0.15)' : 'rgba(239,68,68,0.15)'}`,
+                  background: c.ok ? 'var(--c-74-222-128-0_05)' : 'var(--c-239-68-68-0_05)',
+                  border: `1px solid ${c.ok ? 'var(--c-74-222-128-0_15)' : 'var(--c-239-68-68-0_15)'}`,
                 }}
               >
                 <div
                   className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
-                  style={{ background: c.ok ? 'rgba(74,222,128,0.15)' : 'rgba(239,68,68,0.1)' }}
+                  style={{ background: c.ok ? 'var(--c-74-222-128-0_15)' : 'var(--c-239-68-68-0_1)' }}
                 >
                   {c.ok ? (
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
@@ -347,10 +349,10 @@ export default function GoalsPage() {
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium truncate" style={{ color: 'rgba(255,255,255,0.92)' }}>{c.label}</p>
-                  {c.detail && <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.45)' }}>{c.detail}</p>}
+                  <p className="text-xs font-medium truncate" style={{ color: 'var(--t-255-255-255-0_92)' }}>{c.label}</p>
+                  {c.detail && <p className="text-xs mt-0.5" style={{ color: 'var(--t-255-255-255-0_45)' }}>{c.detail}</p>}
                 </div>
-                <span className="text-sm font-bold shrink-0" style={{ color: c.ok ? '#4ade80' : 'rgba(255,255,255,0.65)' }}>
+                <span className="text-sm font-bold shrink-0" style={{ color: c.ok ? 'var(--t-4ade80)' : 'var(--t-255-255-255-0_65)' }}>
                   {c.pts}/{c.max}
                 </span>
               </div>
@@ -362,21 +364,21 @@ export default function GoalsPage() {
       {/* Automation Rules */}
       <div
         className="rounded-2xl p-6"
-        style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}
+        style={{ background: 'var(--c-255-255-255-0_07)', border: '1px solid var(--c-255-255-255-0_1)' }}
       >
         <div className="flex items-center justify-between mb-4">
           <div>
-            <p className="text-sm font-semibold" style={{ color: '#DDD6FE' }}>Automation Rules</p>
-            <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.45)' }}>Smart reminders triggered automatically. Runs every hour.</p>
+            <p className="text-sm font-semibold" style={{ color: 'var(--t-ddd6fe)' }}>Automation Rules</p>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--t-255-255-255-0_45)' }}>Smart reminders triggered automatically. Runs every hour.</p>
           </div>
           <button
             onClick={runAutomation}
             disabled={runningAuto}
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium"
             style={{
-              background: runningAuto ? 'rgba(168,85,247,0.2)' : 'rgba(168,85,247,0.15)',
-              color: '#DDD6FE',
-              border: '1px solid rgba(168,85,247,0.25)',
+              background: runningAuto ? 'var(--c-168-85-247-0_2)' : 'var(--c-168-85-247-0_15)',
+              color: 'var(--t-ddd6fe)',
+              border: '1px solid var(--c-168-85-247-0_25)',
             }}
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
@@ -394,17 +396,17 @@ export default function GoalsPage() {
               key={r.rule_key}
               className="flex items-start gap-4 px-4 py-3 rounded-xl"
               style={{
-                background: r.is_enabled ? 'rgba(168,85,247,0.07)' : 'rgba(0,0,0,0.22)',
-                border: `1px solid ${r.is_enabled ? 'rgba(168,85,247,0.15)' : 'rgba(168,85,247,0.07)'}`,
+                background: r.is_enabled ? 'var(--c-168-85-247-0_07)' : 'var(--c-0-0-0-0_22)',
+                border: `1px solid ${r.is_enabled ? 'var(--c-168-85-247-0_15)' : 'var(--c-168-85-247-0_07)'}`,
               }}
             >
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium" style={{ color: r.is_enabled ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.45)' }}>
+                <p className="text-sm font-medium" style={{ color: r.is_enabled ? 'var(--t-255-255-255-0_92)' : 'var(--t-255-255-255-0_45)' }}>
                   {r.rule_name}
                 </p>
-                <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.32)' }}>{r.description}</p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--t-255-255-255-0_32)' }}>{r.description}</p>
                 {r.last_ran_at && (
-                  <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.18)' }}>
+                  <p className="text-xs mt-1" style={{ color: 'var(--t-255-255-255-0_18)' }}>
                     Last run: {new Date(r.last_ran_at).toLocaleString()}
                   </p>
                 )}
@@ -414,8 +416,8 @@ export default function GoalsPage() {
                 onClick={() => toggleRule(r.rule_key, !r.is_enabled)}
                 className="relative shrink-0 w-11 h-6 rounded-full transition-all duration-200 mt-0.5"
                 style={{
-                  background: r.is_enabled ? '#A855F7' : 'rgba(100,116,139,0.3)',
-                  boxShadow: r.is_enabled ? '0 0 8px rgba(168,85,247,0.4)' : 'none',
+                  background: r.is_enabled ? 'var(--c-a855f7)' : 'var(--c-100-116-139-0_3)',
+                  boxShadow: r.is_enabled ? '0 0 8px var(--c-168-85-247-0_4)' : 'none',
                 }}
               >
                 <span
@@ -428,46 +430,46 @@ export default function GoalsPage() {
         </div>
 
         {/* Notification prefs */}
-        <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-          <p className="text-xs font-medium mb-3" style={{ color: 'rgba(255,255,255,0.65)' }}>Notification Preferences</p>
+        <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--c-255-255-255-0_08)' }}>
+          <p className="text-xs font-medium mb-3" style={{ color: 'var(--t-255-255-255-0_65)' }}>Notification Preferences</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.45)' }}>Preferred reminder channel</label>
+              <label className="block text-xs mb-1.5" style={{ color: 'var(--t-255-255-255-0_45)' }}>Preferred reminder channel</label>
               <select
                 value={(settings.preferred_reminder_channel as string) || 'email'}
                 onChange={e => savePref('preferred_reminder_channel', e.target.value)}
                 aria-describedby="pref-channel-help"
                 className="w-full px-3 py-2 rounded-xl text-sm"
-                style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(168,85,247,0.15)', color: '#FFFFFF', outline: 'none' }}
+                style={{ background: 'var(--c-0-0-0-0_22)', border: '1px solid var(--c-168-85-247-0_15)', color: 'var(--t-ffffff)', outline: 'none' }}
               >
                 <option value="email">Email</option>
                 <option value="in_app">In-app only</option>
               </select>
-              <p id="pref-channel-help" className="text-xs mt-1.5" style={{ color: 'rgba(255,255,255,0.38)' }}>
+              <p id="pref-channel-help" className="text-xs mt-1.5" style={{ color: 'var(--t-255-255-255-0_38)' }}>
                 {(settings.preferred_reminder_channel || 'email') === 'email'
                   ? 'Follow-ups waiting for approval are emailed to you with Send / Edit links.'
                   : 'Follow-ups wait in the Outbox — no approval emails.'}
               </p>
             </div>
             <div>
-              <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.45)' }}>Digest schedule</label>
+              <label className="block text-xs mb-1.5" style={{ color: 'var(--t-255-255-255-0_45)' }}>Digest schedule</label>
               <select
                 value={(settings.digest_schedule as string) || 'daily'}
                 onChange={e => savePref('digest_schedule', e.target.value)}
                 aria-describedby="pref-digest-help"
                 className="w-full px-3 py-2 rounded-xl text-sm"
-                style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(168,85,247,0.15)', color: '#FFFFFF', outline: 'none' }}
+                style={{ background: 'var(--c-0-0-0-0_22)', border: '1px solid var(--c-168-85-247-0_15)', color: 'var(--t-ffffff)', outline: 'none' }}
               >
                 <option value="daily">Daily</option>
                 <option value="weekly">Weekly</option>
                 <option value="off">Off</option>
               </select>
-              <p id="pref-digest-help" className="text-xs mt-1.5" style={{ color: 'rgba(255,255,255,0.38)' }}>
+              <p id="pref-digest-help" className="text-xs mt-1.5" style={{ color: 'var(--t-255-255-255-0_38)' }}>
                 Job-match and visitor digests. Daily at 08:00 · weekly on Mondays 08:00 (Paris).
               </p>
             </div>
           </div>
-          {prefSaved && <p className="text-xs mt-2" role="status" style={{ color: '#4ade80' }}>Saved ✓</p>}
+          {prefSaved && <p className="text-xs mt-2" role="status" style={{ color: 'var(--t-4ade80)' }}>Saved ✓</p>}
         </div>
       </div>
     </div>

@@ -213,8 +213,8 @@ export default function SocialLinksPage() {
                       onClick={() => toggleVisible(link)}
                       className="px-3 py-1 rounded-lg text-xs font-medium transition-colors"
                       style={link.visible
-                        ? { background: 'rgba(34,197,94,0.12)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.25)' }
-                        : { background: 'rgba(100,116,139,0.12)', color: '#94a3b8', border: '1px solid rgba(100,116,139,0.25)' }
+                        ? { background: 'var(--c-34-197-94-0_12)', color: 'var(--t-4ade80)', border: '1px solid var(--c-34-197-94-0_25)' }
+                        : { background: 'var(--c-100-116-139-0_12)', color: 'var(--t-94a3b8)', border: '1px solid var(--c-100-116-139-0_25)' }
                       }
                     >
                       {link.visible ? 'Visible' : 'Hidden'}
@@ -230,7 +230,7 @@ export default function SocialLinksPage() {
                     {/* Delete */}
                     <button onClick={() => handleDelete(link.id)}
                       className="px-3 py-1 rounded-lg text-xs font-medium transition-colors"
-                      style={{ border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}>
+                      style={{ border: '1px solid var(--c-239-68-68-0_3)', color: 'var(--t-f87171)' }}>
                       Delete
                     </button>
                   </div>

@@ -109,25 +109,25 @@ export default function CvIdentityPage() {
     <div className="min-h-screen p-6 max-w-3xl mx-auto">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-2xl font-bold" style={{ color: '#FFFFFF' }}>CV Identity</h1>
-        <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.45)' }}>
+        <h1 className="text-2xl font-bold" style={{ color: 'var(--t-ffffff)' }}>CV Identity</h1>
+        <p className="text-sm mt-1" style={{ color: 'var(--t-255-255-255-0_45)' }}>
           Control exactly how your name, headline, and contact info appear on every CV and cover letter.
         </p>
       </div>
 
       {error && (
-        <div className="mb-4 px-4 py-3 rounded-xl text-sm" style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)' }}>
+        <div className="mb-4 px-4 py-3 rounded-xl text-sm" style={{ background: 'var(--c-239-68-68-0_1)', color: 'var(--t-f87171)', border: '1px solid var(--c-239-68-68-0_2)' }}>
           {error}
         </div>
       )}
 
       {/* Display Name & Headline */}
-      <section className="mb-6 rounded-2xl p-5" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
-        <h2 className="text-sm font-semibold mb-4" style={{ color: '#DDD6FE' }}>Display Identity</h2>
+      <section className="mb-6 rounded-2xl p-5" style={{ background: 'var(--c-255-255-255-0_07)', border: '1px solid var(--c-255-255-255-0_1)' }}>
+        <h2 className="text-sm font-semibold mb-4" style={{ color: 'var(--t-ddd6fe)' }}>Display Identity</h2>
         <div className="grid grid-cols-1 gap-4">
           <div>
-            <label className="block text-xs font-medium mb-1.5" style={{ color: 'rgba(255,255,255,0.65)' }}>
-              CV Display Name <span style={{ color: 'rgba(255,255,255,0.45)' }}>(overrides legal name on all documents)</span>
+            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--t-255-255-255-0_65)' }}>
+              CV Display Name <span style={{ color: 'var(--t-255-255-255-0_45)' }}>(overrides legal name on all documents)</span>
             </label>
             <input
               type="text"
@@ -135,11 +135,11 @@ export default function CvIdentityPage() {
               onChange={e => updateIdentityField('cv_display_name', e.target.value)}
               placeholder="e.g. John Isah"
               className="w-full px-3 py-2.5 rounded-xl text-sm"
-              style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(168,85,247,0.2)', color: '#FFFFFF', outline: 'none' }}
+              style={{ background: 'var(--c-0-0-0-0_22)', border: '1px solid var(--c-168-85-247-0_2)', color: 'var(--t-ffffff)', outline: 'none' }}
             />
           </div>
           <div>
-            <label className="block text-xs font-medium mb-1.5" style={{ color: 'rgba(255,255,255,0.65)' }}>
+            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--t-255-255-255-0_65)' }}>
               Professional Headline
             </label>
             <input
@@ -148,16 +148,16 @@ export default function CvIdentityPage() {
               onChange={e => updateIdentityField('cv_headline', e.target.value)}
               placeholder="e.g. Full-Stack Engineer | DevOps | Open to Relocation"
               className="w-full px-3 py-2.5 rounded-xl text-sm"
-              style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(168,85,247,0.2)', color: '#FFFFFF', outline: 'none' }}
+              style={{ background: 'var(--c-0-0-0-0_22)', border: '1px solid var(--c-168-85-247-0_2)', color: 'var(--t-ffffff)', outline: 'none' }}
             />
           </div>
         </div>
       </section>
 
       {/* Email for CV */}
-      <section className="mb-6 rounded-2xl p-5" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
-        <h2 className="text-sm font-semibold mb-1" style={{ color: '#DDD6FE' }}>Email Displayed on CV</h2>
-        <p className="text-xs mb-4" style={{ color: 'rgba(255,255,255,0.45)' }}>Choose which email appears in your CV contact block.</p>
+      <section className="mb-6 rounded-2xl p-5" style={{ background: 'var(--c-255-255-255-0_07)', border: '1px solid var(--c-255-255-255-0_1)' }}>
+        <h2 className="text-sm font-semibold mb-1" style={{ color: 'var(--t-ddd6fe)' }}>Email Displayed on CV</h2>
+        <p className="text-xs mb-4" style={{ color: 'var(--t-255-255-255-0_45)' }}>Choose which email appears in your CV contact block.</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {EMAIL_OPTIONS.map(opt => {
             const active = (identity.cv_email_choice as string) === opt.value;
@@ -167,9 +167,9 @@ export default function CvIdentityPage() {
                 onClick={() => updateIdentityField('cv_email_choice', opt.value)}
                 className="text-left px-4 py-3 rounded-xl text-sm transition-all"
                 style={{
-                  background: active ? 'rgba(168,85,247,0.18)' : 'rgba(0,0,0,0.22)',
-                  border: `1px solid ${active ? '#A855F7' : 'rgba(255,255,255,0.1)'}`,
-                  color: active ? '#DDD6FE' : 'rgba(255,255,255,0.65)',
+                  background: active ? 'var(--c-168-85-247-0_18)' : 'var(--c-0-0-0-0_22)',
+                  border: `1px solid ${active ? 'var(--c-a855f7)' : 'var(--c-255-255-255-0_1)'}`,
+                  color: active ? 'var(--t-ddd6fe)' : 'var(--t-255-255-255-0_65)',
                 }}
               >
                 {opt.label}
@@ -179,29 +179,29 @@ export default function CvIdentityPage() {
         </div>
 
         {/* App-from email tracking */}
-        <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-          <p className="text-xs font-medium mb-3" style={{ color: 'rgba(255,255,255,0.65)' }}>Application-from emails (used to track which email you applied with)</p>
+        <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--c-255-255-255-0_08)' }}>
+          <p className="text-xs font-medium mb-3" style={{ color: 'var(--t-255-255-255-0_65)' }}>Application-from emails (used to track which email you applied with)</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.45)' }}>Gmail address</label>
+              <label className="block text-xs mb-1.5" style={{ color: 'var(--t-255-255-255-0_45)' }}>Gmail address</label>
               <input
                 type="email"
                 value={((identity.application_emails as Record<string,string>) || {}).gmail || ''}
                 onChange={e => updateIdentityField('application_emails', { ...((identity.application_emails as Record<string,string>) || {}), gmail: e.target.value })}
                 placeholder="johnitopaisah@gmail.com"
                 className="w-full px-3 py-2 rounded-xl text-sm"
-                style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(168,85,247,0.15)', color: '#FFFFFF', outline: 'none' }}
+                style={{ background: 'var(--c-0-0-0-0_22)', border: '1px solid var(--c-168-85-247-0_15)', color: 'var(--t-ffffff)', outline: 'none' }}
               />
             </div>
             <div>
-              <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.45)' }}>Professional email</label>
+              <label className="block text-xs mb-1.5" style={{ color: 'var(--t-255-255-255-0_45)' }}>Professional email</label>
               <input
                 type="email"
                 value={((identity.application_emails as Record<string,string>) || {}).professional || ''}
                 onChange={e => updateIdentityField('application_emails', { ...((identity.application_emails as Record<string,string>) || {}), professional: e.target.value })}
                 placeholder="john@johnisah.com"
                 className="w-full px-3 py-2 rounded-xl text-sm"
-                style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(168,85,247,0.15)', color: '#FFFFFF', outline: 'none' }}
+                style={{ background: 'var(--c-0-0-0-0_22)', border: '1px solid var(--c-168-85-247-0_15)', color: 'var(--t-ffffff)', outline: 'none' }}
               />
             </div>
           </div>
@@ -209,17 +209,17 @@ export default function CvIdentityPage() {
       </section>
 
       {/* Contact Block Builder */}
-      <section className="mb-6 rounded-2xl p-5" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
+      <section className="mb-6 rounded-2xl p-5" style={{ background: 'var(--c-255-255-255-0_07)', border: '1px solid var(--c-255-255-255-0_1)' }}>
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-sm font-semibold" style={{ color: '#DDD6FE' }}>Contact Block</h2>
-            <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.45)' }}>Drag to reorder. Toggle visibility. Appears in this exact order on your CV.</p>
+            <h2 className="text-sm font-semibold" style={{ color: 'var(--t-ddd6fe)' }}>Contact Block</h2>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--t-255-255-255-0_45)' }}>Drag to reorder. Toggle visibility. Appears in this exact order on your CV.</p>
           </div>
           <button
             onClick={handleBuildContactFields}
             disabled={building}
             className="text-xs px-3 py-1.5 rounded-lg transition-all"
-            style={{ background: 'rgba(168,85,247,0.15)', color: '#DDD6FE', border: '1px solid rgba(168,85,247,0.3)' }}
+            style={{ background: 'var(--c-168-85-247-0_15)', color: 'var(--t-ddd6fe)', border: '1px solid var(--c-168-85-247-0_3)' }}
           >
             {building ? 'Building…' : 'Auto-build from profile'}
           </button>
@@ -235,14 +235,14 @@ export default function CvIdentityPage() {
               onDragEnd={onDragEnd}
               className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all"
               style={{
-                background: drag === idx ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.22)',
-                border: '1px solid rgba(255,255,255,0.08)',
+                background: drag === idx ? 'var(--c-255-255-255-0_1)' : 'var(--c-0-0-0-0_22)',
+                border: '1px solid var(--c-255-255-255-0_08)',
                 cursor: 'grab',
                 opacity: f.visible ? 1 : 0.45,
               }}
             >
               {/* Drag handle */}
-              <div style={{ color: 'rgba(255,255,255,0.32)', cursor: 'grab' }}>
+              <div style={{ color: 'var(--t-255-255-255-0_32)', cursor: 'grab' }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9 3h2v2H9zm4 0h2v2h-2zM9 7h2v2H9zm4 0h2v2h-2zM9 11h2v2H9zm4 0h2v2h-2zM9 15h2v2H9zm4 0h2v2h-2zM9 19h2v2H9zm4 0h2v2h-2z"/></svg>
               </div>
               {/* Label */}
@@ -251,7 +251,7 @@ export default function CvIdentityPage() {
                 value={f.label || FIELD_LABELS[f.key] || f.key}
                 onChange={e => updateField(idx, { label: e.target.value })}
                 className="w-24 text-xs px-2 py-1 rounded-lg"
-                style={{ background: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.15)', color: 'rgba(255,255,255,0.65)', outline: 'none' }}
+                style={{ background: 'var(--c-168-85-247-0_1)', border: '1px solid var(--c-168-85-247-0_15)', color: 'var(--t-255-255-255-0_65)', outline: 'none' }}
               />
               {/* Value */}
               <input
@@ -259,13 +259,13 @@ export default function CvIdentityPage() {
                 value={f.value}
                 onChange={e => updateField(idx, { value: e.target.value })}
                 className="flex-1 text-xs px-2 py-1 rounded-lg"
-                style={{ background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.92)', outline: 'none' }}
+                style={{ background: 'var(--c-99-102-241-0_05)', border: '1px solid var(--c-255-255-255-0_08)', color: 'var(--t-255-255-255-0_92)', outline: 'none' }}
               />
               {/* Toggle visibility */}
               <button
                 onClick={() => updateField(idx, { visible: !f.visible })}
                 className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg transition-all"
-                style={{ background: f.visible ? 'rgba(168,85,247,0.15)' : 'rgba(100,116,139,0.1)', color: f.visible ? '#A855F7' : 'rgba(255,255,255,0.32)' }}
+                style={{ background: f.visible ? 'var(--c-168-85-247-0_15)' : 'var(--c-100-116-139-0_1)', color: f.visible ? 'var(--t-a855f7)' : 'var(--t-255-255-255-0_32)' }}
                 title={f.visible ? 'Hide from CV' : 'Show on CV'}
               >
                 {f.visible ? (
@@ -278,7 +278,7 @@ export default function CvIdentityPage() {
               <button
                 onClick={() => removeField(idx)}
                 className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg"
-                style={{ color: 'rgba(255,255,255,0.45)' }}
+                style={{ color: 'var(--t-255-255-255-0_45)' }}
                 title="Remove"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -289,7 +289,7 @@ export default function CvIdentityPage() {
           <button
             onClick={addField}
             className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs mt-1 transition-all"
-            style={{ background: 'rgba(168,85,247,0.07)', border: '1px dashed rgba(168,85,247,0.25)', color: '#A855F7' }}
+            style={{ background: 'var(--c-168-85-247-0_07)', border: '1px dashed var(--c-168-85-247-0_25)', color: 'var(--t-a855f7)' }}
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Add custom field
@@ -298,8 +298,8 @@ export default function CvIdentityPage() {
       </section>
 
       {/* Other CV fields */}
-      <section className="mb-6 rounded-2xl p-5" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
-        <h2 className="text-sm font-semibold mb-4" style={{ color: '#DDD6FE' }}>Additional CV Fields</h2>
+      <section className="mb-6 rounded-2xl p-5" style={{ background: 'var(--c-255-255-255-0_07)', border: '1px solid var(--c-255-255-255-0_1)' }}>
+        <h2 className="text-sm font-semibold mb-4" style={{ color: 'var(--t-ddd6fe)' }}>Additional CV Fields</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {[
             { key: 'cv_website',          label: 'Website URL',     ph: 'https://johnisah.com' },
@@ -311,14 +311,14 @@ export default function CvIdentityPage() {
             { key: 'cv_email_secondary',  label: 'Secondary email', ph: 'email2@example.com' },
           ].map(({ key, label, ph }) => (
             <div key={key}>
-              <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.65)' }}>{label}</label>
+              <label className="block text-xs mb-1.5" style={{ color: 'var(--t-255-255-255-0_65)' }}>{label}</label>
               <input
                 type="text"
                 value={(identity[key] as string) || ''}
                 onChange={e => updateIdentityField(key, e.target.value)}
                 placeholder={ph}
                 className="w-full px-3 py-2 rounded-xl text-sm"
-                style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(168,85,247,0.15)', color: '#FFFFFF', outline: 'none' }}
+                style={{ background: 'var(--c-0-0-0-0_22)', border: '1px solid var(--c-168-85-247-0_15)', color: 'var(--t-ffffff)', outline: 'none' }}
               />
             </div>
           ))}
@@ -332,13 +332,13 @@ export default function CvIdentityPage() {
           disabled={saving}
           className="px-6 py-2.5 rounded-xl text-sm font-semibold transition-all"
           style={{
-            background: saving ? 'rgba(168,85,247,0.3)' : 'linear-gradient(135deg, #A855F7, #7C3AED)',
+            background: saving ? 'var(--c-168-85-247-0_3)' : 'linear-gradient(135deg, var(--c-a855f7), var(--c-7c3aed))',
             color: '#fff',
           }}
         >
           {saving ? 'Saving…' : 'Save CV Identity'}
         </button>
-        {saved && <span className="text-sm" style={{ color: '#4ade80' }}>Saved!</span>}
+        {saved && <span className="text-sm" style={{ color: 'var(--t-4ade80)' }}>Saved!</span>}
       </div>
     </div>
   );

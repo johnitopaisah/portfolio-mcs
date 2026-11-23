@@ -9,6 +9,7 @@ import {
   IconUsers,
 } from './Icons';
 import { logout } from '@/lib/authSession';
+import ThemeToggle from './ThemeToggle';
 
 // ── Inline icons ──────────────────────────────────────────────────────────────
 const IconStar = (p: React.SVGProps<SVGSVGElement>) => (
@@ -164,29 +165,29 @@ export default function SidebarContent({ onClose }: { onClose: () => void }) {
       style={{
         height:               '100%',
         overflow:             'hidden',
-        background:           'rgba(10,3,28,0.78)',
+        background:           'var(--c-10-3-28-0_78)',
         backdropFilter:       'blur(24px) saturate(180%)',
         WebkitBackdropFilter: 'blur(24px) saturate(180%)',
-        borderRight:          '1px solid rgba(255,255,255,0.08)',
-        boxShadow:            '4px 0 32px rgba(0,0,0,0.4)',
+        borderRight:          '1px solid var(--c-255-255-255-0_08)',
+        boxShadow:            '4px 0 32px var(--c-0-0-0-0_4)',
       }}
     >
       {/* ── Header ──────────────────────────────────────────────── */}
       <div className="px-5 pt-6 pb-5 shrink-0"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+        style={{ borderBottom: '1px solid var(--c-255-255-255-0_07)' }}>
         <Link href="/" className="flex items-center gap-3" aria-label="Home">
           <div
             className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-xs font-bold shrink-0"
             style={{
-              background: 'linear-gradient(135deg, #8B5CF6 0%, #A855F7 100%)',
-              boxShadow:  '0 0 0 3px rgba(168,85,247,0.2), 0 4px 16px rgba(168,85,247,0.4)',
+              background: 'linear-gradient(135deg, var(--c-8b5cf6) 0%, var(--c-a855f7) 100%)',
+              boxShadow:  '0 0 0 3px var(--c-168-85-247-0_2), 0 4px 16px var(--c-168-85-247-0_4)',
             }}
           >
             PA
           </div>
           <div className="min-w-0">
             <p className="font-semibold text-sm tracking-tight truncate text-white">Portfolio Admin</p>
-            <p className="text-xs truncate" style={{ color: 'rgba(255,255,255,0.4)' }}>johnisah.com</p>
+            <p className="text-xs truncate" style={{ color: 'var(--t-255-255-255-0_4)' }}>johnisah.com</p>
           </div>
         </Link>
       </div>
@@ -204,11 +205,11 @@ export default function SidebarContent({ onClose }: { onClose: () => void }) {
               <div className="px-3 mb-2 flex items-center gap-2">
                 <span
                   className="text-[10px] font-semibold uppercase tracking-widest shrink-0"
-                  style={{ color: 'rgba(255,255,255,0.22)' }}
+                  style={{ color: 'var(--t-255-255-255-0_22)' }}
                 >
                   {section.label}
                 </span>
-                <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.06)' }} />
+                <div className="flex-1 h-px" style={{ background: 'var(--c-255-255-255-0_06)' }} />
               </div>
             )}
 
@@ -230,22 +231,22 @@ export default function SidebarContent({ onClose }: { onClose: () => void }) {
                         onClick={onClose}
                         className="flex-1 flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-150 min-w-0"
                         style={highlighted ? {
-                          background: 'linear-gradient(135deg, rgba(168,85,247,0.28), rgba(139,92,246,0.18))',
-                          color:      '#DDD6FE',
-                          boxShadow:  'inset 0 1px 0 rgba(255,255,255,0.06)',
-                        } : { color: 'rgba(255,255,255,0.45)' }}
+                          background: 'linear-gradient(135deg, var(--c-168-85-247-0_28), var(--c-139-92-246-0_18))',
+                          color:      'var(--t-ddd6fe)',
+                          boxShadow:  'inset 0 1px 0 var(--c-255-255-255-0_06)',
+                        } : { color: 'var(--t-255-255-255-0_45)' }}
                         onMouseEnter={e => {
                           if (highlighted) return;
                           const el = e.currentTarget as HTMLElement;
-                          el.style.background = 'rgba(168,85,247,0.1)';
-                          el.style.color      = '#DDD6FE';
+                          el.style.background = 'var(--c-168-85-247-0_1)';
+                          el.style.color      = 'var(--t-ddd6fe)';
                           el.style.transform  = 'translateX(2px)';
                         }}
                         onMouseLeave={e => {
                           if (highlighted) return;
                           const el = e.currentTarget as HTMLElement;
                           el.style.background = 'transparent';
-                          el.style.color      = 'rgba(255,255,255,0.45)';
+                          el.style.color      = 'var(--t-255-255-255-0_45)';
                           el.style.transform  = 'translateX(0)';
                         }}
                       >
@@ -261,16 +262,16 @@ export default function SidebarContent({ onClose }: { onClose: () => void }) {
                         <button
                           onClick={() => toggle(href)}
                           className="shrink-0 w-6 h-6 flex items-center justify-center rounded-lg mr-1 transition-all duration-150"
-                          style={{ color: isOpen ? 'rgba(168,85,247,0.85)' : 'rgba(255,255,255,0.22)' }}
+                          style={{ color: isOpen ? 'var(--t-168-85-247-0_85)' : 'var(--t-255-255-255-0_22)' }}
                           onMouseEnter={e => {
                             const el = e.currentTarget as HTMLElement;
-                            el.style.background = 'rgba(168,85,247,0.12)';
-                            el.style.color      = '#DDD6FE';
+                            el.style.background = 'var(--c-168-85-247-0_12)';
+                            el.style.color      = 'var(--t-ddd6fe)';
                           }}
                           onMouseLeave={e => {
                             const el = e.currentTarget as HTMLElement;
                             el.style.background = 'transparent';
-                            el.style.color      = isOpen ? 'rgba(168,85,247,0.85)' : 'rgba(255,255,255,0.22)';
+                            el.style.color      = isOpen ? 'var(--t-168-85-247-0_85)' : 'var(--t-255-255-255-0_22)';
                           }}
                         >
                           <IconChevron rotated={isOpen} width={11} height={11} />
@@ -282,7 +283,7 @@ export default function SidebarContent({ onClose }: { onClose: () => void }) {
                     {hasChildren && isOpen && (
                       <div
                         className="ml-5 mt-1 mb-1 pl-3 flex flex-col gap-px"
-                        style={{ borderLeft: '1px solid rgba(255,255,255,0.08)' }}
+                        style={{ borderLeft: '1px solid var(--c-255-255-255-0_08)' }}
                       >
                         {children!.map(child => {
                           const ca = isActive(child.href);
@@ -293,27 +294,27 @@ export default function SidebarContent({ onClose }: { onClose: () => void }) {
                               onClick={onClose}
                               className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150"
                               style={ca ? {
-                                background: 'rgba(168,85,247,0.18)',
-                                color:      '#DDD6FE',
-                              } : { color: 'rgba(255,255,255,0.38)' }}
+                                background: 'var(--c-168-85-247-0_18)',
+                                color:      'var(--t-ddd6fe)',
+                              } : { color: 'var(--t-255-255-255-0_38)' }}
                               onMouseEnter={e => {
                                 if (ca) return;
                                 const el = e.currentTarget as HTMLElement;
-                                el.style.background = 'rgba(168,85,247,0.1)';
-                                el.style.color      = '#DDD6FE';
+                                el.style.background = 'var(--c-168-85-247-0_1)';
+                                el.style.color      = 'var(--t-ddd6fe)';
                                 el.style.transform  = 'translateX(2px)';
                               }}
                               onMouseLeave={e => {
                                 if (ca) return;
                                 const el = e.currentTarget as HTMLElement;
                                 el.style.background = 'transparent';
-                                el.style.color      = 'rgba(255,255,255,0.38)';
+                                el.style.color      = 'var(--t-255-255-255-0_38)';
                                 el.style.transform  = 'translateX(0)';
                               }}
                             >
                               <div
                                 className="w-1.5 h-1.5 rounded-full shrink-0"
-                                style={{ background: ca ? '#A855F7' : 'rgba(255,255,255,0.2)' }}
+                                style={{ background: ca ? 'var(--c-a855f7)' : 'var(--c-255-255-255-0_2)' }}
                               />
                               <span className="truncate">{child.label}</span>
                             </Link>
@@ -332,22 +333,22 @@ export default function SidebarContent({ onClose }: { onClose: () => void }) {
       {/* ── Footer ──────────────────────────────────────────────── */}
       <div
         className="p-2.5 shrink-0 flex flex-col gap-0.5"
-        style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}
+        style={{ borderTop: '1px solid var(--c-255-255-255-0_06)' }}
       >
         <a
           href="https://johnisah.com"
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-150"
-          style={{ color: 'rgba(255,255,255,0.32)' }}
+          style={{ color: 'var(--t-255-255-255-0_32)' }}
           onMouseEnter={e => {
             const el = e.currentTarget as HTMLElement;
-            el.style.color      = 'rgba(168,85,247,0.9)';
-            el.style.background = 'rgba(168,85,247,0.08)';
+            el.style.color      = 'var(--t-168-85-247-0_9)';
+            el.style.background = 'var(--c-168-85-247-0_08)';
           }}
           onMouseLeave={e => {
             const el = e.currentTarget as HTMLElement;
-            el.style.color      = 'rgba(255,255,255,0.32)';
+            el.style.color      = 'var(--t-255-255-255-0_32)';
             el.style.background = 'transparent';
           }}
         >
@@ -355,18 +356,20 @@ export default function SidebarContent({ onClose }: { onClose: () => void }) {
           View site
         </a>
 
+        <ThemeToggle showLabel className="font-medium" />
+
         <button
           onClick={logout}
           className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-150"
-          style={{ color: 'rgba(255,255,255,0.32)' }}
+          style={{ color: 'var(--t-255-255-255-0_32)' }}
           onMouseEnter={e => {
             const el = e.currentTarget as HTMLElement;
-            el.style.color      = '#f87171';
-            el.style.background = 'rgba(239,68,68,0.1)';
+            el.style.color      = 'var(--t-f87171)';
+            el.style.background = 'var(--c-239-68-68-0_1)';
           }}
           onMouseLeave={e => {
             const el = e.currentTarget as HTMLElement;
-            el.style.color      = 'rgba(255,255,255,0.32)';
+            el.style.color      = 'var(--t-255-255-255-0_32)';
             el.style.background = 'transparent';
           }}
         >

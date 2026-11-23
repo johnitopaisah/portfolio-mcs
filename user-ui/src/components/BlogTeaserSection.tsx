@@ -9,6 +9,19 @@ interface BlogPost {
   medium_url: string;
   tags: string[];
   published_at: string | null;
+  first_ingested_at?: string | null;   // when the post was first synced from Medium
+}
+
+// The header names the article added by the most recent sync — not a count
+// of every post. One sync inserts its posts milliseconds apart, so posts
+// first synced within 10 minutes of the latest count as that sync; of those,
+// the most recently published article is shown.
+const SYNC_WINDOW_MS = 10 * 60 * 1000;
+function latestSynced(posts: BlogPost[]): BlogPost {
+  const t = (iso?: string | null) => (iso ? new Date(iso).getTime() : 0);
+  const lastSync = Math.max(...posts.map(p => t(p.first_ingested_at)));
+  const batch = posts.filter(p => t(p.first_ingested_at) >= lastSync - SYNC_WINDOW_MS);
+  return batch.sort((a, b) => t(b.published_at) - t(a.published_at))[0] ?? posts[0];
 }
 
 // Marquee needs at least 4 cards to look right (duplicated list fills the viewport).
@@ -37,6 +50,7 @@ export default function BlogTeaserSection({
   if (posts.length === 0) return null;
 
   const latest   = posts.slice(0, MAX_POSTS_IN_TEASER);
+  const newest   = latestSynced(posts);
   const useMarquee = latest.length >= MARQUEE_THRESHOLD;
   const duration = latest.length * SECONDS_PER_CARD;
 
@@ -48,14 +62,19 @@ export default function BlogTeaserSection({
             <div className="section-label">Writing</div>
             <h2 className="section-title">Latest from the Blog</h2>
             <p className="section-sub">
-              {posts.length} article{posts.length > 1 ? 's' : ''} · latest {relativeDate(latest[0].published_at)}
+              Latest:{' '}
+              <a href={`/api/blog/${newest.id}/go?from=home`} target="_blank" rel="noopener noreferrer"
+                className="font-medium underline-offset-4 hover:underline hover:text-violet-500" style={{ color: 'var(--text-1)' }}>
+                {newest.title}
+              </a>
+              {' '}· added {relativeDate(newest.first_ingested_at ?? newest.published_at)}
             </p>
           </div>
           <Link
             href="/blog"
             className="text-sm font-medium transition-colors flex items-center gap-1 hover:text-violet-500"
             style={{ color: 'var(--text-2)' }}>
-            View all posts →
+            View all {posts.length} posts →
           </Link>
         </div>
 

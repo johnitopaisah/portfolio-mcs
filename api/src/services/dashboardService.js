@@ -2,6 +2,45 @@
 
 const pool = require('../db/client');
 const { FINAL_STATUSES } = require('../constants/applicationStatuses');
+const { getAvailability, pausedWeeks } = require('./availability');
+
+// Weeks are Paris weeks (Monday 00:00 Europe/Paris), everywhere: the weekly
+// goal, the streak, the Search Health weekly checks and the snapshots.
+const TZ = 'Europe/Paris';
+const WEEK_START_SQL = `(date_trunc('week', NOW() AT TIME ZONE '${TZ}') AT TIME ZONE '${TZ}')`;   // timestamptz
+
+/**
+ * Consecutive weeks the goal was met, newest first.
+ *   - completed weeks are judged against the goal recorded for that week
+ *     (weekly_snapshots.goal), or today's goal when none was recorded;
+ *   - weeks when the search was Not open are skipped (neither count nor
+ *     break the streak);
+ *   - the week in progress counts as soon as its goal is reached.
+ * Built from applications directly, so a missed snapshot can't break it.
+ */
+async function computeStreak({ goal, db = pool } = {}) {
+  const [{ rows: weeks }, { rows: snaps }, paused] = await Promise.all([
+    db.query(`
+      SELECT to_char(w, 'YYYY-MM-DD') AS week, COUNT(a.id)::int AS cnt
+      FROM generate_series(date_trunc('week', NOW() AT TIME ZONE '${TZ}') - INTERVAL '103 weeks',
+                           date_trunc('week', NOW() AT TIME ZONE '${TZ}'), INTERVAL '1 week') AS w
+      LEFT JOIN applications a
+        ON (a.created_at AT TIME ZONE '${TZ}') >= w AND (a.created_at AT TIME ZONE '${TZ}') < w + INTERVAL '1 week'
+      GROUP BY w ORDER BY w DESC`),
+    db.query(`SELECT to_char(week_start, 'YYYY-MM-DD') AS week, goal FROM weekly_snapshots WHERE goal IS NOT NULL`),
+    pausedWeeks(db),
+  ]);
+  const goalOf = Object.fromEntries(snaps.map(r => [r.week, r.goal]));
+  const [current, ...past] = weeks;
+  let streak = 0;
+  for (const w of past) {
+    if (paused.has(w.week)) continue;
+    if (w.cnt >= (goalOf[w.week] || goal)) streak++;
+    else break;
+  }
+  const currentMet = !!current && !paused.has(current.week) && current.cnt >= goal;
+  return { streak: streak + (currentMet ? 1 : 0), includes_current_week: currentMet };
+}
 
 // Weekly goal is scored in proportion to progress (29/30 → 14/15) rather
 // than all-or-nothing (rounded down: full marks only once the goal is met),
@@ -16,19 +55,18 @@ async function computeHealthScore() {
   const components = [];
   let total = 0;
 
-  // Get current week start (Monday)
-  const weekStart = new Date();
-  weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
-  weekStart.setHours(0, 0, 0, 0);
+  // While the search is Not open, the weekly checks (applied this week,
+  // pipeline moved, weekly goal) are paused: full marks, marked as paused.
+  const { paused } = await getAvailability();
+  const PAUSED = 'Paused — availability is Not open';
 
   // 1. Applied at least 1 job this week (+15)
   const { rows: weekApps } = await pool.query(
-    'SELECT COUNT(*)::int AS cnt FROM applications WHERE created_at >= $1',
-    [weekStart]
+    `SELECT COUNT(*)::int AS cnt FROM applications WHERE created_at >= ${WEEK_START_SQL}`
   );
-  const appliedThisWeek = weekApps[0].cnt > 0;
+  const appliedThisWeek = paused || weekApps[0].cnt > 0;
   const pts1 = appliedThisWeek ? 15 : 0;
-  components.push({ key: 'applied_this_week', label: 'Applied this week', pts: pts1, max: 15, ok: appliedThisWeek, detail: `${weekApps[0].cnt} this week` });
+  components.push({ key: 'applied_this_week', label: 'Applied this week', pts: pts1, max: 15, ok: appliedThisWeek, paused, detail: paused ? PAUSED : `${weekApps[0].cnt} this week` });
   total += pts1;
 
   // 2. No stale follow-ups (APPLIED > 7 days with no follow-up planned or done) (+15)
@@ -120,11 +158,11 @@ async function computeHealthScore() {
   // 7. At least 1 application moved forward this week (+10)
   const { rows: pipelineMove } = await pool.query(`
     SELECT COUNT(*)::int AS cnt FROM application_events
-    WHERE event_type='STATUS_CHANGED' AND event_date >= $1
-  `, [weekStart]);
-  const pipelineMoved = pipelineMove[0].cnt > 0;
+    WHERE event_type='STATUS_CHANGED' AND event_date >= ${WEEK_START_SQL}
+  `);
+  const pipelineMoved = paused || pipelineMove[0].cnt > 0;
   const pts7 = pipelineMoved ? 10 : 0;
-  components.push({ key: 'pipeline_moved', label: 'Pipeline moved this week', pts: pts7, max: 10, ok: pipelineMoved, detail: `${pipelineMove[0].cnt} status change(s)` });
+  components.push({ key: 'pipeline_moved', label: 'Pipeline moved this week', pts: pts7, max: 10, ok: pipelineMoved, paused, detail: paused ? PAUSED : `${pipelineMove[0].cnt} status change(s)` });
   total += pts7;
 
   // 8. Weekly goal met (+15)
@@ -132,15 +170,15 @@ async function computeHealthScore() {
     'SELECT weekly_application_goal FROM user_settings LIMIT 1'
   );
   const goal = goalRows[0]?.weekly_application_goal || 5;
-  const weeklyGoalMet = weekApps[0].cnt >= goal;
-  const pts8 = weeklyGoalPoints(weekApps[0].cnt, goal, 15);
-  components.push({ key: 'weekly_goal_met', label: 'Weekly goal', pts: pts8, max: 15, ok: weeklyGoalMet, detail: `${weekApps[0].cnt}/${goal} this week` });
+  const weeklyGoalMet = paused || weekApps[0].cnt >= goal;
+  const pts8 = paused ? 15 : weeklyGoalPoints(weekApps[0].cnt, goal, 15);
+  components.push({ key: 'weekly_goal_met', label: 'Weekly goal', pts: pts8, max: 15, ok: weeklyGoalMet, paused, detail: paused ? PAUSED : `${weekApps[0].cnt}/${goal} this week` });
   total += pts8;
 
   const label = total >= 71 ? 'Excellent' : total >= 41 ? 'On Track' : 'Needs Attention';
   const color = total >= 71 ? 'green'     : total >= 41 ? 'yellow'   : 'red';
 
-  return { total: Math.min(total, 100), label, color, components };
+  return { total: Math.min(total, 100), label, color, components, paused };
 }
 
 // A viewer-supplied IANA zone decides where "today" starts; anything Intl
@@ -156,9 +194,6 @@ function safeTimeZone(tz) {
 
 async function getDashboardStats({ timeZone } = {}) {
   const tz = safeTimeZone(timeZone || 'UTC');
-  const weekStart = new Date();
-  weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
-  weekStart.setHours(0, 0, 0, 0);
 
   const [healthScore, settings, pipelineRows, recentActivity,
          dueReminders, weeklyVelocity, skillsGap, dailyCounts, reminderCounts] = await Promise.all([
@@ -250,21 +285,12 @@ async function getDashboardStats({ timeZone } = {}) {
   const s   = settings.rows[0] || {};
   const goal = s.weekly_application_goal || 5;
 
-  const weekApps = (weeklyVelocity.rows.find(r => {
-    const rDate = new Date(r.week);
-    const wDate = new Date(weekStart);
-    return rDate.toDateString() === wDate.toDateString();
-  }) || {}).cnt || 0;
-
-  // Streak: consecutive weeks goal was met
-  const { rows: snapshots } = await pool.query(
-    'SELECT week_start, goal_met FROM weekly_snapshots ORDER BY week_start DESC LIMIT 26'
-  );
-  let streak = 0;
-  for (const snap of snapshots) {
-    if (snap.goal_met) streak++;
-    else break;
-  }
+  const [{ rows: [wk] }, streak, availability] = await Promise.all([
+    pool.query(`SELECT COUNT(*)::int AS cnt FROM applications WHERE created_at >= ${WEEK_START_SQL}`),
+    computeStreak({ goal }),
+    getAvailability(),
+  ]);
+  const weekApps = wk.cnt;
 
   const pipelineCounts = { prep: 0, active: 0, interview: 0, offer: 0, closed: 0 };
   for (const row of pipelineRows.rows) {
@@ -277,8 +303,10 @@ async function getDashboardStats({ timeZone } = {}) {
       this_week:    weekApps,
       today:        dailyCounts.rows[dailyCounts.rows.length - 1]?.cnt || 0,
       pct:          Math.min(100, Math.round((weekApps / goal) * 100)),
-      streak_weeks: streak,
+      streak_weeks: streak.streak,
+      streak_includes_current_week: streak.includes_current_week,
     },
+    availability,
     health_score:    healthScore,
     due_reminders:   dueReminders.rows,
     reminder_counts: reminderCounts.rows[0],
@@ -290,4 +318,4 @@ async function getDashboardStats({ timeZone } = {}) {
   };
 }
 
-module.exports = { getDashboardStats, computeHealthScore, weeklyGoalPoints };
+module.exports = { getDashboardStats, computeHealthScore, weeklyGoalPoints, computeStreak };

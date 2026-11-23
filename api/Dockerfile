@@ -22,7 +22,7 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 # published will keep being reused (and keep serving the vulnerable package)
 # indefinitely otherwise. Bump ARG's value whenever Trivy's scan step flags a
 # "fixed" OS-level CVE that a plain re-run doesn't clear.
-ARG APK_CACHE_BUST=2026-10-10-node22-openssl-util-linux
+ARG APK_CACHE_BUST=2026-11-23-libfontenc-libxml2
 RUN echo "cache-bust: ${APK_CACHE_BUST}" && \
     apk upgrade --no-cache && \
     apk add --no-cache postgresql-client chromium nss freetype harfbuzz ca-certificates ttf-freefont && \

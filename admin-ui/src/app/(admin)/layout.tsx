@@ -2,6 +2,7 @@
 import { useRef, useState } from 'react';
 import SidebarContent from '@/components/Sidebar';
 import { AuthProvider } from '@/components/AuthProvider';
+import ThemeToggle from '@/components/ThemeToggle';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen,  setMobileOpen]  = useState(false);
@@ -27,7 +28,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           width:      desktopOpen ? '256px' : '4px',
           minWidth:   desktopOpen ? '256px' : '4px',
           transition: 'width 0.34s cubic-bezier(0.32,0.72,0,1), min-width 0.34s cubic-bezier(0.32,0.72,0,1)',
-          boxShadow:  desktopOpen ? '4px 0 40px rgba(0,0,0,0.5), 1px 0 0 rgba(255,255,255,0.06)' : 'none',
+          boxShadow:  desktopOpen ? '4px 0 40px var(--c-0-0-0-0_5), 1px 0 0 var(--c-255-255-255-0_06)' : 'none',
         }}
         onMouseEnter={openSidebar}
         onMouseLeave={closeSidebar}
@@ -53,11 +54,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       >
         <div style={{
           width: '20px', height: '80px',
-          background: 'linear-gradient(180deg, rgba(168,85,247,0.3), rgba(168,85,247,0.7), rgba(168,85,247,0.3))',
+          background: 'linear-gradient(180deg, var(--c-168-85-247-0_3), var(--c-168-85-247-0_7), var(--c-168-85-247-0_3))',
           borderRadius: '0 14px 14px 0',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           cursor: 'pointer',
-          boxShadow: '3px 0 18px rgba(168,85,247,0.3)',
+          boxShadow: '3px 0 18px var(--c-168-85-247-0_3)',
           animation: 'tab-breathe 2.8s ease-in-out infinite',
         }}>
           <svg width="8" height="14" viewBox="0 0 8 14" fill="none">
@@ -68,7 +69,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       {/* ── Mobile overlay ───────────────────────────────── */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-40 md:hidden" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+        <div className="fixed inset-0 z-40 md:hidden" style={{ background: 'var(--c-0-0-0-0_6)', backdropFilter: 'blur(4px)' }}
           onClick={() => setMobileOpen(false)} aria-hidden />
       )}
       <div className={`fixed inset-y-0 left-0 z-50 md:hidden transform transition-transform duration-300 ease-in-out ${
@@ -84,13 +85,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {/* Mobile top bar */}
         <div className="md:hidden flex items-center gap-3 px-4 py-3 sticky top-0 z-30"
           style={{
-            background: 'rgba(15,6,39,0.82)',
-            borderBottom: '1px solid rgba(255,255,255,0.08)',
+            background: 'var(--c-15-6-39-0_82)',
+            borderBottom: '1px solid var(--c-255-255-255-0_08)',
             backdropFilter: 'blur(16px)',
           }}>
           <button onClick={() => setMobileOpen(true)}
             className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors"
-            style={{ color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.12)' }}
+            style={{ color: 'var(--t-255-255-255-0_5)', border: '1px solid var(--c-255-255-255-0_12)' }}
             aria-label="Open menu">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <line x1="3" y1="6" x2="21" y2="6"/>
@@ -98,7 +99,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <line x1="3" y1="18" x2="21" y2="18"/>
             </svg>
           </button>
-          <p className="font-semibold text-sm text-white">Portfolio Admin</p>
+          <p className="font-semibold text-sm text-white flex-1">Portfolio Admin</p>
+          <ThemeToggle />
         </div>
 
         <main className="flex-1 overflow-auto">

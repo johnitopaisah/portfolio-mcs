@@ -97,8 +97,11 @@ async function reviewAction(req, res, act) {
     const when = done.send_after ? new Date(done.send_after).toLocaleString('en-GB', {
       timeZone: 'Europe/Paris', weekday: 'long', hour: '2-digit', minute: '2-digit',
     }) : null;
+    const paused = act === 'approve' && await require('../services/availability').isSearchPaused();
     res.set('Cache-Control', 'no-store').type('html').send(page(act === 'approve' ? 'Approved' : 'Not sent', act === 'approve'
-      ? `<h1>Approved ✓</h1><p class="lead">It will be sent to ${esc(email.to_email)} ${when ? `on ${esc(when)} (Paris time)` : 'shortly'}.</p>
+      ? `<h1>Approved ✓</h1><p class="lead">${paused
+          ? `Your job search is paused (availability: Not open). It will be sent to ${esc(email.to_email)} after you switch back to Available or Open to right.`
+          : `It will be sent to ${esc(email.to_email)} ${when ? `on ${esc(when)} (Paris time)` : 'shortly'}.`}</p>
          <p>Changed your mind? <a href="${esc(`${adminUrl()}/outbox?id=${email.id}`)}">Undo in the Outbox</a> within 5 minutes.</p>`
       : `<h1>Not sent</h1><p class="lead">This email was skipped and won't be sent.</p>`));
   } catch (err) {

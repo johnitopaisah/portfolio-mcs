@@ -29,6 +29,18 @@ async function main() {
     process.env.SEARXNG_URL ? `${process.env.SEARXNG_URL}` : 'NOT SET — discovery will be skipped');
   console.log('[Scraper] ================================\n');
 
+  // Availability "Not open" (admin dashboard) pauses the whole job search,
+  // discovery included. Any error (e.g. column missing) means: run as usual.
+  try {
+    const { rows } = await pool.query('SELECT availability_status FROM profile LIMIT 1');
+    if (rows[0]?.availability_status === 'not_open') {
+      console.log('[Scraper] Job search paused (availability: Not open) — skipping this run');
+      return;
+    }
+  } catch (err) {
+    console.warn('[Scraper] Could not read availability — running as usual:', err.message);
+  }
+
   const t0 = Date.now();
   await pipeline.run();
   console.log(`\n[Scraper] Done in ${((Date.now() - t0) / 1000).toFixed(1)}s`);

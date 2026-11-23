@@ -12,8 +12,8 @@ interface CvOption { source: string; label: string; created_at?: string }
 interface CvOptions { documents: CvOption[]; base_versions: CvOption[] }
 
 const MAX_PDF_MB = 5;
-const card  = { background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' };
-const field = { background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.12)', color: '#FFFFFF' };
+const card  = { background: 'var(--c-255-255-255-0_07)', border: '1px solid var(--c-255-255-255-0_1)' };
+const field = { background: 'var(--c-0-0-0-0_25)', border: '1px solid var(--c-255-255-255-0_12)', color: 'var(--t-ffffff)' };
 
 export default function ApplicationContextCard({ appId, onChanged }: { appId: number; onChanged?: () => void }) {
   const [ctx, setCtx]           = useState<Context | null>(null);
@@ -71,14 +71,14 @@ export default function ApplicationContextCard({ appId, onChanged }: { appId: nu
 
   return (
     <div className="rounded-2xl p-5" style={card}>
-      <p className="text-sm font-semibold" style={{ color: '#DDD6FE' }}>Application context</p>
-      <p className="text-xs mt-1 mb-3" style={{ color: 'rgba(255,255,255,0.45)' }}>
+      <p className="text-sm font-semibold" style={{ color: 'var(--t-ddd6fe)' }}>Application context</p>
+      <p className="text-xs mt-1 mb-3" style={{ color: 'var(--t-255-255-255-0_45)' }}>
         The CV you sent and the job description. The AI uses them for questions, the checklist and follow-up emails.
       </p>
-      {!ctx ? <p className="text-xs" style={{ color: 'rgba(255,255,255,0.32)' }}>Loading…</p> : (
+      {!ctx ? <p className="text-xs" style={{ color: 'var(--t-255-255-255-0_32)' }}>Loading…</p> : (
         <div className="flex flex-col gap-3">
           <div>
-            <label htmlFor="ctx-cv" className="block text-xs mb-1" style={{ color: 'rgba(255,255,255,0.65)' }}>CV used</label>
+            <label htmlFor="ctx-cv" className="block text-xs mb-1" style={{ color: 'var(--t-255-255-255-0_65)' }}>CV used</label>
             <select id="ctx-cv" value={cvSource} onChange={e => { setCvSource(e.target.value); setSaved(false); }}
               className="w-full px-2.5 py-1.5 text-xs rounded-lg outline-none" style={field}>
               <option value="">None selected</option>
@@ -98,21 +98,21 @@ export default function ApplicationContextCard({ appId, onChanged }: { appId: nu
               <input ref={fileRef} type="file" accept="application/pdf,.pdf" className="hidden" onChange={onFile} aria-label="Upload CV PDF" />
               <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading}
                 className="px-3 py-1.5 text-xs rounded-lg font-medium disabled:opacity-40"
-                style={{ background: 'rgba(255,255,255,0.08)', color: '#E9D5FF', border: '1px solid rgba(255,255,255,0.15)' }}>
+                style={{ background: 'var(--c-255-255-255-0_08)', color: 'var(--t-e9d5ff)', border: '1px solid var(--c-255-255-255-0_15)' }}>
                 {uploading ? 'Reading PDF…' : 'Upload PDF'}
               </button>
-              <span className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Max {MAX_PDF_MB} MB · text is extracted</span>
+              <span className="text-xs" style={{ color: 'var(--t-255-255-255-0_4)' }}>Max {MAX_PDF_MB} MB · text is extracted</span>
             </div>
             {ctx.cv_text && (
               <details className="mt-2">
-                <summary className="text-xs cursor-pointer" style={{ color: 'rgba(255,255,255,0.5)' }}>Preview what the AI reads</summary>
+                <summary className="text-xs cursor-pointer" style={{ color: 'var(--t-255-255-255-0_5)' }}>Preview what the AI reads</summary>
                 <pre className="text-xs mt-1 p-2 rounded-lg whitespace-pre-wrap max-h-40 overflow-auto"
-                  style={{ background: 'rgba(0,0,0,0.25)', color: 'rgba(255,255,255,0.7)' }}>{ctx.cv_text.slice(0, 1500)}{ctx.cv_text.length > 1500 ? '…' : ''}</pre>
+                  style={{ background: 'var(--c-0-0-0-0_25)', color: 'var(--t-255-255-255-0_7)' }}>{ctx.cv_text.slice(0, 1500)}{ctx.cv_text.length > 1500 ? '…' : ''}</pre>
               </details>
             )}
           </div>
           <div>
-            <label htmlFor="ctx-jd" className="block text-xs mb-1" style={{ color: 'rgba(255,255,255,0.65)' }}>Job description</label>
+            <label htmlFor="ctx-jd" className="block text-xs mb-1" style={{ color: 'var(--t-255-255-255-0_65)' }}>Job description</label>
             <textarea id="ctx-jd" value={jd} onChange={e => { setJd(e.target.value); setSaved(false); }} rows={5} maxLength={20000}
               placeholder="Paste the job ad. If empty, the linked job's description is used."
               className="w-full px-2.5 py-2 text-xs rounded-lg outline-none resize-y" style={field} />
@@ -120,10 +120,10 @@ export default function ApplicationContextCard({ appId, onChanged }: { appId: nu
           <div className="flex items-center gap-3">
             <button type="button" onClick={save} disabled={!dirty || saving}
               className="px-3 py-1.5 text-xs rounded-lg font-medium disabled:opacity-40"
-              style={{ background: 'rgba(168,85,247,0.25)', color: '#E9D5FF', border: '1px solid rgba(168,85,247,0.4)' }}>
+              style={{ background: 'var(--c-168-85-247-0_25)', color: 'var(--t-e9d5ff)', border: '1px solid var(--c-168-85-247-0_4)' }}>
               {saving ? 'Saving…' : 'Save context'}
             </button>
-            {saved && !dirty && <span className="text-xs" role="status" style={{ color: '#4ade80' }}>Saved ✓</span>}
+            {saved && !dirty && <span className="text-xs" role="status" style={{ color: 'var(--t-4ade80)' }}>Saved ✓</span>}
           </div>
         </div>
       )}

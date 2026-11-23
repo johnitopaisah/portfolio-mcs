@@ -33,7 +33,7 @@ router.get('/', async (req, res, next) => {
     const { rows } = await pool.query(
       `SELECT id, name, headline, bio, avatar_mime, resume_mime,
               github_url, linkedin_url, email, hero_tags, updated_at,
-              availability_status, orbit_badge_ids,
+              availability_status, orbit_badge_ids, default_theme,
               (avatar     IS NOT NULL) AS has_avatar,
               (resume     IS NOT NULL) AS has_resume,
               (resume_en  IS NOT NULL) AS has_resume_en,
@@ -297,14 +297,31 @@ router.put('/orbit-badges', requireAuth, async (req, res, next) => {
 
 router.put('/availability', requireAuth, async (req, res, next) => {
   try {
-    const { status } = req.body;
-    if (!['active', 'passive', 'not_open'].includes(status)) {
-      return res.status(400).json({ error: 'status must be active, passive, or not_open' });
-    }
-    const { rows } = await pool.query(
-      `UPDATE profile SET availability_status = $1 RETURNING availability_status`,
-      [status]
-    );
+    // Not open pauses the job search (see services/availability.js); every
+    // change is recorded so paused weeks don't break the streak.
+    const { setAvailability, getAvailability } = require('../services/availability');
+    const { status } = req.body || {};
+    const row = await setAvailability(status);
+    res.json({ ...row, ...(await getAvailability(undefined, { fresh: true })) });
+  } catch (err) { next(err); }
+});
+
+// Public, tiny and cacheable: read by the public site's root layout on
+// every page render (no profile metrics, no personal data).
+router.get('/site-settings', async (_req, res, next) => {
+  try {
+    const { rows } = await pool.query('SELECT default_theme FROM profile LIMIT 1');
+    res.set('Cache-Control', 'public, max-age=60');
+    res.json({ default_theme: rows[0]?.default_theme === 'light' ? 'light' : 'dark' });
+  } catch (err) { next(err); }
+});
+
+// Theme visitors see until they pick one with the sun/moon button.
+router.put('/default-theme', requireAuth, async (req, res, next) => {
+  try {
+    const { theme } = req.body || {};
+    if (!['dark', 'light'].includes(theme)) return res.status(400).json({ error: 'theme must be dark or light' });
+    const { rows } = await pool.query('UPDATE profile SET default_theme = $1 RETURNING default_theme', [theme]);
     res.json(rows[0]);
   } catch (err) { next(err); }
 });

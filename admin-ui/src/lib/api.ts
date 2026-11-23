@@ -80,6 +80,8 @@ export const adminApi = {
   updateProfile: (fd: FormData) => upload('/api/profile', fd, 'PUT'),
   setAvailabilityStatus: (status: 'active' | 'passive' | 'not_open') =>
     request('/api/profile/availability', { method: 'PUT', body: JSON.stringify({ status }) }),
+  setSiteDefaultTheme: (theme: 'dark' | 'light') =>
+    request('/api/profile/default-theme', { method: 'PUT', body: JSON.stringify({ theme }) }),
   setOrbitBadges: (ids: string[]) =>
     request('/api/profile/orbit-badges', { method: 'PUT', body: JSON.stringify({ ids }) }),
 

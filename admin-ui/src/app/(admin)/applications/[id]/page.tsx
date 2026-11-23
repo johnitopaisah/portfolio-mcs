@@ -1069,12 +1069,12 @@ function GenerationDrawer({ job, appId, latestCvDocId, latestCvDoc, onGenerate, 
               <div className="flex flex-col gap-2 items-center">
                 <span className="text-[10px] text-gray-500 uppercase tracking-wider">Your version</span>
                 <iframe src={previewUrl ?? undefined} sandbox="allow-same-origin"
-                  style={{ width: '397px', height: '561px', border: 0, transformOrigin: 'top left', transform: 'scale(0.5)', background: 'white', boxShadow: '0 4px 32px rgba(0,0,0,0.4)' }} />
+                  style={{ width: '397px', height: '561px', border: 0, transformOrigin: 'top left', transform: 'scale(0.5)', background: 'white', boxShadow: '0 4px 32px var(--c-0-0-0-0_4)' }} />
               </div>
               <div className="flex flex-col gap-2 items-center">
                 <span className="text-[10px] text-gray-500 uppercase tracking-wider">Original AI draft</span>
                 <iframe src={compareUrl} sandbox="allow-same-origin"
-                  style={{ width: '397px', height: '561px', border: 0, transformOrigin: 'top left', transform: 'scale(0.5)', background: 'white', boxShadow: '0 4px 32px rgba(0,0,0,0.4)' }} />
+                  style={{ width: '397px', height: '561px', border: 0, transformOrigin: 'top left', transform: 'scale(0.5)', background: 'white', boxShadow: '0 4px 32px var(--c-0-0-0-0_4)' }} />
               </div>
             </div>
           ) : (
@@ -1097,12 +1097,12 @@ function GenerationDrawer({ job, appId, latestCvDocId, latestCvDoc, onGenerate, 
             ) : previewUrl ? (
               <div style={{ width: `${Math.round(794 * previewScale)}px`, height: `${scaledH}px`, position: 'relative', flexShrink: 0 }}>
                 {pageCount && pageCount > 1.05 && (
-                  <div style={{ position: 'absolute', top: `${Math.round(previewScale * 1123)}px`, left: 0, right: 0, height: '2px', background: 'rgba(239,68,68,0.75)', zIndex: 10 }}>
-                    <span style={{ position: 'absolute', right: 0, top: '-16px', fontSize: '9px', background: 'rgba(239,68,68,0.85)', color: 'white', padding: '2px 6px', borderRadius: '3px 3px 0 0' }}>1-page limit</span>
+                  <div style={{ position: 'absolute', top: `${Math.round(previewScale * 1123)}px`, left: 0, right: 0, height: '2px', background: 'var(--c-239-68-68-0_75)', zIndex: 10 }}>
+                    <span style={{ position: 'absolute', right: 0, top: '-16px', fontSize: '9px', background: 'var(--c-239-68-68-0_85)', color: 'white', padding: '2px 6px', borderRadius: '3px 3px 0 0' }}>1-page limit</span>
                   </div>
                 )}
                 <iframe ref={iframeRef} src={previewUrl} onLoad={handleIframeLoad} sandbox="allow-same-origin"
-                  style={{ width: '794px', height: '1123px', border: 0, transformOrigin: 'top left', transform: `scale(${previewScale})`, display: 'block', background: 'white', boxShadow: '0 4px 32px rgba(0,0,0,0.4)' }}
+                  style={{ width: '794px', height: '1123px', border: 0, transformOrigin: 'top left', transform: `scale(${previewScale})`, display: 'block', background: 'white', boxShadow: '0 4px 32px var(--c-0-0-0-0_4)' }}
                   title="CV Preview"
                 />
               </div>
@@ -2220,7 +2220,7 @@ export default function ApplicationDetailPage() {
         </div>
 
         {/* ── Section tab bar ──────────────────────────────── */}
-        <div className="flex gap-1 mb-4 p-1 rounded-xl" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
+        <div className="flex gap-1 mb-4 p-1 rounded-xl" style={{ background: 'var(--c-255-255-255-0_07)', border: '1px solid var(--c-255-255-255-0_1)' }}>
           {([
             { key: 'overview',  label: 'Overview'   },
             { key: 'interview', label: 'Interview'  },
@@ -2232,10 +2232,10 @@ export default function ApplicationDetailPage() {
               onClick={() => setActiveSection(t.key)}
               className="flex-1 py-2 rounded-lg text-sm font-medium transition-all"
               style={activeSection === t.key ? {
-                background: 'linear-gradient(135deg, rgba(99,102,241,0.3), rgba(79,70,229,0.25))',
-                color: '#DDD6FE',
-                boxShadow: '0 2px 8px rgba(168,85,247,0.2)',
-              } : { color: 'rgba(255,255,255,0.45)' }}
+                background: 'linear-gradient(135deg, var(--c-99-102-241-0_3), var(--c-79-70-229-0_25))',
+                color: 'var(--t-ddd6fe)',
+                boxShadow: '0 2px 8px var(--c-168-85-247-0_2)',
+              } : { color: 'var(--t-255-255-255-0_45)' }}
             >
               {t.label}
             </button>
@@ -2624,22 +2624,22 @@ export default function ApplicationDetailPage() {
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
             <div className="lg:col-span-3 flex flex-col gap-4">
               {/* AI Q&A */}
-              <div className="rounded-2xl p-5" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <div className="rounded-2xl p-5" style={{ background: 'var(--c-255-255-255-0_07)', border: '1px solid var(--c-255-255-255-0_1)' }}>
                 <div className="flex items-center justify-between mb-4">
-                  <p className="text-sm font-semibold" style={{ color: '#DDD6FE' }}>Interview Questions</p>
+                  <p className="text-sm font-semibold" style={{ color: 'var(--t-ddd6fe)' }}>Interview Questions</p>
                   <button
                     onClick={handleGenerateQuestions}
                     disabled={iqGenerating}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
-                    style={{ background: 'linear-gradient(135deg, #A855F7, #7C3AED)', color: '#fff' }}
+                    style={{ background: 'linear-gradient(135deg, var(--c-a855f7), var(--c-7c3aed))', color: '#fff' }}
                   >
                     {iqGenerating ? 'Generating…' : interviewQs.length ? 'Re-generate' : 'Generate with AI'}
                   </button>
                 </div>
                 {iqLoading ? (
-                  <p className="text-xs text-center py-6" style={{ color: 'rgba(255,255,255,0.32)' }}>Loading…</p>
+                  <p className="text-xs text-center py-6" style={{ color: 'var(--t-255-255-255-0_32)' }}>Loading…</p>
                 ) : interviewQs.length === 0 ? (
-                  <p className="text-xs text-center py-6" style={{ color: 'rgba(255,255,255,0.32)' }}>No questions yet. Generate with AI to get started.</p>
+                  <p className="text-xs text-center py-6" style={{ color: 'var(--t-255-255-255-0_32)' }}>No questions yet. Generate with AI to get started.</p>
                 ) : (
                   <div className="flex flex-col gap-3">
                     {(['technical', 'behavioral', 'situational', 'company_question'] as const).map(type => {
@@ -2651,10 +2651,10 @@ export default function ApplicationDetailPage() {
                         <div key={type}>
                           <p className="text-xs font-bold mb-2" style={{ color: typeColor }}>{typeLabel}</p>
                           {qs.map(q => (
-                            <div key={q.id} className="mb-2 p-3 rounded-xl" style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                              <p className="text-sm" style={{ color: 'rgba(255,255,255,0.92)' }}>{q.question}</p>
-                              {q.hint && <p className="text-xs mt-1.5" style={{ color: 'rgba(255,255,255,0.45)' }}>💡 {q.hint}</p>}
-                              {q.difficulty && <span className="text-xs px-2 py-0.5 rounded-full mt-1.5 inline-block" style={{ background: 'rgba(255,255,255,0.08)', color: '#DDD6FE' }}>{q.difficulty}</span>}
+                            <div key={q.id} className="mb-2 p-3 rounded-xl" style={{ background: 'var(--c-0-0-0-0_22)', border: '1px solid var(--c-255-255-255-0_08)' }}>
+                              <p className="text-sm" style={{ color: 'var(--t-255-255-255-0_92)' }}>{q.question}</p>
+                              {q.hint && <p className="text-xs mt-1.5" style={{ color: 'var(--t-255-255-255-0_45)' }}>💡 {q.hint}</p>}
+                              {q.difficulty && <span className="text-xs px-2 py-0.5 rounded-full mt-1.5 inline-block" style={{ background: 'var(--c-255-255-255-0_08)', color: 'var(--t-ddd6fe)' }}>{q.difficulty}</span>}
                             </div>
                           ))}
                         </div>
@@ -2666,30 +2666,30 @@ export default function ApplicationDetailPage() {
 
               {/* Post-interview debrief */}
               {['INTERVIEW_INVITE','INTERVIEW_SCHEDULED','TECHNICAL_TEST','FINAL_INTERVIEW','OFFER','REJECTED'].includes(app.status) && (
-                <div className="rounded-2xl p-5" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
-                  <p className="text-sm font-semibold mb-4" style={{ color: '#DDD6FE' }}>Post-Interview Debrief</p>
+                <div className="rounded-2xl p-5" style={{ background: 'var(--c-255-255-255-0_07)', border: '1px solid var(--c-255-255-255-0_1)' }}>
+                  <p className="text-sm font-semibold mb-4" style={{ color: 'var(--t-ddd6fe)' }}>Post-Interview Debrief</p>
                   <div className="flex flex-col gap-3">
                     <div>
-                      <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.65)' }}>What went well?</label>
+                      <label className="block text-xs mb-1.5" style={{ color: 'var(--t-255-255-255-0_65)' }}>What went well?</label>
                       <textarea value={debrief.went_well} onChange={e => setDebrief(p => ({ ...p, went_well: e.target.value }))} rows={3}
                         className="w-full px-3 py-2.5 rounded-xl text-sm resize-none"
-                        style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(168,85,247,0.15)', color: '#FFFFFF', outline: 'none' }} />
+                        style={{ background: 'var(--c-0-0-0-0_22)', border: '1px solid var(--c-168-85-247-0_15)', color: 'var(--t-ffffff)', outline: 'none' }} />
                     </div>
                     <div>
-                      <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.65)' }}>What to improve?</label>
+                      <label className="block text-xs mb-1.5" style={{ color: 'var(--t-255-255-255-0_65)' }}>What to improve?</label>
                       <textarea value={debrief.improve} onChange={e => setDebrief(p => ({ ...p, improve: e.target.value }))} rows={3}
                         className="w-full px-3 py-2.5 rounded-xl text-sm resize-none"
-                        style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(168,85,247,0.15)', color: '#FFFFFF', outline: 'none' }} />
+                        style={{ background: 'var(--c-0-0-0-0_22)', border: '1px solid var(--c-168-85-247-0_15)', color: 'var(--t-ffffff)', outline: 'none' }} />
                     </div>
                     <div>
-                      <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.65)' }}>Self-rating (1–10)</label>
+                      <label className="block text-xs mb-1.5" style={{ color: 'var(--t-255-255-255-0_65)' }}>Self-rating (1–10)</label>
                       <input type="number" min={1} max={10} value={debrief.rating} onChange={e => setDebrief(p => ({ ...p, rating: e.target.value }))}
                         className="w-24 px-3 py-2 rounded-xl text-sm"
-                        style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(168,85,247,0.15)', color: '#FFFFFF', outline: 'none' }} />
+                        style={{ background: 'var(--c-0-0-0-0_22)', border: '1px solid var(--c-168-85-247-0_15)', color: 'var(--t-ffffff)', outline: 'none' }} />
                     </div>
                     <button onClick={handleSaveDebrief} disabled={debriefSaving}
                       className="self-start px-4 py-2 rounded-xl text-xs font-semibold"
-                      style={{ background: 'rgba(168,85,247,0.2)', color: '#DDD6FE' }}>
+                      style={{ background: 'var(--c-168-85-247-0_2)', color: 'var(--t-ddd6fe)' }}>
                       {debriefSaving ? 'Saving…' : 'Save Debrief'}
                     </button>
                   </div>
@@ -2697,12 +2697,12 @@ export default function ApplicationDetailPage() {
               )}
             </div>
             <div className="lg:col-span-2 flex flex-col gap-4">
-              <div className="rounded-2xl p-5" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <div className="rounded-2xl p-5" style={{ background: 'var(--c-255-255-255-0_07)', border: '1px solid var(--c-255-255-255-0_1)' }}>
                 <div className="flex items-center justify-between gap-2 mb-3">
-                  <p className="text-sm font-semibold" style={{ color: '#DDD6FE' }}>Prep Checklist</p>
+                  <p className="text-sm font-semibold" style={{ color: 'var(--t-ddd6fe)' }}>Prep Checklist</p>
                   <button onClick={handleGenerateChecklist} disabled={checklistGenerating || prepSaving}
                     className="px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50"
-                    style={{ background: 'linear-gradient(135deg, #A855F7, #7C3AED)', color: '#fff' }}>
+                    style={{ background: 'linear-gradient(135deg, var(--c-a855f7), var(--c-7c3aed))', color: '#fff' }}>
                     {checklistGenerating ? 'Generating…' : 'Generate with AI'}
                   </button>
                 </div>
@@ -2711,26 +2711,26 @@ export default function ApplicationDetailPage() {
                     <button onClick={() => handleTogglePrepItem(i)} disabled={prepSaving}
                       aria-label={item.done ? 'Mark not done' : 'Mark done'}
                       className="w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 disabled:opacity-50"
-                      style={{ borderColor: item.done ? '#4ade80' : 'rgba(255,255,255,0.18)', background: item.done ? 'rgba(74,222,128,0.15)' : 'transparent' }}>
-                      {item.done && <span className="text-xs" style={{ color: '#4ade80' }}>✓</span>}
+                      style={{ borderColor: item.done ? 'var(--c-4ade80)' : 'var(--c-255-255-255-0_18)', background: item.done ? 'var(--c-74-222-128-0_15)' : 'transparent' }}>
+                      {item.done && <span className="text-xs" style={{ color: 'var(--t-4ade80)' }}>✓</span>}
                     </button>
-                    <p className="flex-1 text-xs" style={{ color: item.done ? 'rgba(255,255,255,0.32)' : 'rgba(255,255,255,0.75)', textDecoration: item.done ? 'line-through' : 'none' }}>{item.text}</p>
+                    <p className="flex-1 text-xs" style={{ color: item.done ? 'var(--t-255-255-255-0_32)' : 'var(--t-255-255-255-0_75)', textDecoration: item.done ? 'line-through' : 'none' }}>{item.text}</p>
                     {item.source === 'ai' && <span className="text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0" title="Suggested by AI"
-                      style={{ background: 'rgba(168,85,247,0.15)', color: '#C4B5FD' }}>AI</span>}
+                      style={{ background: 'var(--c-168-85-247-0_15)', color: 'var(--t-c4b5fd)' }}>AI</span>}
                     <button onClick={() => handleRemovePrepItem(i)} disabled={prepSaving} aria-label="Remove item"
                       className="text-xs px-1 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity disabled:opacity-30"
-                      style={{ color: '#f87171' }}>✕</button>
+                      style={{ color: 'var(--t-f87171)' }}>✕</button>
                   </div>
-                )) : <p className="text-xs" style={{ color: 'rgba(255,255,255,0.32)' }}>No checklist items yet.</p>}
+                )) : <p className="text-xs" style={{ color: 'var(--t-255-255-255-0_32)' }}>No checklist items yet.</p>}
                 <form className="flex gap-2 mt-3" onSubmit={e => { e.preventDefault(); handleAddPrepItem(); }}>
                   <input value={newPrepItem} onChange={e => setNewPrepItem(e.target.value)} maxLength={200}
                     aria-label="New prep checklist item"
                     placeholder="Add a prep item, e.g. Review Kubernetes networking"
                     className="flex-1 min-w-0 px-2.5 py-1.5 text-xs rounded-lg outline-none"
-                    style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.12)', color: '#FFFFFF' }} />
+                    style={{ background: 'var(--c-0-0-0-0_25)', border: '1px solid var(--c-255-255-255-0_12)', color: 'var(--t-ffffff)' }} />
                   <button type="submit" disabled={!newPrepItem.trim() || prepSaving}
                     className="px-3 py-1.5 text-xs rounded-lg font-medium disabled:opacity-40"
-                    style={{ background: 'rgba(168,85,247,0.25)', color: '#E9D5FF', border: '1px solid rgba(168,85,247,0.4)' }}>
+                    style={{ background: 'var(--c-168-85-247-0_25)', color: 'var(--t-e9d5ff)', border: '1px solid var(--c-168-85-247-0_4)' }}>
                     {prepSaving ? 'Saving…' : 'Add'}
                   </button>
                 </form>
@@ -2743,40 +2743,40 @@ export default function ApplicationDetailPage() {
         {/* ── Communications tab ───────────────────────────── */}
         {activeSection === 'comms' && (
           <div className="flex flex-col gap-4">
-            <div className="rounded-2xl p-5" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <div className="rounded-2xl p-5" style={{ background: 'var(--c-255-255-255-0_07)', border: '1px solid var(--c-255-255-255-0_1)' }}>
               <div className="flex items-center justify-between mb-4">
-                <p className="text-sm font-semibold" style={{ color: '#DDD6FE' }}>Communication Log</p>
+                <p className="text-sm font-semibold" style={{ color: 'var(--t-ddd6fe)' }}>Communication Log</p>
                 <div className="flex items-center gap-2">
                 <button onClick={handleNewOutboxEmail} disabled={draftingEmail}
                   title="Draft an email to the recruiter — it is only sent after you approve it in the Outbox"
                   className="px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50"
-                  style={{ background: 'linear-gradient(135deg, #A855F7, #7C3AED)', color: '#fff' }}>
+                  style={{ background: 'linear-gradient(135deg, var(--c-a855f7), var(--c-7c3aed))', color: '#fff' }}>
                   {draftingEmail ? 'Drafting…' : '✉ New email'}
                 </button>
                 <button onClick={() => setShowCommsForm(p => !p)}
                   className="px-3 py-1.5 rounded-lg text-xs font-medium"
-                  style={{ background: 'rgba(168,85,247,0.15)', color: '#DDD6FE' }}>
+                  style={{ background: 'var(--c-168-85-247-0_15)', color: 'var(--t-ddd6fe)' }}>
                   + Log
                 </button>
                 </div>
               </div>
               {showCommsForm && (
-                <div className="mb-4 p-4 rounded-xl flex flex-col gap-3" style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(168,85,247,0.15)' }}>
+                <div className="mb-4 p-4 rounded-xl flex flex-col gap-3" style={{ background: 'var(--c-0-0-0-0_22)', border: '1px solid var(--c-168-85-247-0_15)' }}>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs mb-1" style={{ color: 'rgba(255,255,255,0.65)' }}>Direction</label>
+                      <label className="block text-xs mb-1" style={{ color: 'var(--t-255-255-255-0_65)' }}>Direction</label>
                       <select value={commsForm.direction} onChange={e => setCommsForm(p => ({ ...p, direction: e.target.value }))}
                         className="w-full px-3 py-2 rounded-lg text-xs"
-                        style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(168,85,247,0.15)', color: '#FFFFFF', outline: 'none' }}>
+                        style={{ background: 'var(--c-255-255-255-0_07)', border: '1px solid var(--c-168-85-247-0_15)', color: 'var(--t-ffffff)', outline: 'none' }}>
                         <option value="OUTBOUND">Outbound (you sent)</option>
                         <option value="INBOUND">Inbound (you received)</option>
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs mb-1" style={{ color: 'rgba(255,255,255,0.65)' }}>Channel</label>
+                      <label className="block text-xs mb-1" style={{ color: 'var(--t-255-255-255-0_65)' }}>Channel</label>
                       <select value={commsForm.channel} onChange={e => setCommsForm(p => ({ ...p, channel: e.target.value }))}
                         className="w-full px-3 py-2 rounded-lg text-xs"
-                        style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(168,85,247,0.15)', color: '#FFFFFF', outline: 'none' }}>
+                        style={{ background: 'var(--c-255-255-255-0_07)', border: '1px solid var(--c-168-85-247-0_15)', color: 'var(--t-ffffff)', outline: 'none' }}>
                         <option value="email">Email</option>
                         <option value="phone">Phone</option>
                         <option value="linkedin">LinkedIn</option>
@@ -2788,34 +2788,34 @@ export default function ApplicationDetailPage() {
                   <input type="text" value={commsForm.subject} onChange={e => setCommsForm(p => ({ ...p, subject: e.target.value }))}
                     placeholder="Subject / Summary"
                     className="w-full px-3 py-2 rounded-lg text-xs"
-                    style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(168,85,247,0.15)', color: '#FFFFFF', outline: 'none' }} />
+                    style={{ background: 'var(--c-255-255-255-0_07)', border: '1px solid var(--c-168-85-247-0_15)', color: 'var(--t-ffffff)', outline: 'none' }} />
                   <textarea value={commsForm.body_preview} onChange={e => setCommsForm(p => ({ ...p, body_preview: e.target.value }))}
                     placeholder="Notes or preview…" rows={2}
                     className="w-full px-3 py-2 rounded-lg text-xs resize-none"
-                    style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(168,85,247,0.15)', color: '#FFFFFF', outline: 'none' }} />
+                    style={{ background: 'var(--c-255-255-255-0_07)', border: '1px solid var(--c-168-85-247-0_15)', color: 'var(--t-ffffff)', outline: 'none' }} />
                   <div className="flex gap-2">
                     <button onClick={handleAddComm} disabled={commsSaving}
                       className="px-4 py-1.5 rounded-lg text-xs font-semibold"
-                      style={{ background: 'linear-gradient(135deg, #A855F7, #7C3AED)', color: '#fff' }}>
+                      style={{ background: 'linear-gradient(135deg, var(--c-a855f7), var(--c-7c3aed))', color: '#fff' }}>
                       {commsSaving ? 'Saving…' : 'Log it'}
                     </button>
-                    <button onClick={() => setShowCommsForm(false)} className="px-3 py-1.5 rounded-lg text-xs" style={{ color: 'rgba(255,255,255,0.45)', background: 'rgba(0,0,0,0.25)' }}>Cancel</button>
+                    <button onClick={() => setShowCommsForm(false)} className="px-3 py-1.5 rounded-lg text-xs" style={{ color: 'var(--t-255-255-255-0_45)', background: 'var(--c-0-0-0-0_25)' }}>Cancel</button>
                   </div>
                 </div>
               )}
-              {commsLoading ? <p className="text-xs text-center py-4" style={{ color: 'rgba(255,255,255,0.32)' }}>Loading…</p> : comms.length === 0 ? (
-                <p className="text-xs text-center py-4" style={{ color: 'rgba(255,255,255,0.32)' }}>No communications logged yet.</p>
+              {commsLoading ? <p className="text-xs text-center py-4" style={{ color: 'var(--t-255-255-255-0_32)' }}>Loading…</p> : comms.length === 0 ? (
+                <p className="text-xs text-center py-4" style={{ color: 'var(--t-255-255-255-0_32)' }}>No communications logged yet.</p>
               ) : (
                 <div className="flex flex-col gap-2">
                   {comms.map(c => (
-                    <div key={c.id} className="flex items-start gap-3 px-3 py-2.5 rounded-xl" style={{ background: 'rgba(0,0,0,0.22)' }}>
+                    <div key={c.id} className="flex items-start gap-3 px-3 py-2.5 rounded-xl" style={{ background: 'var(--c-0-0-0-0_22)' }}>
                       <div className="w-2 h-2 rounded-full shrink-0 mt-1.5"
-                        style={{ background: c.direction === 'OUTBOUND' ? '#A855F7' : '#4ade80' }} />
+                        style={{ background: c.direction === 'OUTBOUND' ? 'var(--c-a855f7)' : 'var(--c-4ade80)' }} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium truncate" style={{ color: 'rgba(255,255,255,0.92)' }}>{c.subject || `${c.channel} communication`}</p>
-                        {c.body_preview && <p className="text-xs mt-0.5 truncate" style={{ color: 'rgba(255,255,255,0.45)' }}>{c.body_preview}</p>}
+                        <p className="text-xs font-medium truncate" style={{ color: 'var(--t-255-255-255-0_92)' }}>{c.subject || `${c.channel} communication`}</p>
+                        {c.body_preview && <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--t-255-255-255-0_45)' }}>{c.body_preview}</p>}
                       </div>
-                      <span className="text-xs shrink-0" style={{ color: 'rgba(255,255,255,0.32)' }}>{new Date(c.sent_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
+                      <span className="text-xs shrink-0" style={{ color: 'var(--t-255-255-255-0_32)' }}>{new Date(c.sent_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
                     </div>
                   ))}
                 </div>
@@ -2823,19 +2823,19 @@ export default function ApplicationDetailPage() {
             </div>
 
             {/* LinkedIn outreach */}
-            <div className="rounded-2xl p-5" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
-              <p className="text-sm font-semibold mb-3" style={{ color: '#DDD6FE' }}>LinkedIn Outreach</p>
-              {liLoading ? <p className="text-xs" style={{ color: 'rgba(255,255,255,0.32)' }}>Loading…</p> : linkedIn.length === 0 ? (
-                <p className="text-xs" style={{ color: 'rgba(255,255,255,0.32)' }}>No LinkedIn outreach recorded for this application.</p>
+            <div className="rounded-2xl p-5" style={{ background: 'var(--c-255-255-255-0_07)', border: '1px solid var(--c-255-255-255-0_1)' }}>
+              <p className="text-sm font-semibold mb-3" style={{ color: 'var(--t-ddd6fe)' }}>LinkedIn Outreach</p>
+              {liLoading ? <p className="text-xs" style={{ color: 'var(--t-255-255-255-0_32)' }}>Loading…</p> : linkedIn.length === 0 ? (
+                <p className="text-xs" style={{ color: 'var(--t-255-255-255-0_32)' }}>No LinkedIn outreach recorded for this application.</p>
               ) : (
                 <div className="flex flex-col gap-2">
                   {linkedIn.map(li => (
-                    <div key={li.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl" style={{ background: 'rgba(0,0,0,0.22)' }}>
+                    <div key={li.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl" style={{ background: 'var(--c-0-0-0-0_22)' }}>
                       <div>
-                        <p className="text-xs font-medium" style={{ color: 'rgba(255,255,255,0.92)' }}>{li.target_name}</p>
-                        {li.connection_note && <p className="text-xs" style={{ color: 'rgba(255,255,255,0.45)' }}>{li.connection_note}</p>}
+                        <p className="text-xs font-medium" style={{ color: 'var(--t-255-255-255-0_92)' }}>{li.target_name}</p>
+                        {li.connection_note && <p className="text-xs" style={{ color: 'var(--t-255-255-255-0_45)' }}>{li.connection_note}</p>}
                       </div>
-                      <span className="ml-auto text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(255,255,255,0.1)', color: '#DDD6FE' }}>{li.status}</span>
+                      <span className="ml-auto text-xs px-2 py-0.5 rounded-full" style={{ background: 'var(--c-255-255-255-0_1)', color: 'var(--t-ddd6fe)' }}>{li.status}</span>
                     </div>
                   ))}
                 </div>
@@ -2847,16 +2847,16 @@ export default function ApplicationDetailPage() {
         {/* ── Research tab ─────────────────────────────────── */}
         {activeSection === 'research' && (
           <div className="flex flex-col gap-4">
-            <div className="rounded-2xl p-5" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <div className="rounded-2xl p-5" style={{ background: 'var(--c-255-255-255-0_07)', border: '1px solid var(--c-255-255-255-0_1)' }}>
               <div className="flex items-center justify-between mb-5">
-                <p className="text-sm font-semibold" style={{ color: '#DDD6FE' }}>Company Research</p>
+                <p className="text-sm font-semibold" style={{ color: 'var(--t-ddd6fe)' }}>Company Research</p>
                 <button onClick={handleSaveResearch} disabled={resSaving}
                   className="px-3 py-1.5 rounded-lg text-xs font-semibold"
-                  style={{ background: 'rgba(168,85,247,0.2)', color: '#DDD6FE' }}>
+                  style={{ background: 'var(--c-168-85-247-0_2)', color: 'var(--t-ddd6fe)' }}>
                   {resSaving ? 'Saving…' : 'Save'}
                 </button>
               </div>
-              {resLoading ? <p className="text-xs" style={{ color: 'rgba(255,255,255,0.32)' }}>Loading…</p> : (
+              {resLoading ? <p className="text-xs" style={{ color: 'var(--t-255-255-255-0_32)' }}>Loading…</p> : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {[
                     { key: 'funding_stage',         label: 'Funding Stage',         ph: 'Series B, Public, etc.' },
@@ -2869,31 +2869,31 @@ export default function ApplicationDetailPage() {
                     { key: 'interview_culture_notes', label: 'Culture Notes',        ph: 'Glassdoor interview reviews…' },
                   ].map(({ key, label, ph }) => (
                     <div key={key}>
-                      <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.65)' }}>{label}</label>
+                      <label className="block text-xs mb-1.5" style={{ color: 'var(--t-255-255-255-0_65)' }}>{label}</label>
                       <input type="text" value={(research[key] as string) || ''}
                         onChange={e => setResearch(p => ({ ...p, [key]: e.target.value }))}
                         placeholder={ph}
                         className="w-full px-3 py-2 rounded-xl text-xs"
-                        style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(168,85,247,0.15)', color: '#FFFFFF', outline: 'none' }} />
+                        style={{ background: 'var(--c-0-0-0-0_22)', border: '1px solid var(--c-168-85-247-0_15)', color: 'var(--t-ffffff)', outline: 'none' }} />
                     </div>
                   ))}
                   <div className="sm:col-span-2">
-                    <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.65)' }}>My Questions to Ask</label>
+                    <label className="block text-xs mb-1.5" style={{ color: 'var(--t-255-255-255-0_65)' }}>My Questions to Ask</label>
                     <textarea value={(research.questions_to_ask as string) || ''}
                       onChange={e => setResearch(p => ({ ...p, questions_to_ask: e.target.value }))}
                       placeholder="What does success look like in this role? What's the biggest challenge the team faces?"
                       rows={3}
                       className="w-full px-3 py-2 rounded-xl text-xs resize-none"
-                      style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(168,85,247,0.15)', color: '#FFFFFF', outline: 'none' }} />
+                      style={{ background: 'var(--c-0-0-0-0_22)', border: '1px solid var(--c-168-85-247-0_15)', color: 'var(--t-ffffff)', outline: 'none' }} />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="block text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.65)' }}>Research Links / References</label>
+                    <label className="block text-xs mb-1.5" style={{ color: 'var(--t-255-255-255-0_65)' }}>Research Links / References</label>
                     <textarea value={(research.reference_links as string) || ''}
                       onChange={e => setResearch(p => ({ ...p, reference_links: e.target.value }))}
                       placeholder="https://... (one per line)"
                       rows={2}
                       className="w-full px-3 py-2 rounded-xl text-xs resize-none font-mono"
-                      style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(168,85,247,0.15)', color: 'rgba(255,255,255,0.65)', outline: 'none' }} />
+                      style={{ background: 'var(--c-0-0-0-0_22)', border: '1px solid var(--c-168-85-247-0_15)', color: 'var(--t-255-255-255-0_65)', outline: 'none' }} />
                   </div>
                 </div>
               )}

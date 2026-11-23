@@ -119,12 +119,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           role="alert"
           className="fixed bottom-5 right-5 z-[200] flex items-center gap-3 rounded-2xl px-4 py-3 text-sm"
           style={{
-            background:           'rgba(15,6,39,0.92)',
+            background:           'var(--c-15-6-39-0_92)',
             backdropFilter:       'blur(16px)',
             WebkitBackdropFilter: 'blur(16px)',
-            border:               '1px solid rgba(255,255,255,0.12)',
-            boxShadow:            '0 8px 32px rgba(0,0,0,0.5)',
-            color:                'rgba(255,255,255,0.85)',
+            border:               '1px solid var(--c-255-255-255-0_12)',
+            boxShadow:            '0 8px 32px var(--c-0-0-0-0_5)',
+            color:                'var(--t-255-255-255-0_85)',
           }}
         >
           <span>
@@ -133,7 +133,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           <button
             onClick={stayLoggedIn}
             className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
-            style={{ background: '#A855F7', color: 'white' }}
+            style={{ background: 'var(--c-a855f7)', color: 'white' }}
           >
             Stay signed in
           </button>

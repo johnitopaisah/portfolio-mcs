@@ -72,7 +72,7 @@ export default function DialogHost() {
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center p-4"
-      style={{ background: 'rgba(8,4,20,0.62)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
+      style={{ background: 'var(--c-8-4-20-0_62)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
       onMouseDown={e => { if (e.target === e.currentTarget && current.kind === 'confirm') close(false); }}
       onKeyDown={onKeyDown}
     >
@@ -84,9 +84,9 @@ export default function DialogHost() {
         aria-describedby={current.message ? descId : undefined}
         className="w-full max-w-md rounded-2xl p-6 shadow-2xl"
         style={{
-          background: 'linear-gradient(180deg, #24123f 0%, #1a0d30 100%)',
-          border: '1px solid rgba(255,255,255,0.12)',
-          boxShadow: '0 24px 60px rgba(0,0,0,0.55), 0 0 0 1px rgba(168,85,247,0.08)',
+          background: 'linear-gradient(180deg, var(--c-24123f) 0%, var(--c-1a0d30) 100%)',
+          border: '1px solid var(--c-255-255-255-0_12)',
+          boxShadow: '0 24px 60px var(--c-0-0-0-0_55), 0 0 0 1px var(--c-168-85-247-0_08)',
           animation: 'dialog-in 140ms ease-out',
         }}
       >
@@ -97,12 +97,12 @@ export default function DialogHost() {
             {t.icon}
           </div>
           <div className="min-w-0 flex-1 pt-1">
-            <h2 id={titleId} className="text-base font-semibold leading-snug" style={{ color: '#FFFFFF' }}>
+            <h2 id={titleId} className="text-base font-semibold leading-snug" style={{ color: 'var(--t-ffffff)' }}>
               {current.title}
             </h2>
             {current.message && (
               <p id={descId} className="mt-2 text-sm leading-relaxed whitespace-pre-line break-words"
-                style={{ color: 'rgba(255,255,255,0.68)' }}>
+                style={{ color: 'var(--t-255-255-255-0_68)' }}>
                 {current.message}
               </p>
             )}
@@ -112,13 +112,13 @@ export default function DialogHost() {
           {current.kind === 'confirm' && (
             <button ref={cancelRef} type="button" onClick={() => close(false)}
               className="px-4 py-2 text-sm font-medium rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
-              style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.85)', border: '1px solid rgba(255,255,255,0.14)' }}>
+              style={{ background: 'var(--c-255-255-255-0_06)', color: 'var(--t-255-255-255-0_85)', border: '1px solid var(--c-255-255-255-0_14)' }}>
               {current.cancelLabel || 'Cancel'}
             </button>
           )}
           <button ref={confirmRef} type="button" onClick={() => close(true)}
             className="px-4 py-2 text-sm font-semibold rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-300"
-            style={{ background: t.btnBg, color: '#FFFFFF' }}
+            style={{ background: t.btnBg, color: 'var(--t-ffffff)' }}
             onMouseEnter={e => { e.currentTarget.style.background = t.btnHover; }}
             onMouseLeave={e => { e.currentTarget.style.background = t.btnBg; }}>
             {current.confirmLabel}

@@ -37,7 +37,7 @@ router.get('/', async (req, res, next) => {
   try {
     const rows = await cache.getOrSet(CACHE_KEY, async () => {
       const { rows } = await pool.query(
-        `SELECT id, title, excerpt, cover_image_url, medium_url, tags, published_at
+        `SELECT id, title, excerpt, cover_image_url, medium_url, tags, published_at, first_ingested_at
          FROM blog_posts
          WHERE visible_on_site = true
          ORDER BY published_at DESC NULLS LAST`

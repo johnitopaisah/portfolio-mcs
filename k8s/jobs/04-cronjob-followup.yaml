@@ -128,6 +128,20 @@ spec:
                   name: portfolio-secrets
                   key: NOTIFY_EMAIL_TO
                   optional: true
+            # Your own mailboxes — never drafted as a recruiter follow-up
+            # recipient (forwarded recruiter emails show you as the sender).
+            - name: GMAIL_TARGET_ADDRESS
+              valueFrom:
+                secretKeyRef:
+                  name: portfolio-secrets
+                  key: GMAIL_TARGET_ADDRESS
+                  optional: true
+            - name: ADMIN_PROFILE_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: portfolio-secrets
+                  key: ADMIN_PROFILE_EMAIL
+                  optional: true
 
             resources:
               requests:

@@ -45,7 +45,7 @@ export default async function Icon() {
           borderRadius: '50%',
           overflow: 'hidden',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'linear-gradient(135deg, #7c3aed, #06b6d4)',
+          background: 'linear-gradient(135deg, var(--c-7c3aed), var(--c-06b6d4))',
         }}
       >
         {avatarSrc ? (
@@ -59,7 +59,7 @@ export default async function Icon() {
         ) : (
           <span style={{
             fontSize: '18px', fontWeight: 800,
-            color: '#ffffff',
+            color: 'var(--t-ffffff)',
             fontFamily: 'system-ui, sans-serif',
           }}>
             {initial}

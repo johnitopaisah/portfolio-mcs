@@ -39,15 +39,20 @@ async function runJobWorker() {
   // Database behind this image (migration Job hasn't run yet): skip this run.
   if (!(await schemaReady(pool, 'Worker'))) process.exit(0);
 
+  // Availability "Not open" pauses the job search: no AI filtering and no
+  // digest. Housekeeping (expire, purge, backup) still runs.
+  const paused = await require('../services/availability').isSearchPaused();
+  if (paused) console.log('[Worker] Job search paused (availability: Not open) — skipping AI filtering and the digest');
+
   try {
     // Step 1: AI filter new raw jobs (discovered by scraper/'s own CronJob)
     console.log('\n[Worker:1] Running AI filtering…');
-    const filtering = await aiFilteringService.filterUnprocessedJobs();
+    const filtering = paused ? { skipped: 'paused' } : await aiFilteringService.filterUnprocessedJobs();
     console.log('[Worker:1] Done:', filtering);
 
     // Step 2: Send run digest — fires on every successful run
     console.log('\n[Worker:2] Sending job run digest…');
-    const notification = await notificationService.sendWorkerRunDigest(CRON_INTERVAL_H);
+    const notification = paused ? { sent: false, reason: 'paused' } : await notificationService.sendWorkerRunDigest(CRON_INTERVAL_H);
     console.log('[Worker:2] Done:', notification);
 
     // Step 3: Expire stale jobs

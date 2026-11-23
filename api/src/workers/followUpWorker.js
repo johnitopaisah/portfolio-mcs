@@ -20,6 +20,10 @@ const MAX_NEW_PER_RUN      = parseInt(process.env.OUTBOX_MAX_NEW_DRAFTS || '5', 
 async function runFollowUpWorker() {
   console.log('[FollowUpWorker] Starting…', new Date().toISOString());
   if (!(await schemaReady(pool, 'FollowUpWorker'))) return; // DB behind this image — skip run
+  if (await require('../services/availability').isSearchPaused()) {
+    console.log('[FollowUpWorker] Job search paused (availability: Not open) — no follow-ups drafted');
+    return;
+  }
 
   const { rows: candidates } = await pool.query(
     `SELECT id, company_name, job_title

@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import SiteThemeCard from '@/components/SiteThemeCard';
 import { adminApi } from '@/lib/api';
 import { showError } from '@/lib/dialog';
 
@@ -123,6 +124,8 @@ export default function ProfilePage() {
       <h1 className="text-2xl font-bold text-white mb-1">Profile</h1>
       <p className="text-gray-500 text-sm mb-8">Your public portfolio info</p>
 
+      <SiteThemeCard />
+
       <form onSubmit={handleSave} className="card max-w-xl space-y-5">
 
         {/* Avatar preview */}
@@ -236,7 +239,7 @@ export default function ProfilePage() {
                         ? '0 0 16px rgba(124,58,237,0.5)'
                         : 'none',
                       overflow: 'visible',
-                      background: 'rgba(124,58,237,0.08)',
+                      background: 'var(--c-124-58-237-0_08)',
                       cursor: (!selected && orbitIds.length >= 6) ? 'not-allowed' : 'pointer',
                       opacity: (!selected && orbitIds.length >= 6) ? 0.4 : 1,
                       transition: 'border-color 0.15s, box-shadow 0.15s, opacity 0.15s',
@@ -261,14 +264,14 @@ export default function ProfilePage() {
                         width: '20px',
                         height: '20px',
                         borderRadius: '50%',
-                        background: '#7c3aed',
+                        background: 'var(--c-7c3aed)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         fontSize: '11px',
                         color: '#fff',
                         fontWeight: 700,
-                        boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                        boxShadow: '0 2px 6px var(--c-0-0-0-0_3)',
                       }}>✓</span>
                     )}
                   </button>

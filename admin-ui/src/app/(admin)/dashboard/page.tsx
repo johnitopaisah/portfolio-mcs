@@ -6,30 +6,32 @@ import {
   IconFolder, IconZap, IconBriefcase, IconAward,
   IconMessage, IconUser, IconCpu, IconLayers, IconArrow,
 } from '@/components/Icons';
-import { confirmDialog } from '@/lib/dialog';
+import { confirmDialog, showError } from '@/lib/dialog';
 
 type AvailStatus = 'active' | 'passive' | 'not_open';
 type HealthComponent = { key: string; label: string; pts: number; max: number; ok: boolean; detail?: string };
 type DashStats = {
-  goal: { target: number; this_week: number; today: number; pct: number; streak_weeks: number };
+  goal: { target: number; this_week: number; today: number; pct: number; streak_weeks: number; streak_includes_current_week?: boolean };
+  availability?: { status: AvailStatus; paused: boolean; since: string | null };
   daily_counts: Array<{ day: string; cnt: number }>;
-  health_score: { total: number; label: string; color: string; components?: HealthComponent[] };
+  health_score: { total: number; label: string; color: string; components?: HealthComponent[]; paused?: boolean };
   due_reminders: Array<{ id: number; title: string; remind_at: string; company_name: string; application_id: number }>;
   reminder_counts?: { due: number; overdue: number; overdue_7d?: number; overdue_30d: number };
   pipeline_counts: { prep: number; active: number; interview: number; offer: number; closed: number };
   recent_activity: Array<{ event_type: string; description: string; event_date: string; company_name: string; job_title: string; application_id: number }>;
 };
 
-const AVAIL_OPTIONS: { value: AvailStatus; label: string; dot: string }[] = [
-  { value: 'active',   label: 'Available',     dot: '#22c55e' },
-  { value: 'passive',  label: 'Open to right', dot: '#f59e0b' },
-  { value: 'not_open', label: 'Not open',      dot: '#6b7280' },
+const AVAIL_OPTIONS: { value: AvailStatus; label: string; dot: string; text: string }[] = [
+  { value: 'active',   label: 'Available',     dot: '#22c55e', text: 'var(--c-22c55e)' },
+  { value: 'passive',  label: 'Open to right', dot: '#f59e0b', text: 'var(--c-fbbf24)' },
+  { value: 'not_open', label: 'Not open',      dot: '#9ca3af', text: 'var(--c-9ca3af)' },
 ];
 
-const HEALTH_COLORS: Record<string, { ring: string; bg: string }> = {
-  green:  { ring: '#4ade80', bg: 'rgba(74,222,128,0.08)' },
-  yellow: { ring: '#fbbf24', bg: 'rgba(251,191,36,0.08)' },
-  red:    { ring: '#f87171', bg: 'rgba(248,113,113,0.08)' },
+// ring: hex (used with alpha suffixes); text: theme-aware text colour.
+const HEALTH_COLORS: Record<string, { ring: string; bg: string; text: string }> = {
+  green:  { ring: '#4ade80', bg: 'rgba(74,222,128,0.08)',  text: 'var(--t-4ade80)' },
+  yellow: { ring: '#fbbf24', bg: 'rgba(251,191,36,0.08)',  text: 'var(--t-fbbf24)' },
+  red:    { ring: '#f87171', bg: 'rgba(248,113,113,0.08)', text: 'var(--t-f87171)' },
 };
 
 interface PortfolioStats {
@@ -57,11 +59,11 @@ const EMPTY: PortfolioStats = {
 };
 
 const PIPELINE_LABELS = [
-  { key: 'prep',      label: 'Prep',      color: 'rgba(255,255,255,0.45)' },
-  { key: 'active',    label: 'Applied',   color: '#A855F7' },
-  { key: 'interview', label: 'Interview', color: '#fbbf24' },
-  { key: 'offer',     label: 'Offer',     color: '#4ade80' },
-  { key: 'closed',    label: 'Closed',    color: 'rgba(255,255,255,0.32)' },
+  { key: 'prep',      label: 'Prep',      color: 'var(--t-255-255-255-0_45)' },
+  { key: 'active',    label: 'Applied',   color: 'var(--t-a855f7)' },
+  { key: 'interview', label: 'Interview', color: 'var(--t-fbbf24)' },
+  { key: 'offer',     label: 'Offer',     color: 'var(--t-4ade80)' },
+  { key: 'closed',    label: 'Closed',    color: 'var(--t-255-255-255-0_32)' },
 ];
 
 // Local-time boundaries, as ISO, for the applications list's created_from filter.
@@ -135,13 +137,23 @@ export default function DashboardPage() {
     finally { setClearing(false); }
   }
 
+  // "Not open" pauses the whole job search (scraping, AI filtering, digests,
+  // follow-ups, Outbox sending, reminder rules, weekly goal). Email tracking
+  // keeps running. Available and Open to right both run everything.
   async function setAvail(val: AvailStatus) {
     if (val === availStatus || savingAvail) return;
+    if (val === 'not_open' && !(await confirmDialog({
+      title: 'Pause your job search?',
+      message: 'While you are Not open: no job scraping or AI filtering, no job digests, no follow-up drafts, approved Outbox emails wait, reminder rules stop, and the weekly goal and streak are paused (paused weeks don\'t break your streak). Recruiter replies are still tracked. Switch back any time to resume.',
+      confirmLabel: 'Pause job search',
+    }))) return;
     const prev = availStatus;
     setAvailStatus(val);
     setSavingAvail(true);
-    try { await adminApi.setAvailabilityStatus(val); }
-    catch { setAvailStatus(prev); }
+    try {
+      await adminApi.setAvailabilityStatus(val);
+      setDashStats(await adminApi.getDashboardStats() as DashStats);
+    } catch (err) { setAvailStatus(prev); showError(err, "Couldn't change your availability."); }
     finally { setSavingAvail(false); }
   }
 
@@ -157,11 +169,11 @@ export default function DashboardPage() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header row */}
-      <div className="flex items-start justify-between gap-4">
+      {/* Header row (wraps on phones so the availability buttons stay on screen) */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: '#FFFFFF' }}>Dashboard</h1>
-          <p className="text-sm mt-0.5" style={{ color: 'rgba(255,255,255,0.45)' }}>
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--t-ffffff)' }}>Dashboard</h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--t-255-255-255-0_45)' }}>
             {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
           </p>
         </div>
@@ -175,19 +187,39 @@ export default function DashboardPage() {
                 onClick={() => setAvail(opt.value)}
                 disabled={savingAvail}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all"
+                aria-pressed={active}
                 style={{
-                  background: active ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.03)',
-                  border: active ? '1px solid rgba(34,197,94,0.4)' : '1px solid rgba(255,255,255,0.1)',
-                  color: active ? '#22c55e' : 'rgba(255,255,255,0.45)',
+                  background: active ? `${opt.dot}1f` : 'var(--c-255-255-255-0_03)',
+                  border: active ? `1px solid ${opt.dot}66` : '1px solid var(--c-255-255-255-0_1)',
+                  color: active ? opt.text : 'var(--t-255-255-255-0_45)',
                 }}
               >
-                <span className="w-1.5 h-1.5 rounded-full" style={{ background: active ? opt.dot : 'rgba(255,255,255,0.18)', boxShadow: active ? `0 0 5px ${opt.dot}` : 'none' }} />
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: active ? opt.dot : 'var(--c-255-255-255-0_18)', boxShadow: active ? `0 0 5px ${opt.dot}` : 'none' }} />
                 {opt.label}
               </button>
             );
           })}
         </div>
       </div>
+
+      {dashStats?.availability?.paused && (
+        <div role="status" className="rounded-2xl px-5 py-4 flex flex-wrap items-center justify-between gap-3"
+          style={{ background: 'var(--c-245-158-11-0_1)', border: '1px solid var(--c-245-158-11-0_4)' }}>
+          <div>
+            <p className="text-sm font-semibold" style={{ color: 'var(--t-fbbf24)' }}>
+              Job search paused{dashStats.availability.since ? ` since ${new Date(dashStats.availability.since).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : ''}
+            </p>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--t-255-255-255-0_65)' }}>
+              Scraping, digests, follow-ups, Outbox sending, reminder rules and the weekly goal are stopped. Recruiter replies are still tracked.
+            </p>
+          </div>
+          <button onClick={() => setAvail('active')} disabled={savingAvail}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
+            style={{ background: 'linear-gradient(135deg, #A855F7, #7C3AED)', color: '#fff' }}>
+            Resume — set Available
+          </button>
+        </div>
+      )}
 
       {/* Top band: health + goal + pipeline + reminders */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -196,9 +228,9 @@ export default function DashboardPage() {
         <Link
           href="/goals"
           className="rounded-2xl p-5 flex flex-col items-center gap-3 transition-all hover:brightness-125"
-          style={{ background: 'rgba(255,255,255,0.07)', border: `1px solid ${hc?.ring || 'rgba(255,255,255,0.1)'}25` }}
+          style={{ background: 'var(--c-255-255-255-0_07)', border: `1px solid ${hc?.ring || '#ffffff'}25` }}
         >
-          <p className="text-xs font-semibold" style={{ color: '#DDD6FE' }}>Search Health</p>
+          <p className="text-xs font-semibold" style={{ color: 'var(--t-ddd6fe)' }}>Search Health</p>
           <div className="relative w-24 h-24">
             <svg width="96" height="96" viewBox="0 0 96 96" className="rotate-[-90deg]">
               <circle cx="48" cy="48" r="40" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="9"/>
@@ -212,20 +244,20 @@ export default function DashboardPage() {
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-xl font-bold" style={{ color: hc?.ring || '#fbbf24' }}>{hs?.total ?? '—'}</span>
+              <span className="text-xl font-bold" style={{ color: hc?.text || 'var(--t-fbbf24)' }}>{hs?.total ?? '—'}</span>
             </div>
           </div>
-          <span className="text-xs font-medium" style={{ color: hc?.ring || '#fbbf24' }}>
+          <span className="text-xs font-medium" style={{ color: hc?.text || 'var(--t-fbbf24)' }}>
             {hs?.label || 'Loading…'}
           </span>
           {missing.length > 0 && (
             <ul className="w-full flex flex-col gap-1 mt-1" title="Points still available — open Goals for the full breakdown">
               {missing.slice(0, 4).map(c => (
                 <li key={c.key} className="flex items-center justify-between gap-2 text-[11px]">
-                  <span className="truncate" style={{ color: 'rgba(255,255,255,0.65)' }}>
-                    {c.label}{c.detail ? <span style={{ color: 'rgba(255,255,255,0.38)' }}> · {c.detail}</span> : null}
+                  <span className="truncate" style={{ color: 'var(--t-255-255-255-0_65)' }}>
+                    {c.label}{c.detail ? <span style={{ color: 'var(--t-255-255-255-0_38)' }}> · {c.detail}</span> : null}
                   </span>
-                  <span className="shrink-0 font-semibold" style={{ color: '#f87171' }}>−{c.max - c.pts}</span>
+                  <span className="shrink-0 font-semibold" style={{ color: 'var(--t-f87171)' }}>−{c.max - c.pts}</span>
                 </li>
               ))}
             </ul>
@@ -235,9 +267,9 @@ export default function DashboardPage() {
         {/* Weekly goal */}
         <div
           className="rounded-2xl p-5 flex flex-col gap-3"
-          style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}
+          style={{ background: 'var(--c-255-255-255-0_07)', border: '1px solid var(--c-255-255-255-0_1)' }}
         >
-          <p className="text-xs font-semibold" style={{ color: '#DDD6FE' }}>Weekly Goal</p>
+          <p className="text-xs font-semibold" style={{ color: 'var(--t-ddd6fe)' }}>Weekly Goal</p>
           {dashStats ? (
             <>
               <div className="flex items-end justify-between gap-2">
@@ -246,59 +278,62 @@ export default function DashboardPage() {
                   title="View this week's applications"
                   className="flex items-end gap-2 rounded-lg -mx-1 px-1 transition-colors hover:bg-white/10"
                 >
-                  <span className="text-3xl font-bold" style={{ color: '#FFFFFF' }}>{dashStats.goal.this_week}</span>
-                  <span className="text-sm mb-1" style={{ color: 'rgba(255,255,255,0.45)' }}>/ {dashStats.goal.target}</span>
+                  <span className="text-3xl font-bold" style={{ color: 'var(--t-ffffff)' }}>{dashStats.goal.this_week}</span>
+                  <span className="text-sm mb-1" style={{ color: 'var(--t-255-255-255-0_45)' }}>/ {dashStats.goal.target}</span>
                 </Link>
                 <Link
                   href={`/applications?created_from=${encodeURIComponent(startOfToday())}`}
                   title="View today's applications"
                   className="text-xs mb-1 rounded-lg px-2 py-1 transition-colors hover:bg-white/10"
-                  style={{ color: 'rgba(255,255,255,0.65)' }}
+                  style={{ color: 'var(--t-255-255-255-0_65)' }}
                 >
-                  Today <span className="font-bold" style={{ color: '#FFFFFF' }}>{dashStats.goal.today ?? 0}</span>
+                  Today <span className="font-bold" style={{ color: 'var(--t-ffffff)' }}>{dashStats.goal.today ?? 0}</span>
                 </Link>
               </div>
-              <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+              <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: 'var(--c-255-255-255-0_08)' }}>
                 <div
                   className="h-full rounded-full"
                   style={{
                     width: `${dashStats.goal.pct}%`,
-                    background: dashStats.goal.pct >= 100 ? 'linear-gradient(90deg, #4ade80, #22d3ee)' : 'linear-gradient(90deg, #A855F7, #DDD6FE)',
+                    background: dashStats.goal.pct >= 100 ? 'linear-gradient(90deg, var(--c-4ade80), var(--c-22d3ee))' : 'linear-gradient(90deg, var(--c-a855f7), var(--c-ddd6fe))',
                   }}
                 />
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="text-base">🔥</span>
-                <span className="text-xs" style={{ color: 'rgba(255,255,255,0.65)' }}>{dashStats.goal.streak_weeks} week streak</span>
+                <span className="text-xs" style={{ color: 'var(--t-255-255-255-0_65)' }}
+                  title={dashStats.goal.streak_includes_current_week ? 'Includes this week — goal already reached' : 'Completed weeks in a row with the goal met'}>
+                  {dashStats.goal.streak_weeks} week{dashStats.goal.streak_weeks === 1 ? '' : 's'} streak{dashStats.goal.streak_includes_current_week ? ' · this week ✓' : ''}
+                </span>
               </div>
               {/* Applications per day, last 7 days */}
               {dashStats.daily_counts?.length ? (
                 <div className="grid grid-cols-7 gap-1 mt-auto">
                   {dashStats.daily_counts.slice(-7).map(d => (
-                    <div key={d.day} className="flex flex-col items-center rounded-md py-1" style={{ background: 'rgba(0,0,0,0.22)' }}
+                    <div key={d.day} className="flex flex-col items-center rounded-md py-1" style={{ background: 'var(--c-0-0-0-0_22)' }}
                       title={`${new Date(`${d.day}T00:00:00`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })}: ${d.cnt}`}>
-                      <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                      <span className="text-[10px]" style={{ color: 'var(--t-255-255-255-0_45)' }}>
                         {new Date(`${d.day}T00:00:00`).toLocaleDateString('en-GB', { weekday: 'narrow' })}
                       </span>
-                      <span className="text-xs font-semibold" style={{ color: d.cnt ? '#FFFFFF' : 'rgba(255,255,255,0.32)' }}>{d.cnt}</span>
+                      <span className="text-xs font-semibold" style={{ color: d.cnt ? 'var(--t-ffffff)' : 'var(--t-255-255-255-0_32)' }}>{d.cnt}</span>
                     </div>
                   ))}
                 </div>
               ) : null}
             </>
           ) : (
-            <div style={{ color: 'rgba(255,255,255,0.32)' }} className="text-xs">Loading…</div>
+            <div style={{ color: 'var(--t-255-255-255-0_32)' }} className="text-xs">Loading…</div>
           )}
         </div>
 
         {/* Pipeline counts */}
         <div
           className="rounded-2xl p-5 flex flex-col gap-3"
-          style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}
+          style={{ background: 'var(--c-255-255-255-0_07)', border: '1px solid var(--c-255-255-255-0_1)' }}
         >
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold" style={{ color: '#DDD6FE' }}>Pipeline</p>
-            <Link href="/applications" className="text-xs" style={{ color: '#A855F7' }}>View all →</Link>
+            <p className="text-xs font-semibold" style={{ color: 'var(--t-ddd6fe)' }}>Pipeline</p>
+            <Link href="/applications" className="text-xs" style={{ color: 'var(--t-a855f7)' }}>View all →</Link>
           </div>
           <div className="flex flex-col gap-1">
             {PIPELINE_LABELS.map(pl => {
@@ -307,11 +342,11 @@ export default function DashboardPage() {
               return (
                 <Link key={pl.key} href={`/applications?group=${pl.key}`} title={`View ${pl.label.toLowerCase()} applications`}
                   className="flex items-center gap-2 rounded-md -mx-1.5 px-1.5 py-1 transition-colors hover:bg-white/10">
-                  <span className="text-xs w-14 shrink-0" style={{ color: 'rgba(255,255,255,0.45)' }}>{pl.label}</span>
-                  <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.22)' }}>
+                  <span className="text-xs w-14 shrink-0" style={{ color: 'var(--t-255-255-255-0_45)' }}>{pl.label}</span>
+                  <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--c-0-0-0-0_22)' }}>
                     <div className="h-full rounded-full" style={{ width: `${Math.round((cnt / max) * 100)}%`, background: pl.color }} />
                   </div>
-                  <span className="text-xs w-6 text-right shrink-0" style={{ color: 'rgba(255,255,255,0.65)' }}>{cnt}</span>
+                  <span className="text-xs w-6 text-right shrink-0" style={{ color: 'var(--t-255-255-255-0_65)' }}>{cnt}</span>
                 </Link>
               );
             })}
@@ -321,21 +356,21 @@ export default function DashboardPage() {
         {/* Due reminders */}
         <div
           className="rounded-2xl p-5 flex flex-col gap-3"
-          style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}
+          style={{ background: 'var(--c-255-255-255-0_07)', border: '1px solid var(--c-255-255-255-0_1)' }}
         >
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold" style={{ color: '#DDD6FE' }}>Due Reminders</p>
+            <p className="text-xs font-semibold" style={{ color: 'var(--t-ddd6fe)' }}>Due Reminders</p>
             {dueCount ? (
               <Link href="/applications?reminders=due" title="View all applications with a reminder due"
                 className="text-xs px-2 py-0.5 rounded-full transition-all hover:brightness-150"
-                style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171' }}>
+                style={{ background: 'var(--c-239-68-68-0_1)', color: 'var(--t-f87171)' }}>
                 {dueCount}
               </Link>
             ) : null}
           </div>
           {rc && rc.overdue > 0 && (
             <div className="flex items-center justify-between gap-2 text-[11px]">
-              <span className="whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.45)' }}>{rc.overdue} overdue</span>
+              <span className="whitespace-nowrap" style={{ color: 'var(--t-255-255-255-0_45)' }}>{rc.overdue} overdue</span>
               <div className="relative">
                 <button
                   onClick={() => setClearMenuOpen(o => !o)}
@@ -344,13 +379,13 @@ export default function DashboardPage() {
                   aria-expanded={clearMenuOpen}
                   title="Mark overdue reminders as done"
                   className="px-2 py-0.5 rounded-full whitespace-nowrap transition-all hover:brightness-150 disabled:opacity-40"
-                  style={{ background: 'rgba(255,255,255,0.06)', color: '#DDD6FE', border: '1px solid rgba(255,255,255,0.12)' }}
+                  style={{ background: 'var(--c-255-255-255-0_06)', color: 'var(--t-ddd6fe)', border: '1px solid var(--c-255-255-255-0_12)' }}
                 >
                   {clearing ? 'Clearing…' : 'Clear overdue ▾'}
                 </button>
                 {clearMenuOpen && (
                   <div role="menu" className="absolute right-0 top-7 z-20 w-48 rounded-lg overflow-hidden shadow-xl"
-                    style={{ background: '#1e1033', border: '1px solid rgba(255,255,255,0.14)' }}>
+                    style={{ background: 'var(--c-1e1033)', border: '1px solid var(--c-255-255-255-0_14)' }}>
                     {[
                       { days: 0,  label: 'All overdue',         count: rc.overdue },
                       { days: 7,  label: 'Older than 7 days',   count: rc.overdue_7d ?? 0 },
@@ -359,9 +394,9 @@ export default function DashboardPage() {
                       <button key={o.days} role="menuitem" disabled={!o.count}
                         onClick={() => clearReminders(o.days, o.count)}
                         className="w-full flex items-center justify-between px-3 py-2 text-left text-xs transition-colors hover:bg-white/10 disabled:opacity-40 disabled:hover:bg-transparent"
-                        style={{ color: 'rgba(255,255,255,0.85)' }}>
+                        style={{ color: 'var(--t-255-255-255-0_85)' }}>
                         <span>{o.label}</span>
-                        <span style={{ color: '#f87171' }}>{o.count}</span>
+                        <span style={{ color: 'var(--t-f87171)' }}>{o.count}</span>
                       </button>
                     ))}
                   </div>
@@ -373,15 +408,15 @@ export default function DashboardPage() {
             <div className="flex flex-col gap-2">
               {dashStats.due_reminders.slice(0, 4).map(r => (
                 <Link key={r.id} href={`/applications/${r.application_id}`}
-                  className="block text-xs rounded-lg px-2.5 py-2 transition-all hover:brightness-150" style={{ background: 'rgba(0,0,0,0.22)' }}>
-                  <p className="truncate font-medium" style={{ color: 'rgba(255,255,255,0.92)' }}>{r.title}</p>
-                  <p className="truncate mt-0.5" style={{ color: 'rgba(255,255,255,0.45)' }}>{r.company_name}</p>
+                  className="block text-xs rounded-lg px-2.5 py-2 transition-all hover:brightness-150" style={{ background: 'var(--c-0-0-0-0_22)' }}>
+                  <p className="truncate font-medium" style={{ color: 'var(--t-255-255-255-0_92)' }}>{r.title}</p>
+                  <p className="truncate mt-0.5" style={{ color: 'var(--t-255-255-255-0_45)' }}>{r.company_name}</p>
                 </Link>
               ))}
             </div>
           ) : (
             <div className="flex-1 flex items-center justify-center">
-              <p className="text-xs" style={{ color: 'rgba(255,255,255,0.18)' }}>No overdue reminders</p>
+              <p className="text-xs" style={{ color: 'var(--t-255-255-255-0_18)' }}>No overdue reminders</p>
             </div>
           )}
         </div>
@@ -389,24 +424,24 @@ export default function DashboardPage() {
 
       {/* Recent activity */}
       {dashStats?.recent_activity?.length ? (
-        <div className="rounded-2xl p-5" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
-          <p className="text-sm font-semibold mb-4" style={{ color: '#DDD6FE' }}>Recent Activity</p>
+        <div className="rounded-2xl p-5" style={{ background: 'var(--c-255-255-255-0_07)', border: '1px solid var(--c-255-255-255-0_1)' }}>
+          <p className="text-sm font-semibold mb-4" style={{ color: 'var(--t-ddd6fe)' }}>Recent Activity</p>
           <div className="flex flex-col gap-2">
             {dashStats.recent_activity.slice(0, 6).map((a, i) => (
               <Link
                 key={i}
                 href={`/applications/${a.application_id}`}
                 className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all hover:brightness-150"
-                style={{ background: 'rgba(0,0,0,0.22)' }}
+                style={{ background: 'var(--c-0-0-0-0_22)' }}
               >
-                <div className="w-2 h-2 rounded-full shrink-0" style={{ background: '#A855F7' }} />
+                <div className="w-2 h-2 rounded-full shrink-0" style={{ background: 'var(--c-a855f7)' }} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium truncate" style={{ color: 'rgba(255,255,255,0.92)' }}>
+                  <p className="text-xs font-medium truncate" style={{ color: 'var(--t-255-255-255-0_92)' }}>
                     {a.company_name} — {a.job_title}
                   </p>
-                  <p className="text-xs truncate" style={{ color: 'rgba(255,255,255,0.45)' }}>{a.description}</p>
+                  <p className="text-xs truncate" style={{ color: 'var(--t-255-255-255-0_45)' }}>{a.description}</p>
                 </div>
-                <span className="text-xs shrink-0" style={{ color: 'rgba(255,255,255,0.18)' }}>
+                <span className="text-xs shrink-0" style={{ color: 'var(--t-255-255-255-0_18)' }}>
                   {new Date(a.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                 </span>
               </Link>
@@ -417,7 +452,7 @@ export default function DashboardPage() {
 
       {/* Portfolio quick-nav cards */}
       <div>
-        <p className="text-sm font-semibold mb-4" style={{ color: '#DDD6FE' }}>Portfolio</p>
+        <p className="text-sm font-semibold mb-4" style={{ color: 'var(--t-ddd6fe)' }}>Portfolio</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-4">
           {CARDS.map(c => {
             const rawVal = c.key ? portfolioStats[c.key] : null;
@@ -429,7 +464,7 @@ export default function DashboardPage() {
                 key={c.label}
                 href={c.href}
                 className="group block rounded-2xl p-4 transition-all duration-150"
-                style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.08)' }}
+                style={{ background: 'var(--c-255-255-255-0_07)', border: '1px solid var(--c-255-255-255-0_08)' }}
                 onMouseEnter={e => {
                   const el = e.currentTarget as HTMLElement;
                   el.style.border = `1px solid ${c.from}40`;
@@ -438,7 +473,7 @@ export default function DashboardPage() {
                 }}
                 onMouseLeave={e => {
                   const el = e.currentTarget as HTMLElement;
-                  el.style.border = '1px solid rgba(255,255,255,0.08)';
+                  el.style.border = '1px solid var(--c-255-255-255-0_08)';
                   el.style.boxShadow = 'none';
                   el.style.transform = 'translateY(0)';
                 }}
@@ -464,8 +499,8 @@ export default function DashboardPage() {
                     <IconArrow width={14} height={14} style={{ color: c.from, opacity: 0.5 }} />
                   )}
                 </div>
-                <p className="text-sm font-semibold mb-0.5" style={{ color: 'rgba(255,255,255,0.92)' }}>{c.label}</p>
-                <p className="text-xs" style={{ color: 'rgba(255,255,255,0.45)' }}>{loading ? '…' : c.desc(portfolioStats)}</p>
+                <p className="text-sm font-semibold mb-0.5" style={{ color: 'var(--t-255-255-255-0_92)' }}>{c.label}</p>
+                <p className="text-xs" style={{ color: 'var(--t-255-255-255-0_45)' }}>{loading ? '…' : c.desc(portfolioStats)}</p>
               </Link>
             );
           })}
