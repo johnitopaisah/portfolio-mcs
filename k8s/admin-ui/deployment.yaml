@@ -63,7 +63,7 @@ spec:
 
       containers:
         - name:            admin-ui
-          image:           ghcr.io/johnitopaisah/portfolio-mcs/admin-ui:v0.1.17-rc6
+          image:           ghcr.io/johnitopaisah/portfolio-mcs/admin-ui:v0.1.17-rc8
           imagePullPolicy: Always
 
           ports:
