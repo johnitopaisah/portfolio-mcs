@@ -8,7 +8,12 @@
  *     5-minute undo window, Mon–Fri 09:00–18:00 Europe/Paris only
  *   tick() (every minute, any API pod) → sends due emails, re-checking first:
  *     still Applied? recruiter replied? recipient valid? follow-up in last 14
- *     days? daily cap? — and cancels/reschedules with the reason recorded
+ *     days? daily cap? — and cancels/reschedules with the reason recorded;
+ *     an unconfirmed rejection from that company puts it back for approval
+ *   Language: each email is en or fr (chooseLanguage: the recruiter's email,
+ *     then the job ad / title, else English); the EN | FR switch translates
+ *     the current text (setLanguage). Closing an application (Rejected /
+ *     Withdrawn) cancels its unsent emails — DB trigger, migration 044.
  *
  * Every step is written to outbound_email_events (never updated/deleted).
  * Dependencies (mailer, AI, clock) are injectable for tests.
@@ -18,6 +23,8 @@ const crypto = require('crypto');
 const pool   = require('../db/client');
 const { isAtsDomain, domainOf } = require('./emailTracking/applicationMatchingService');
 const { getApplicationContext } = require('./applicationContextService');
+const { detectLanguage } = require('./languageDetect');
+const { FINAL_STATUSES } = require('../constants/applicationStatuses');
 
 const TZ = 'Europe/Paris';
 const UNDO_MS            = 5 * 60 * 1000;
@@ -148,40 +155,78 @@ function fill(tpl, ctx) {
   return String(tpl || '').replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k) => (ctx[k] ?? ''));
 }
 
-async function draftContext(applicationId, recipient, db = pool) {
+// ── language ─────────────────────────────────────────────────────
+const LANGS = ['en', 'fr'];
+const LANG_NAME = { en: 'English', fr: 'French' };
+const FRENCH_TITLE = /(ingénieur|ingenieur|stage|stagiaire|alternance|alternant|chargée?|responsable|technicien|développeur|\(?[hf]\s*\/\s*[hf]\)?)/i;
+
+/** The language a follow-up should be written in, and why (shown next to the EN | FR switch). */
+async function chooseLanguage(applicationId, db = pool) {
+  const { rows: [a] } = await db.query(
+    'SELECT company_name, job_title, context_job_description FROM applications WHERE id = $1', [applicationId]);
+  if (!a) return { language: 'en', reason: 'default' };
+  const { rows: mails } = await db.query(
+    `SELECT subject, body_snippet FROM email_responses
+     WHERE application_id = $1 AND (review_status IS NULL OR review_status = 'APPROVED')
+     ORDER BY received_at DESC LIMIT 3`, [applicationId]);
+  for (const m of mails) {
+    const l = detectLanguage(`${m.subject || ''}\n${m.body_snippet || ''}`);
+    if (l) return { language: l, reason: `${a.company_name} wrote in ${LANG_NAME[l]}` };
+  }
+  const jd = detectLanguage(a.context_job_description);
+  if (jd) return { language: jd, reason: `the job ad is in ${LANG_NAME[jd]}` };
+  if (FRENCH_TITLE.test(a.job_title || '')) return { language: 'fr', reason: 'the job title is in French' };
+  return { language: 'en', reason: 'default' };
+}
+const languageOf = e => (LANGS.includes(e.language) ? e.language : detectLanguage(e.body) || 'en');
+
+const BUILTIN_TEMPLATES = {
+  en: {
+    subject_template: 'Following up — {{role}} application',
+    body_template: 'Hi {{recruiter_name}},\n\nI wanted to follow up on my application for the {{role}} position at {{company}}, submitted on {{applied_date}}. I remain very interested and would be glad to share anything else that would help.\n\nBest regards,\n{{your_name}}',
+  },
+  fr: {
+    subject_template: 'Suivi de ma candidature — {{role}}',
+    body_template: "Bonjour {{recruiter_name}},\n\nJe me permets de revenir vers vous au sujet de ma candidature au poste de {{role}} chez {{company}}, envoyée le {{applied_date}}. Ce poste m'intéresse toujours beaucoup et je reste à votre disposition pour tout complément d'information.\n\nBien cordialement,\n{{your_name}}",
+  },
+};
+
+async function draftContext(applicationId, recipient, db = pool, language = 'en') {
   const { rows } = await db.query(
     `SELECT a.id, a.company_name, a.job_title, a.applied_at, a.status,
             p.name AS full_name, p.cv_display_name, p.cv_phone, p.cv_linkedin
      FROM applications a LEFT JOIN profile p ON TRUE WHERE a.id = $1 LIMIT 1`, [applicationId]);
   if (!rows.length) throw Object.assign(new Error('Application not found'), { status: 404 });
   const a = rows[0];
+  const fr = language === 'fr';
   const firstName = greetingName(recipient.to_name, a.company_name);
   return {
     app: a,
+    named: !!firstName,
     vars: {
       company: a.company_name, role: a.job_title,
-      recruiter_name: firstName || 'Hiring Team',
+      recruiter_name: firstName || (fr ? '' : 'Hiring Team'),
       your_name: a.cv_display_name || a.full_name || '',
-      applied_date: a.applied_at ? new Date(a.applied_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : 'recently',
+      applied_date: a.applied_at
+        ? new Date(a.applied_at).toLocaleDateString(fr ? 'fr-FR' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: TZ })
+        : (fr ? 'récemment' : 'recently'),
     },
   };
 }
 
-async function templateDraft(applicationId, recipient, db = pool) {
-  const { app, vars } = await draftContext(applicationId, recipient, db);
+async function templateDraft(applicationId, recipient, db = pool, language = 'en') {
+  const lang = LANGS.includes(language) ? language : 'en';
+  const { app, vars, named } = await draftContext(applicationId, recipient, db, lang);
   const { rows } = await db.query(
     `SELECT id, subject_template, body_template FROM email_templates
-     WHERE category = 'follow_up' ORDER BY is_system DESC, id ASC LIMIT 1`);
-  const t = rows[0] || {
-    id: null,
-    subject_template: 'Following up — {{role}} application',
-    body_template: 'Hi {{recruiter_name}},\n\nI wanted to follow up on my application for the {{role}} position at {{company}}, submitted on {{applied_date}}. I remain very interested and would be glad to share anything else that would help.\n\nBest regards,\n{{your_name}}',
-  };
+     WHERE category = 'follow_up' AND language = $1 ORDER BY is_system DESC, id ASC LIMIT 1`, [lang]);
+  const t = rows[0] || { id: null, ...BUILTIN_TEMPLATES[lang] };
   let subject = fill(t.subject_template, vars);
   if (recipient.reply_subject) subject = /^re:/i.test(recipient.reply_subject) ? recipient.reply_subject : `Re: ${recipient.reply_subject}`;
   const body = fill(t.body_template, vars).trim()
-    .replace(/^(?:Hi|Hello|Hey)\s+Hiring Team\s*,/im, 'Dear Hiring Team,');   // no named person
-  return { app, vars, template_id: t.id, subject, body };
+    .replace(/^(?:Hi|Hello|Hey)\s+Hiring Team\s*,/im, 'Dear Hiring Team,')   // no named person
+    .replace(/^Bonjour\s*,/im, 'Madame, Monsieur,');
+  return { app, vars, named, language: lang, template_id: t.id, subject, body };
 }
 
 const polishTool = {
@@ -195,12 +240,13 @@ const polishTool = {
   },
 };
 
-async function defaultPolish({ draft, applicationId }) {
+async function defaultPolish({ draft, applicationId, language = draft.language || 'en' }) {
   if (!process.env.ANTHROPIC_API_KEY) return null;
   const Anthropic = require('@anthropic-ai/sdk');
   const ctx = await getApplicationContext(applicationId).catch(() => ({}));
   const { rows: last } = await pool.query(
     `SELECT subject, body_snippet FROM email_responses WHERE application_id = $1 ORDER BY received_at DESC LIMIT 1`, [applicationId]);
+  const fr = language === 'fr';
   const res = await new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }).messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 700,
@@ -208,15 +254,16 @@ async function defaultPolish({ draft, applicationId }) {
     tool_choice: { type: 'tool', name: 'submit_email' },
     system: 'You write short, warm, professional job-application follow-up emails. Never invent facts, '
       + 'achievements, names or dates that are not given. No placeholders, no brackets, no markdown. '
-      + 'Write in the language of the recruiter\'s last email if one is given, otherwise in English. '
+      + `Write the whole email in ${LANG_NAME[language] || 'English'}, whatever language the inputs are in. `
       + 'Keep the candidate\'s sign-off name exactly as given. '
-      + 'Greet the recruiter by first name only if recruiter_first_name is given; otherwise use "Dear Hiring Team," '
-      + '(or the natural equivalent in the email\'s language).',
+      + 'Greet the recruiter by first name only if recruiter_first_name is given; otherwise use '
+      + (fr ? '"Madame, Monsieur,".' : '"Dear Hiring Team,".'),
     messages: [{ role: 'user', content: JSON.stringify({
       task: 'Rewrite this follow-up so it is specific to the role, concise (under 160 words), and polite. '
         + 'Mention one relevant strength from the CV if one clearly matches the job.',
+      language: LANG_NAME[language] || 'English',
       draft: draft.body,
-      company: draft.vars.company, role: draft.vars.role, recruiter_first_name: draft.vars.recruiter_name === 'Hiring Team' ? null : draft.vars.recruiter_name,
+      company: draft.vars.company, role: draft.vars.role, recruiter_first_name: draft.named ? draft.vars.recruiter_name : null,
       applied_date: draft.vars.applied_date, sign_off_name: draft.vars.your_name,
       job_description: (ctx.job_description || '').slice(0, 3000),
       cv_excerpt: (ctx.cv_text || '').slice(0, 3000),
@@ -225,6 +272,43 @@ async function defaultPolish({ draft, applicationId }) {
   });
   const body = res.content.find(b => b.type === 'tool_use')?.input?.body;
   return body && body.trim().length > 40 ? body.trim() : null;
+}
+
+const translateTool = {
+  name: 'submit_translation',
+  description: 'Submit the translated email',
+  input_schema: {
+    type: 'object', required: ['body'],
+    properties: {
+      subject: { type: 'string', description: 'Translated subject (only when asked to translate it)' },
+      body:    { type: 'string', description: 'Translated plain-text body, greeting to sign-off' },
+    },
+  },
+};
+
+/** Translates your current text (keeps its meaning and your edits) — no rewriting. */
+async function defaultTranslate({ subject, body, language, translateSubject }) {
+  if (!process.env.ANTHROPIC_API_KEY) return null;
+  const Anthropic = require('@anthropic-ai/sdk');
+  const target = LANG_NAME[language];
+  const res = await new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }).messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 900,
+    tools: [translateTool],
+    tool_choice: { type: 'tool', name: 'submit_translation' },
+    system: `You translate job-application emails into natural, professional ${target}. Translate faithfully: keep the `
+      + 'meaning, facts, dates, names, company and job titles, line breaks and sign-off name exactly; do not add or remove '
+      + 'anything. Use the usual formal conventions of the language (French: vouvoiement, "Bien cordialement,"; a '
+      + 'greeting to nobody in particular becomes "Madame, Monsieur," in French and "Dear Hiring Team," in English). '
+      + 'No markdown, no notes.',
+    messages: [{ role: 'user', content: JSON.stringify({
+      target_language: target, body, ...(translateSubject ? { subject } : {}),
+    }) }],
+  });
+  const out = res.content.find(b => b.type === 'tool_use')?.input || {};
+  const b = String(out.body || '').trim();
+  if (b.length < 20) return null;
+  return { body: b, subject: translateSubject && out.subject ? String(out.subject).trim().slice(0, 250) : null };
 }
 
 // ── audit ────────────────────────────────────────────────────────
@@ -239,7 +323,8 @@ function createOutbox({
   db = pool,
   now = () => new Date(),
   polish = defaultPolish,
-  sendMail = null,          // async ({ from, to, subject, text, html, headers, messageId, raw }) → { messageId }
+  translate = defaultTranslate,
+  sendMail = null,         // async ({ from, to, subject, text, html, headers, messageId, raw }) → { messageId }
   appendToSent = null,      // async (rawBuffer) → void   (copy into the mailbox's Sent folder)
   notifyUser = null,        // async ({ subject, html, text }) → void   (approval request to you)
   isPaused = null,          // async () → boolean   (availability "Not open" holds everything)
@@ -264,11 +349,14 @@ function createOutbox({
 
   async function newDraft({ applicationId, source, overrides = {}, usePolish = true }) {
     const recipient = await resolveRecipient(applicationId, db);
-    const draft = await templateDraft(applicationId, recipient, db);
+    const lang = LANGS.includes(overrides.language)
+      ? { language: overrides.language, reason: 'chosen by you' }
+      : await chooseLanguage(applicationId, db);
+    const draft = await templateDraft(applicationId, recipient, db, lang.language);
     let body = overrides.body || draft.body, aiPolished = false;
     if (!overrides.body && usePolish) {
       try {
-        const polished = await polish({ draft, applicationId });
+        const polished = await polish({ draft, applicationId, language: lang.language });
         if (polished) { body = polished; aiPolished = true; }
       } catch (err) { console.warn('[Outbox] AI polish failed — using the template:', err.message); }
     }
@@ -277,17 +365,83 @@ function createOutbox({
     const { rows } = await db.query(
       `INSERT INTO outbound_emails
          (application_id, source, status, to_email, to_name, subject, body, in_reply_to, references_header,
-          reply_to_response_id, template_id, ai_polished)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+          reply_to_response_id, template_id, ai_polished, language, language_reason)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
        ON CONFLICT DO NOTHING
        RETURNING *`,
       [applicationId, source, status, to_email || null, overrides.to_name ?? recipient.to_name,
        overrides.subject || draft.subject, body, recipient.in_reply_to, recipient.references_header,
-       recipient.reply_to_response_id, draft.template_id, aiPolished]);
+       recipient.reply_to_response_id, draft.template_id, aiPolished,
+       overrides.body ? (detectLanguage(body) || lang.language) : lang.language, overrides.body ? null : lang.reason]);
     if (!rows.length) return null;   // an open follow-up already exists
     await logEvent(db, rows[0].id, 'created', source === 'manual' ? 'you' : 'system',
-      { source, ai_polished: aiPolished, recipient_found: !!to_email });
+      { source, ai_polished: aiPolished, recipient_found: !!to_email, language: rows[0].language });
     return rows[0];
+  }
+
+  // ── possible rejections ────────────────────────────────────────
+  // A rejection email the mailbox sync recognised but could not attach to an
+  // application with certainty (it only "suggested" one). Until you confirm
+  // or dismiss it, it must not be followed up on.
+  const REJECTION_SQL = `COALESCE(e.corrected_classification, e.ai_classification) = 'REJECTION'
+    AND e.application_id IS NULL AND (e.review_status IS NULL OR e.review_status = 'APPROVED')`;
+
+  /** The unconfirmed rejection that may be about this application, or null. */
+  async function possibleRejectionFor(applicationId, c = db) {
+    const { rows } = await c.query(`
+      WITH app AS (SELECT id, COALESCE(applied_at, created_at) AS since FROM applications WHERE id = $1),
+      doms AS (
+        SELECT lower(split_part(sender_email, '@', 2)) AS d FROM email_responses WHERE application_id = $1 AND sender_email LIKE '%@%'
+        UNION SELECT lower(split_part(email, '@', 2)) FROM application_contacts WHERE application_id = $1 AND email LIKE '%@%'
+        UNION SELECT lower(split_part(to_email, '@', 2)) FROM outbound_emails WHERE application_id = $1 AND to_email LIKE '%@%')
+      SELECT e.id, e.subject, e.sender_email, e.received_at, e.suggested_application_id
+      FROM email_responses e, app
+      WHERE ${REJECTION_SQL}
+        AND NOT ($1 = ANY(e.not_about_application_ids))
+        AND e.received_at >= app.since - INTERVAL '1 day'
+        AND (e.suggested_application_id = $1 OR lower(split_part(e.sender_email, '@', 2)) IN (SELECT d FROM doms))
+      ORDER BY e.received_at DESC LIMIT 10`, [applicationId]);
+    // A shared job-platform sender (Workday, Teamtailor…) says nothing about which company.
+    return rows.find(r => r.suggested_application_id === applicationId
+      || (!isAtsDomain(domainOf(r.sender_email)) && !isOwnAddress(r.sender_email))) || null;
+  }
+
+  /** Everything waiting for "Was this a rejection?" — shown as a banner in the Outbox. */
+  async function possibleRejections() {
+    const { rows } = await db.query(`
+      SELECT e.id AS email_id, e.subject, e.sender_email, e.received_at,
+             a.id AS application_id, a.company_name, a.job_title, a.status AS application_status
+      FROM email_responses e JOIN applications a ON a.id = e.suggested_application_id
+      WHERE ${REJECTION_SQL}
+        AND a.status <> ALL($1)
+        AND NOT (a.id = ANY(e.not_about_application_ids))
+      ORDER BY e.received_at DESC LIMIT 50`, [FINAL_STATUSES]);
+    // Plus open emails whose company sent a rejection we could not attach.
+    const seen = new Set(rows.map(r => `${r.email_id}:${r.application_id}`));
+    const { rows: open } = await db.query(`
+      SELECT DISTINCT o.application_id, a.company_name, a.job_title, a.status AS application_status
+      FROM outbound_emails o JOIN applications a ON a.id = o.application_id
+      WHERE o.status IN ('draft', 'pending_approval', 'approved') AND a.status <> ALL($1)`, [FINAL_STATUSES]);
+    for (const o of open) {
+      const r = await possibleRejectionFor(o.application_id);
+      if (r && !seen.has(`${r.id}:${o.application_id}`)) {
+        seen.add(`${r.id}:${o.application_id}`);
+        rows.push({ email_id: r.id, subject: r.subject, sender_email: r.sender_email, received_at: r.received_at, ...o });
+      }
+    }
+    return rows.sort((x, y) => new Date(y.received_at) - new Date(x.received_at));
+  }
+
+  /** "Not this application": the email stops flagging it (and is no longer suggested for it). */
+  async function dismissRejection(emailId, applicationId) {
+    const { rowCount } = await db.query(
+      `UPDATE email_responses
+       SET not_about_application_ids = CASE WHEN $2 = ANY(not_about_application_ids) THEN not_about_application_ids
+                                            ELSE array_append(not_about_application_ids, $2) END,
+           suggested_application_id = CASE WHEN suggested_application_id = $2 THEN NULL ELSE suggested_application_id END
+       WHERE id = $1`, [emailId, applicationId]);
+    if (!rowCount) throw Object.assign(new Error('Email not found'), { status: 404 });
+    return { ok: true };
   }
 
   /** Daily rule: one follow-up per Applied application with a reachable recruiter. */
@@ -297,6 +451,7 @@ function createOutbox({
          AND (status = ANY($2) OR (status = 'sent' AND sent_at > $3))`,
       [applicationId, OPEN, new Date(now().getTime() - MIN_GAP_DAYS * 864e5)]);
     if (rows.length) return null;
+    if (await possibleRejectionFor(applicationId)) return null;   // flagged in the Outbox instead
     const recipient = await resolveRecipient(applicationId, db);
     if (!recipient.to_email) return null;           // nobody reachable — nothing to approve
     return newDraft({ applicationId, source: 'follow_up_rule' });
@@ -337,7 +492,7 @@ function createOutbox({
     return { emailed: true, channel, count: items.length };
   }
 
-  async function update(id, patch = {}, actor = 'you', event = 'edited') {
+  async function update(id, patch = {}, actor = 'you', event = 'edited', extra = {}) {
     const c = await db.connect();
     try {
       await c.query('BEGIN');
@@ -367,7 +522,7 @@ function createOutbox({
            version = version + 1, updated_at = NOW()
          WHERE id = $6 RETURNING *`,
         [next.to_email, next.to_name, next.subject, next.body, status, id]);
-      await logEvent(c, id, event, actor, { fields: Object.keys(changed), changes: changed, version: out[0].version });
+      await logEvent(c, id, event, actor, { fields: Object.keys(changed), changes: changed, version: out[0].version, ...extra });
       await c.query('COMMIT');
       return out[0];
     } catch (err) { await c.query('ROLLBACK').catch(() => {}); throw err; } finally { c.release(); }
@@ -376,14 +531,50 @@ function createOutbox({
   async function polishExisting(id) {
     const e = await get(id);
     if (!['draft', 'pending_approval'].includes(e.status)) throw Object.assign(new Error('Only unsent drafts can be rewritten'), { status: 409 });
+    const language = languageOf(e);
     const recipient = { to_name: e.to_name, reply_subject: null };
-    const draft = await templateDraft(e.application_id, recipient, db);
+    const draft = await templateDraft(e.application_id, recipient, db, language);
     draft.body = e.body;
-    const body = await polish({ draft, applicationId: e.application_id });
+    const body = await polish({ draft, applicationId: e.application_id, language });   // stays in the chosen language
     if (!body) throw Object.assign(new Error('AI rewrite is unavailable right now'), { status: 503 });
-    const out = await update(id, { body }, 'you', 'ai_polished');   // one history entry, with the diff
-    await db.query('UPDATE outbound_emails SET ai_polished = TRUE WHERE id = $1', [id]);
-    return { ...out, ai_polished: true };
+    const out = await update(id, { body }, 'you', 'ai_polished', { language });   // one history entry, with the diff
+    await db.query('UPDATE outbound_emails SET ai_polished = TRUE, language = $2 WHERE id = $1', [id, language]);
+    return { ...out, ai_polished: true, language };
+  }
+
+  /**
+   * EN | FR switch: translates the current text (your edits included). A
+   * subject that threads into the recruiter's conversation ("Re: …") is kept.
+   * Without the AI, an email you never edited is rebuilt from the template
+   * in that language; an edited one is left alone (503) rather than lost.
+   */
+  async function setLanguage(id, language) {
+    if (!LANGS.includes(language)) throw Object.assign(new Error('Language must be en or fr'), { status: 400 });
+    const e = await get(id);
+    if (!['draft', 'pending_approval'].includes(e.status)) throw Object.assign(new Error('Only unsent drafts can be changed'), { status: 409 });
+    if (languageOf(e) === language) {
+      await db.query('UPDATE outbound_emails SET language = $2 WHERE id = $1 AND language IS DISTINCT FROM $2', [id, language]);
+      return get(id);
+    }
+    const threaded = /^\s*re\s*:/i.test(e.subject) || !!e.in_reply_to;
+    let out = null;
+    try { out = await translate({ subject: e.subject, body: e.body, language, translateSubject: !threaded }); }
+    catch (err) { console.warn('[Outbox] translation failed:', err.message); }
+    let patch, how;
+    if (out?.body) {
+      patch = { body: out.body, ...(out.subject ? { subject: out.subject } : {}) };
+      how = 'translated';
+    } else {
+      const { rows } = await db.query(
+        `SELECT 1 FROM outbound_email_events WHERE outbound_email_id = $1 AND actor = 'you' AND event = 'edited' LIMIT 1`, [id]);
+      if (rows.length) throw Object.assign(new Error('Translation is unavailable right now — your text is unchanged. Try again in a moment.'), { status: 503 });
+      const draft = await templateDraft(e.application_id, { to_name: e.to_name, reply_subject: null }, db, language);
+      patch = { body: draft.body, ...(threaded ? {} : { subject: draft.subject }) };
+      how = 'template';
+    }
+    await update(id, patch, 'you', 'translated', { language, from: languageOf(e), how });
+    await db.query(`UPDATE outbound_emails SET language = $2, language_reason = 'chosen by you' WHERE id = $1`, [id, language]);
+    return get(id);
   }
 
   async function transition(id, fromStatuses, fn) {
@@ -456,6 +647,14 @@ function createOutbox({
     await logEvent(c, e.id, 'cancelled', 'system', { reason });
     return { id: e.id, outcome: 'cancelled', reason };
   }
+  // Back to "Needs approval" (not cancelled): you decide once you've seen why.
+  async function hold(c, e, reason) {
+    await c.query(
+      `UPDATE outbound_emails SET status = 'pending_approval', approved_at = NULL, approved_via = NULL, send_after = NULL,
+         attempts = GREATEST(attempts - 1, 0), updated_at = NOW() WHERE id = $1`, [e.id]);
+    await logEvent(c, e.id, 'held', 'system', { reason });
+    return { id: e.id, outcome: 'held', reason };
+  }
   async function reschedule(c, e, when, why) {
     // Not a send attempt — undo the claim's increment so the retry limit only counts real failures.
     await c.query(`UPDATE outbound_emails SET status = 'approved', send_after = $1, attempts = GREATEST(attempts - 1, 0), updated_at = NOW() WHERE id = $2`, [when, e.id]);
@@ -475,6 +674,8 @@ function createOutbox({
         `SELECT 1 FROM outbound_emails WHERE application_id = $1 AND id <> $2 AND status = 'sent' AND sent_at > $3 LIMIT 1`,
         [e.application_id, e.id, new Date(now().getTime() - MIN_GAP_DAYS * 864e5)]);
       if (recent.length) return { cancel: `a follow-up was already sent in the last ${MIN_GAP_DAYS} days` };
+      const rej = await possibleRejectionFor(e.application_id);
+      if (rej) return { hold: `possible rejection received ${new Date(rej.received_at).toISOString().slice(0, 10)} ("${String(rej.subject || '').slice(0, 80)}") — confirm it in the Outbox first` };
     }
     if (!e.to_email || !isSendableAddress(e.to_email)) return { cancel: 'the recipient address is missing or cannot receive replies' };
     if (!inWorkingHours(now())) return { reschedule: nextSendTime(now()), why: 'outside working hours' };
@@ -501,6 +702,7 @@ function createOutbox({
 
     const verdict = await checks(e);
     if (verdict.cancel) return cancel(db, e, verdict.cancel);
+    if (verdict.hold) return hold(db, e, verdict.hold);
     if (verdict.reschedule) return reschedule(db, e, verdict.reschedule, verdict.why);
 
     const { rows: [p] } = await db.query('SELECT name, cv_display_name FROM profile LIMIT 1');
@@ -604,7 +806,7 @@ function createOutbox({
        ORDER BY CASE o.status WHEN 'pending_approval' THEN 0 WHEN 'draft' THEN 1 WHEN 'approved' THEN 2 WHEN 'sending' THEN 3 ELSE 4 END,
                 o.updated_at DESC
        LIMIT 200`, params);
-    return rows.map(({ approval_token_hash, ...r }) => r);
+    return rows.map(({ approval_token_hash, ...r }) => ({ ...r, language: languageOf(r) }));
   }
 
   async function detail(id) {
@@ -612,11 +814,18 @@ function createOutbox({
     const { rows: events } = await db.query(
       'SELECT event, actor, detail, created_at FROM outbound_email_events WHERE outbound_email_id = $1 ORDER BY created_at, id', [id]);
     const { rows: [app] } = await db.query('SELECT company_name, job_title, status FROM applications WHERE id = $1', [e.application_id]);
-    return { ...e, company_name: app?.company_name, job_title: app?.job_title, application_status: app?.status, events };
+    const open = app && !FINAL_STATUSES.includes(app.status);
+    const rej = open ? await possibleRejectionFor(e.application_id) : null;
+    return {
+      ...e, language: languageOf(e), language_reason: e.language_reason || (e.language ? null : 'detected from the text'),
+      company_name: app?.company_name, job_title: app?.job_title, application_status: app?.status, events,
+      possible_rejection: rej ? { email_id: rej.id, subject: rej.subject, sender_email: rej.sender_email, received_at: rej.received_at } : null,
+    };
   }
 
   return {
-    createFollowUpDraft, createManualDraft, requestApproval, update, polishExisting,
+    createFollowUpDraft, createManualDraft, requestApproval, update, polishExisting, setLanguage,
+    possibleRejectionFor, possibleRejections, dismissRejection,
     approve, undo, skip, findByToken, tick, sendOne, list, detail,
   };
 }
@@ -688,6 +897,6 @@ function approvalEmail(items) {
 }
 
 module.exports = {
-  greetingName, isOwnAddress,
+  greetingName, isOwnAddress, chooseLanguage,
   createOutbox, nextSendTime, inWorkingHours, isSendableAddress, resolveRecipient, approvalEmail, esc,
 };

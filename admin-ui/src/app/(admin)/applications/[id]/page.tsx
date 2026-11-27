@@ -1655,6 +1655,8 @@ export default function ApplicationDetailPage() {
 
   // Status change
   const [statusChanging,    setStatusChanging]    = useState(false);
+  const [closeUndo,         setCloseUndo]         = useState<{ message: string; undo: unknown; until: number } | null>(null);
+  const [, setUndoTick] = useState(0);
   const [statusChangeNote,  setStatusChangeNote]  = useState('');
   const [showStatusMenu,    setShowStatusMenu]    = useState(false);
 
@@ -1754,10 +1756,37 @@ export default function ApplicationDetailPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSection, id]);
 
+  useEffect(() => {
+    if (!closeUndo) return;
+    const t = setInterval(() => { if (Date.now() >= closeUndo.until) setCloseUndo(null); else setUndoTick(n => n + 1); }, 500);
+    return () => clearInterval(t);
+  }, [closeUndo]);
+
+  async function undoClose() {
+    if (!closeUndo) return;
+    const u = closeUndo;
+    setCloseUndo(null);
+    try { await adminApi.reopenApplication(id, u.undo); await fetchApp(); }
+    catch (err: unknown) { showError(err, 'Could not undo'); }
+  }
+
   async function handleStatusChange(newStatus: string) {
     if (!app || statusChanging) return;
     setStatusChanging(true);
     setShowStatusMenu(false);
+    // Rejected / Withdrawn stop everything (unsent emails, reminders) — with Undo.
+    if ((newStatus === 'REJECTED' || newStatus === 'WITHDRAWN') && app.status !== newStatus) {
+      try {
+        const r = await adminApi.closeApplication(id, newStatus, 'application') as { cancelled_emails: number; undo: unknown };
+        const n = r.cancelled_emails;
+        setCloseUndo({ undo: r.undo, until: Date.now() + 10_000,
+          message: `Marked ${newStatus === 'REJECTED' ? 'rejected' : 'withdrawn'}${n ? ` — ${n} unsent email${n > 1 ? 's' : ''} cancelled` : ''}.` });
+        setStatusChangeNote('');
+        await fetchApp();
+      } catch (err: unknown) { showError(err, 'Failed'); }
+      finally { setStatusChanging(false); }
+      return;
+    }
     try {
       await adminApi.patchApplicationStatus(id, newStatus, statusChangeNote || undefined);
       setStatusChangeNote('');
@@ -2201,6 +2230,15 @@ export default function ApplicationDetailPage() {
                 </button>
               ))}
             </div>
+            {closeUndo && (
+              <div role="status" aria-live="polite" className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl text-sm max-w-[calc(100vw-32px)]"
+                style={{ background: '#18181b', color: '#fafafa', border: '1px solid rgba(255,255,255,0.15)' }}>
+                <span className="min-w-0">{closeUndo.message}</span>
+                <button onClick={undoClose} className="font-semibold underline whitespace-nowrap" style={{ color: '#c4b5fd' }}>
+                  Undo ({Math.max(0, Math.ceil((closeUndo.until - Date.now()) / 1000))}s)
+                </button>
+              </div>
+            )}
           </div>
           {/* AI intelligence row */}
           {(app.strongest_angle || app.cover_letter_hook) && (

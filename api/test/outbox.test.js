@@ -104,7 +104,13 @@ const DB_URL = process.env.TEST_DATABASE_URL;
       let b = ''; req.on('data', c => b += c); req.on('end', () => {
         const j = JSON.parse(b); aiCalls.push(j);
         const tool = j.tool_choice?.name;
-        const input = tool === 'submit_email' ? { body: 'Hi Jane,\n\nFollowing up on the DevOps Engineer role at Acme — I would love to discuss how my Kubernetes work fits.\n\nBest regards,\nJohn' }
+        const french = /in French/.test(j.system || '');
+        const input = tool === 'submit_email' ? { body: french
+              ? 'Bonjour,\n\nJe reviens vers vous au sujet du poste de DevOps Engineer chez Acme — mon expérience Kubernetes correspond à vos besoins.\n\nBien cordialement,\nJohn'
+              : 'Hi Jane,\n\nFollowing up on the DevOps Engineer role at Acme — I would love to discuss how my Kubernetes work fits.\n\nBest regards,\nJohn' }
+          : tool === 'submit_translation' ? (JSON.parse(j.messages[0].content).target_language === 'French'
+              ? { body: 'Madame, Monsieur,\n\nJe reviens vers vous au sujet de ma candidature. Merci pour votre temps.\n\nBien cordialement,\nJohn', subject: 'Suivi de ma candidature' }
+              : { body: 'Dear Hiring Team,\n\nI am following up on my application. Thank you for your time.\n\nBest regards,\nJohn', subject: 'Following up on my application' })
           : tool === 'submit_prep_checklist' ? { prep_checklist: ['Review Acme platform', 'review acme platform', 'Prepare a K8s incident story'] }
           : { technical_questions: [{ question: 'K8s?', difficulty: 'Hard', hint: 'Talk about HPA' }], behavioral_questions: [],
               situational_questions: [], company_questions: ['Team size?'], prep_checklist: ['Research Acme', 'Revise Terraform'] };
@@ -160,10 +166,11 @@ const DB_URL = process.env.TEST_DATABASE_URL;
 
   // Clock + mail fakes
   const workday = new Date('2026-11-19T10:00:00Z');   // Thursday 11:00 Paris
-  function harness({ at = workday, failSend = 0 } = {}) {
+  function harness({ at = workday, failSend = 0, translate } = {}) {
     const state = { now: at, sent: [], appended: [], notified: [], failSend };
     const outbox = require('../src/services/outboxService').createOutbox({
       now: () => state.now,
+      ...(translate ? { translate } : {}),
       sendMail: async mail => { if (state.failSend-- > 0) throw new Error('SMTP 451 try later'); state.sent.push(mail); return { messageId: mail.messageId, raw: Buffer.from('raw') }; },
       appendToSent: async raw => state.appended.push(raw),
       notifyUser: async m => state.notified.push(m),
@@ -363,6 +370,193 @@ const DB_URL = process.env.TEST_DATABASE_URL;
     assert(!('approval_token_hash' in list[0]), 'token hash never leaves the server');
     const det = await (await api(`/outbox/${created.id}`)).json();
     assert.deepStrictEqual(det.events.map(e => e.event), ['created', 'edited', 'approved', 'undone']);
+  });
+
+  // ── language ─────────────────────────────────────────────────
+  it("writes in the recruiter's language and says why; French template and date without the AI", async () => {
+    const { outbox } = harness();
+    const fr = await mkApp();
+    await q(`INSERT INTO email_responses (source_account, gmail_message_id, application_id, sender_email, sender_name, subject, body_snippet, received_at)
+             VALUES ('imap', 'fr-1', $1, 'rh@extia.fr', 'Acme Recrutement', 'Extia - Merci pour votre candidature !', 'Nous avons bien reçu votre candidature et nous reviendrons vers vous.', NOW() - interval '8 days')`, [fr]);
+    const d = await outbox.createFollowUpDraft(fr);
+    assert.strictEqual(d.language, 'fr');
+    assert.strictEqual(d.language_reason, 'Acme wrote in French');
+    assert.match(d.body, /Bien cordialement/);
+    const polishCall = aiCalls.find(c => c.tool_choice?.name === 'submit_email');
+    assert.match(polishCall.system, /in French/, 'the AI is told the language instead of guessing it');
+
+    const en = await mkApp(); await inbound(en, 'jane@acme.com');
+    const e = await outbox.createFollowUpDraft(en);
+    assert.strictEqual(e.language, 'en'); assert.strictEqual(e.language_reason, 'default');
+
+    // No AI: the French template, a French date, "Madame, Monsieur," for nobody in particular
+    const plain = await outbox.createManualDraft(fr, { polish: false, language: 'fr' });
+    assert.match(plain.body, /^Madame, Monsieur,/);
+    assert.match(plain.body, /envoyée le \d{1,2} [a-zéû]+ 20\d\d/);
+    assert.strictEqual(plain.language_reason, 'chosen by you');
+  });
+
+  it('EN | FR switch translates the current text, keeps the thread subject, and never loses your edits', async () => {
+    const { outbox } = harness();
+    const app = await mkApp(); await inbound(app, 'jane@acme.com', { mid: 'orig-9@acme.com' });
+    const d = await outbox.createFollowUpDraft(app);
+    const subject = d.subject;
+    const t = await outbox.setLanguage(d.id, 'fr');
+    assert.strictEqual(t.language, 'fr');
+    assert.match(t.body, /Bien cordialement/);
+    assert.strictEqual(t.subject, subject, '"Re: …" stays so the email lands in the recruiter’s thread');
+    const ev = (await q(`SELECT detail FROM outbound_email_events WHERE outbound_email_id = $1 AND event = 'translated'`, [d.id]))[0].detail;
+    assert.deepStrictEqual([ev.from, ev.language, ev.how], ['en', 'fr', 'translated']);
+    assert.strictEqual((await outbox.setLanguage(d.id, 'fr')).version, t.version, 'same language: nothing happens');
+    await assert.rejects(outbox.setLanguage(d.id, 'de'), /en or fr/);
+
+    // AI unavailable: an untouched draft is rebuilt from the template…
+    const { outbox: noAi } = harness({ translate: async () => null });
+    const app2 = await mkApp(); await inbound(app2, 'bob@beta.com');
+    const d2 = await noAi.createFollowUpDraft(app2);
+    const r2 = await noAi.setLanguage(d2.id, 'fr');
+    assert.match(r2.body, /Je me permets de revenir vers vous/);
+    assert.match((await noAi.setLanguage(d2.id, 'en')).body, /follow up on my application/, 'switching back and forth is not an edit');
+    await noAi.setLanguage(d2.id, 'fr');
+    // …but an edited one is left alone
+    await noAi.update(d2.id, { body: 'Mon texte à moi, modifié à la main.' });
+    await assert.rejects(noAi.setLanguage(d2.id, 'en'), e => e.status === 503);
+    assert.strictEqual((await q('SELECT body, language FROM outbound_emails WHERE id = $1', [d2.id]))[0].body, 'Mon texte à moi, modifié à la main.');
+
+    // API
+    const viaApi = await (await api(`/outbox/${d.id}/language`, { method: 'POST', body: { language: 'en' } })).json();
+    assert.strictEqual(viaApi.language, 'en');
+    assert.match(viaApi.body, /Best regards/);
+  });
+
+  // ── closing an application ───────────────────────────────────
+  it('closing an application cancels its unsent emails at once (any path), and Undo puts everything back', async () => {
+    const { outbox } = harness();
+    const close = require('../src/services/applicationClose').createApplicationClose();
+    const app = await mkApp(); await inbound(app, 'jane@acme.com');
+    const d = await outbox.createFollowUpDraft(app);
+    const m = await outbox.createManualDraft(app, { polish: false });
+    await outbox.approve(m.id);
+    const [{ id: rem }] = await q(`INSERT INTO application_reminders (application_id, reminder_type, title, remind_at) VALUES ($1, 'follow_up', 'Follow up', NOW()) RETURNING id`, [app]);
+
+    const r = await close.close(app, 'REJECTED', { via: 'outbox' });
+    assert.strictEqual(r.cancelled_emails, 2);
+    const rows = await q('SELECT id, status, cancel_reason FROM outbound_emails WHERE application_id = $1 ORDER BY id', [app]);
+    assert.deepStrictEqual(rows.map(x => x.status), ['cancelled', 'cancelled']);
+    assert.match(rows[0].cancel_reason, /closed \(rejected\)/);
+    assert.deepStrictEqual(await events(d.id), ['created', 'cancelled']);
+    assert.strictEqual((await q('SELECT is_done FROM application_reminders WHERE id = $1', [rem]))[0].is_done, true);
+    await assert.rejects(close.close(app, 'REJECTED'), e => e.status === 409);
+
+    const u = await close.reopen(app, r.undo);
+    assert.strictEqual(u.application.status, 'APPLIED');
+    assert.strictEqual(u.restored_emails, 2);
+    assert.deepStrictEqual((await q('SELECT status FROM outbound_emails WHERE application_id = $1 ORDER BY id', [app])).map(x => x.status),
+      ['pending_approval', 'approved']);
+    assert.strictEqual((await q('SELECT is_done FROM application_reminders WHERE id = $1', [rem]))[0].is_done, false);
+    assert.deepStrictEqual(await events(d.id), ['created', 'cancelled', 'restored']);
+
+    // Undo is refused once the status changed again
+    const r2 = await close.close(app, 'WITHDRAWN');
+    await q(`UPDATE applications SET status = 'GHOSTED' WHERE id = $1`, [app]);
+    await assert.rejects(close.reopen(app, r2.undo), e => e.status === 409);
+
+    // A status change from anywhere else (dashboard dropdown, email worker) cancels too
+    const app2 = await mkApp(); await inbound(app2, 'bob@beta.com');
+    const d2 = await outbox.createFollowUpDraft(app2);
+    await q(`UPDATE applications SET status = 'REJECTED' WHERE id = $1`, [app2]);
+    assert.strictEqual((await q('SELECT status FROM outbound_emails WHERE id = $1', [d2.id]))[0].status, 'cancelled');
+    // …but moving forward (interview) does not — the send-time check handles that
+    const app3 = await mkApp(); await inbound(app3, 'eve@gamma.com');
+    const d3 = await outbox.createFollowUpDraft(app3);
+    await q(`UPDATE applications SET status = 'INTERVIEW_INVITE' WHERE id = $1`, [app3]);
+    assert.strictEqual((await q('SELECT status FROM outbound_emails WHERE id = $1', [d3.id]))[0].status, 'pending_approval');
+  });
+
+  // ── possible rejections ──────────────────────────────────────
+  const rejection = (sender, { suggested = null, daysAgo = 1, subject = 'Votre candidature' } = {}) => q(
+    `INSERT INTO email_responses (source_account, gmail_message_id, sender_email, subject, received_at, ai_classification, suggested_application_id)
+     VALUES ('imap', $1, $2, $3, NOW() - $4::float8 * interval '1 day', 'REJECTION', $5) RETURNING id`,
+    [`rej-${Math.random()}`, sender, subject, daysAgo, suggested]).then(r => r[0].id);
+
+  it('an unconfirmed rejection blocks drafting, puts an approved follow-up back for approval, and is listed', async () => {
+    const { outbox, state } = harness();
+    const app = await mkApp(); await inbound(app, 'jane@acme.com');
+    const d = await outbox.createFollowUpDraft(app);
+    await outbox.approve(d.id);
+    await rejection('careers@acme.com');                                   // same company domain, not attached
+    state.now = new Date('2026-11-19T10:10:00Z');
+    await q(`UPDATE outbound_emails SET send_after = $1 WHERE id = $2`, [new Date('2026-11-19T10:06:00Z'), d.id]);
+    const out = (await outbox.tick()).results;
+    assert.deepStrictEqual(out.map(r => r.outcome), ['held']);
+    assert.strictEqual((await q('SELECT status FROM outbound_emails WHERE id = $1', [d.id]))[0].status, 'pending_approval');
+    assert.strictEqual(state.sent.length, 0);
+
+    const other = await mkApp(); await inbound(other, 'bob@beta.com');
+    const rej = await rejection('noreply@beta.com', { suggested: other });
+    assert.strictEqual(await outbox.createFollowUpDraft(other), null, 'no follow-up while a rejection may be about it');
+    const listed = await (await api('/outbox/possible-rejections')).json();
+    assert.deepStrictEqual(listed.map(r => r.application_id).sort(), [app, other].sort());
+    assert((await (await api(`/outbox/${d.id}`)).json()).possible_rejection, 'shown on the email too');
+
+    // A job-platform sender says nothing about which company
+    const third = await mkApp(); await inbound(third, 'eve@gamma.com');
+    await q(`INSERT INTO application_contacts (application_id, name, email) VALUES ($1, 'Eve', 'eve@myworkdayjobs.com')`, [third]);
+    await rejection('ats@myworkdayjobs.com');
+    assert.strictEqual(await outbox.possibleRejectionFor(third), null);
+
+    // "Not this application" → it stops flagging that application
+    await api(`/outbox/possible-rejections/${rej}/dismiss`, { method: 'POST', body: { application_id: other } });
+    assert.strictEqual(await outbox.possibleRejectionFor(other), null);
+    assert(await outbox.createFollowUpDraft(other));
+  });
+
+  it('"Yes, rejected" attaches the email, closes the application and cancels its emails; Undo reverses all of it', async () => {
+    const { outbox } = harness();
+    const app = await mkApp(); await inbound(app, 'jane@acme.com');
+    const d = await outbox.createFollowUpDraft(app);
+    const rej = await rejection('noreply@acme-careers.com', { suggested: app });
+    const out = await (await api(`/outbox/possible-rejections/${rej}/confirm`, { method: 'POST', body: { application_id: app } })).json();
+    assert.strictEqual(out.application.status, 'REJECTED');
+    assert.strictEqual(out.cancelled_emails, 1);
+    const [er] = await q('SELECT application_id, suggested_application_id, match_method FROM email_responses WHERE id = $1', [rej]);
+    assert.deepStrictEqual([er.application_id, er.suggested_application_id, er.match_method], [app, null, 'confirmed_by_you']);
+    assert.strictEqual((await (await api('/outbox/possible-rejections')).json()).length, 0);
+    const ev = await q(`SELECT description FROM application_events WHERE application_id = $1 AND event_type = 'STATUS_CHANGED' ORDER BY id DESC LIMIT 1`, [app]);
+    assert.match(ev[0].description, /APPLIED to REJECTED — marked rejected confirmed from a rejection email; 1 unsent email cancelled/);
+
+    await require('../src/services/applicationClose').createApplicationClose().reopen(app, out.undo);
+    const [back] = await q('SELECT application_id, suggested_application_id FROM email_responses WHERE id = $1', [rej]);
+    assert.deepStrictEqual([back.application_id, back.suggested_application_id], [null, app], 'the suggestion is back');
+    assert.strictEqual((await q('SELECT status FROM outbound_emails WHERE id = $1', [d.id]))[0].status, 'pending_approval');
+  });
+
+  it('the email worker applies a clear rejection when only one application at that company is open', async () => {
+    const matching = require('../src/services/emailTracking/applicationMatchingService');
+    const { linkEmail } = require('../src/services/emailTracking/emailLinkingService');
+    const real = matching.findMatch;
+    const rejectionCls = { classification: 'REJECTION', confidence: 0.95, summary: 'no', suggested_status: 'APPLIED', extracted_company: 'Acme', extracted_role: 'Platform Engineer' };
+    const run = async (application, extra = {}) => {
+      matching.findMatch = async () => ({ status: 'suggested', application, method: 'company_role', ...extra });
+      const [{ id }] = await q(`INSERT INTO email_responses (source_account, gmail_message_id, sender_email, subject, received_at)
+                                VALUES ('imap', $1, 'talent@acme.com', 'Your application', NOW()) RETURNING id`, [`w-${Math.random()}`]);
+      try { return { ...(await linkEmail(db, { sourceKey: 'imap', emailResponseId: id, email: { sender_email: 'talent@acme.com' }, classification: rejectionCls })), id }; }
+      finally { matching.findMatch = real; }
+    };
+    const solo = await mkApp();
+    const appRow = (await q('SELECT * FROM applications WHERE id = $1', [solo]))[0];
+    const r1 = await run(appRow);
+    assert.strictEqual(r1.outcome, 'matched');
+    assert.strictEqual((await q('SELECT status FROM applications WHERE id = $1', [solo]))[0].status, 'REJECTED', 'REJECTED even though the AI suggested APPLIED');
+
+    const a = await mkApp(); await mkApp();                                // two open Acme applications → ambiguous
+    const r2 = await run((await q('SELECT * FROM applications WHERE id = $1', [a]))[0]);
+    assert.strictEqual(r2.outcome, 'suggested');
+    assert.strictEqual((await q('SELECT status FROM applications WHERE id = $1', [a]))[0].status, 'APPLIED');
+
+    await q(`UPDATE applications SET status = 'REJECTED' WHERE company_name = 'Acme' AND id <> $1`, [a]);   // now only one open…
+    const r3 = await run((await q('SELECT * FROM applications WHERE id = $1', [a]))[0], { method: 'name_trgm', weak: true });
+    assert.strictEqual(r3.outcome, 'suggested', '…but a vague name resemblance is never applied automatically');
   });
 
   it('expires drafts left for 7 days', async () => {

@@ -43,6 +43,8 @@ async function runFollowUpWorker() {
   for (const app of candidates) {
     if (drafted.length >= MAX_NEW_PER_RUN) break;
     try {
+      const rej = await outbox.possibleRejectionFor(app.id);
+      if (rej) { console.log(`[FollowUpWorker] ${app.company_name}: possible rejection (email #${rej.id}) waiting for confirmation in the Outbox — skipped`); continue; }
       const draft = await outbox.createFollowUpDraft(app.id);
       if (!draft) { console.log(`[FollowUpWorker] ${app.company_name}: no reachable recruiter address — skipped`); continue; }
       drafted.push(draft.id);

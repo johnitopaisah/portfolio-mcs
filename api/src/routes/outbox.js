@@ -11,6 +11,9 @@
 //   POST   /api/outbox                      { application_id, to_email?, to_name?, subject?, body?, polish? }
 //   PATCH  /api/outbox/:id                  { to_email?, to_name?, subject?, body? }
 //   POST   /api/outbox/:id/approve | /skip | /undo | /polish
+//   POST   /api/outbox/:id/language          { language: 'en'|'fr' } — translates the current text
+//   GET    /api/outbox/possible-rejections   unconfirmed rejection emails
+//   POST   /api/outbox/possible-rejections/:emailId/confirm | /dismiss   { application_id }
 const express = require('express');
 const { requireAuth } = require('../middleware/auth');
 const { createRateLimiter } = require('../services/rateLimit');
@@ -117,6 +120,36 @@ router.get('/', requireAuth, async (req, res) => {
   try { res.json(await outbox.list({ status: req.query.status })); } catch (err) { fail(res, err); }
 });
 
+// Rejection emails that could not be attached with certainty: "Was this a rejection?"
+router.get('/possible-rejections', requireAuth, async (_req, res) => {
+  try { res.json(await outbox.possibleRejections()); } catch (err) { fail(res, err); }
+});
+const applicationClose = require('../services/applicationClose').createApplicationClose();
+router.post('/possible-rejections/:emailId/confirm', requireAuth, async (req, res) => {
+  try {
+    const emailId = Number.parseInt(req.params.emailId, 10);
+    const appId = Number.parseInt(req.body?.application_id, 10);
+    if (!Number.isInteger(emailId) || !Number.isInteger(appId)) return res.status(400).json({ error: 'email and application_id are required' });
+    res.json(await applicationClose.close(appId, 'REJECTED', { via: 'rejection_email', emailResponseId: emailId }));
+  } catch (err) { fail(res, err); }
+});
+router.post('/possible-rejections/:emailId/dismiss', requireAuth, async (req, res) => {
+  try {
+    const emailId = Number.parseInt(req.params.emailId, 10);
+    const appId = Number.parseInt(req.body?.application_id, 10);
+    if (!Number.isInteger(emailId) || !Number.isInteger(appId)) return res.status(400).json({ error: 'email and application_id are required' });
+    res.json(await outbox.dismissRejection(emailId, appId));
+  } catch (err) { fail(res, err); }
+});
+
+router.post('/:id/language', requireAuth, async (req, res) => {
+  try {
+    const id = idOf(req);
+    await outbox.setLanguage(id, req.body?.language);
+    res.json(await outbox.detail(id));
+  } catch (err) { fail(res, err); }
+});
+
 router.get('/:id', requireAuth, async (req, res) => {
   try { res.json(await outbox.detail(idOf(req))); } catch (err) { fail(res, err); }
 });
@@ -125,8 +158,8 @@ router.post('/', requireAuth, async (req, res) => {
   try {
     const appId = Number.parseInt(req.body?.application_id, 10);
     if (!Number.isInteger(appId) || appId < 1) return res.status(400).json({ error: 'application_id is required' });
-    const { to_email, to_name, subject, body, polish } = req.body;
-    const draft = await outbox.createManualDraft(appId, { to_email, to_name, subject, body, polish });
+    const { to_email, to_name, subject, body, polish, language } = req.body;
+    const draft = await outbox.createManualDraft(appId, { to_email, to_name, subject, body, polish, language });
     res.status(201).json(await outbox.detail(draft.id));
   } catch (err) { fail(res, err); }
 });

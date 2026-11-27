@@ -833,6 +833,27 @@ router.patch('/:id/status', requireAuth, async (req, res) => {
   }
 });
 
+// POST /api/applications/:id/close   { status: 'REJECTED'|'WITHDRAWN', via?: 'outbox'|'application' }
+// Closes the application and stops everything for it (unsent emails
+// cancelled, reminders closed). Returns an `undo` payload for /reopen.
+// POST /api/applications/:id/reopen  { undo }
+const applicationClose = require('../services/applicationClose').createApplicationClose();
+const appIdOf = req => {
+  const id = Number.parseInt(req.params.id, 10);
+  if (!Number.isInteger(id) || id < 1) throw Object.assign(new Error('Invalid id'), { status: 400 });
+  return id;
+};
+router.post('/:id/close', requireAuth, async (req, res) => {
+  try {
+    const via = ['outbox', 'application'].includes(req.body?.via) ? req.body.via : 'application';
+    res.json(await applicationClose.close(appIdOf(req), req.body?.status, { via }));
+  } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
+});
+router.post('/:id/reopen', requireAuth, async (req, res) => {
+  try { res.json(await applicationClose.reopen(appIdOf(req), req.body?.undo || {})); }
+  catch (err) { res.status(err.status || 500).json({ error: err.message }); }
+});
+
 /**
  * @swagger
  * /api/applications/{id}/notes:

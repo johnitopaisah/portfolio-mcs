@@ -8,7 +8,7 @@
 
 const applicationMatchingService = require('./applicationMatchingService');
 const { isPlaceholderTitle, PLACEHOLDER_TITLE } = require('./roleSimilarity');
-const { VALID_STATUSES, STATUS_GROUPS }         = require('../../constants/applicationStatuses');
+const { VALID_STATUSES, STATUS_GROUPS, FINAL_STATUSES } = require('../../constants/applicationStatuses');
 
 const CONFIDENT = 0.75;
 
@@ -22,6 +22,8 @@ function describe(classification) {
 }
 
 function replyStatus(classification) {
+  // A rejection is a rejection, whatever status the AI suggested alongside it.
+  if (classification.classification === 'REJECTION') return 'REJECTED';
   const s = classification.suggested_status;
   return VALID_STATUSES.has(s) && s !== 'APPLIED' ? s : 'EMAIL_RECEIVED';
 }
@@ -163,6 +165,24 @@ async function linkEmail(db, { sourceKey, emailResponseId, email, classification
       else                await applyReply(db, app, { classification });
     }
     return { outcome: 'matched', application: app, method: match.method };
+  }
+
+  // A clear rejection about the only open application at that company is
+  // applied, not left as a suggestion: otherwise the application stays
+  // "Applied" and gets followed up on. Never on a vague name resemblance
+  // (those suggestions are often another company: SFEIR → Deloitte).
+  if (match.status === 'suggested' && !match.weak && confident && classification.classification === 'REJECTION') {
+    const { rows: open } = await db.query(
+      `SELECT id FROM applications WHERE lower(company_name) = lower($1) AND status <> ALL($2)`,
+      [match.application.company_name, FINAL_STATUSES]);
+    if (open.length === 1 && open[0].id === match.application.id) {
+      const app = match.application;
+      await db.query(
+        'UPDATE email_responses SET application_id = $1, match_method = $2 WHERE id = $3',
+        [app.id, 'rejection_single_open', emailResponseId]);
+      await applyReply(db, app, { classification });
+      return { outcome: 'matched', application: app, method: 'rejection_single_open' };
+    }
   }
 
   if (match.status === 'suggested') {

@@ -86,7 +86,7 @@ function decide({ isConfirmation, extractedRole = '', candidates, receivedAt = n
     // A confirmation is a new application anyway; a vague company
     // resemblance is no reason to hold it back as a suggestion.
     if (!isConfirmation && weak.length) {
-      return { status: 'suggested', application: weak[0], method: 'name_trgm' };
+      return { status: 'suggested', application: weak[0], method: 'name_trgm', weak: true };
     }
     return { status: 'none' };
   }

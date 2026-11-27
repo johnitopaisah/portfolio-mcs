@@ -176,6 +176,11 @@ export const adminApi = {
       method: 'PATCH',
       body: JSON.stringify({ status, description }),
     }),
+  // Rejected / Withdrawn: stops everything for the application; `undo` reverses it.
+  closeApplication: (id: number | string, status: 'REJECTED' | 'WITHDRAWN', via: 'outbox' | 'application' = 'application') =>
+    request(`/api/applications/${id}/close`, { method: 'POST', body: JSON.stringify({ status, via }) }),
+  reopenApplication: (id: number | string, undo: unknown) =>
+    request(`/api/applications/${id}/reopen`, { method: 'POST', body: JSON.stringify({ undo }) }),
   addNote: (id: number | string, note: string) =>
     request(`/api/applications/${id}/notes`, {
       method: 'POST',
@@ -624,6 +629,13 @@ export const adminApi = {
     request(`/api/outbox/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   outboxAction: (id: number, action: 'approve' | 'skip' | 'undo' | 'polish') =>
     request(`/api/outbox/${id}/${action}`, { method: 'POST' }),
+  setOutboxLanguage: (id: number, language: 'en' | 'fr') =>
+    request(`/api/outbox/${id}/language`, { method: 'POST', body: JSON.stringify({ language }) }),
+  getPossibleRejections: () => request('/api/outbox/possible-rejections'),
+  confirmRejection: (emailId: number, applicationId: number) =>
+    request(`/api/outbox/possible-rejections/${emailId}/confirm`, { method: 'POST', body: JSON.stringify({ application_id: applicationId }) }),
+  dismissRejection: (emailId: number, applicationId: number) =>
+    request(`/api/outbox/possible-rejections/${emailId}/dismiss`, { method: 'POST', body: JSON.stringify({ application_id: applicationId }) }),
 
   // ── Email Templates ──────────────────────────────────────────
   getEmailTemplates: (category?: string) =>
